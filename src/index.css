@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;1,100&display=swap');
+
+body {
+  font-family: 'Sarabun', sans-serif;
+  background-color: #f9fafb; /* สีพื้นหลังสำรอง */
+}
+
+/* Custom Animation (Optional: เผื่อ Tailwind Config ไม่ทำงานจริงๆ) */
+.glass-effect {
+  background: rgba(255, 255, 255, 0.7);
+  /* สลับตำแหน่ง -webkit- ไว้ก่อน property มาตรฐาน */
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}

@@ -1,0 +1,21 @@
+{
+  "name": "InSPIRE 360 EdTech Platform",
+  "short_name": "InSPIRE 360",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0F62FE",
+  "description": "Platform for Teachers & Students",
+  "icons": [
+    {
+      "src": "icons/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
