@@ -290,12 +290,28 @@ export default function CourseRoom() {
         
         <div className="prose max-w-none text-gray-600 text-lg leading-relaxed mb-8">
             <p>{currentLesson.content?.text}</p>
-            {/* กรณีเป็นแบบสอบถาม (Mockup) */}
+
+            {Array.isArray(currentLesson.content?.resources) && currentLesson.content.resources.length > 0 && (
+                <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4">
+                    <p className="font-semibold text-blue-900 mb-2">เอกสารประกอบบทเรียน</p>
+                    <ul className="list-disc pl-5 space-y-1 text-base text-blue-800">
+                        {currentLesson.content.resources.map((resource, idx) => (
+                            <li key={`${currentLesson.id}-resource-${idx}`}>{resource}</li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+
             {currentLesson.id === 'final-survey' && (
                 <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 text-center mt-4">
                     <p className="mb-4">กรุณาทำแบบประเมินความพึงพอใจเพื่อพัฒนาหลักสูตรต่อไป</p>
-                    <a href="#" className="inline-block px-6 py-2 bg-white border border-primary text-primary rounded-lg font-bold hover:bg-blue-50 transition">
-                        เปิดแบบสอบถาม (Google Form)
+                    <a
+                        href={currentLesson.content?.surveyUrl || '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-block px-6 py-2 bg-white border border-primary text-primary rounded-lg font-bold hover:bg-blue-50 transition"
+                    >
+                        {currentLesson.content?.surveyLabel || 'เปิดแบบสอบถาม (Google Form)'}
                     </a>
                 </div>
             )}
@@ -441,9 +457,14 @@ export default function CourseRoom() {
             <p className="text-gray-500 mb-8 max-w-lg mx-auto">
                 คุณได้ผ่านการทดสอบและกิจกรรมครบถ้วนตามหลักสูตร InSPIRE for Teacher
             </p>
-            <button className="px-8 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-2xl font-bold shadow-xl hover:shadow-2xl hover:-translate-y-1 transition flex items-center gap-2 mx-auto">
-                <FileText size={24} /> ดาวน์โหลดเกียรติบัตร (PDF)
-            </button>
+            <a
+                href={currentLesson.content?.certificateUrl || '#'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-8 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-2xl font-bold shadow-xl hover:shadow-2xl hover:-translate-y-1 transition flex items-center gap-2 mx-auto w-fit"
+            >
+                <FileText size={24} /> {currentLesson.content?.certificateLabel || 'ดาวน์โหลดเกียรติบัตร (PDF)'}
+            </a>
         </div>
     );
   };
