@@ -476,14 +476,11 @@ export default function CourseRoom() {
         
         <div className="prose max-w-none text-gray-600 text-lg leading-relaxed mb-8">
             <p>{currentLesson.content?.text}</p>
-            {currentLesson.content?.imageUrl && (
-              <img src={currentLesson.content.imageUrl} alt={currentLesson.title} className="rounded-xl border border-gray-200 my-4" />
-            )}
             {/* กรณีเป็นแบบสอบถาม (Mockup) */}
             {currentLesson.id === 'final-survey' && (
                 <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 text-center mt-4">
                     <p className="mb-4">กรุณาทำแบบประเมินความพึงพอใจเพื่อพัฒนาหลักสูตรต่อไป</p>
-                    <a href={currentLesson.content?.surveyUrl || '#'} target="_blank" rel="noreferrer" className="inline-block px-6 py-2 bg-white border border-primary text-primary rounded-lg font-bold hover:bg-blue-50 transition">
+                    <a href="#" className="inline-block px-6 py-2 bg-white border border-primary text-primary rounded-lg font-bold hover:bg-blue-50 transition">
                         เปิดแบบสอบถาม (Google Form)
                     </a>
                 </div>
@@ -691,16 +688,6 @@ export default function CourseRoom() {
             <p className="text-gray-500 mb-8 max-w-lg mx-auto">
                 คุณได้ผ่านการทดสอบและกิจกรรมครบถ้วนตามหลักสูตร InSPIRE for Teacher
             </p>
-            {Array.isArray(currentLesson.content?.requirements) && (
-                <ul className="text-left bg-yellow-50 border border-yellow-100 rounded-xl p-4 max-w-xl mx-auto mb-8 space-y-2">
-                    {currentLesson.content.requirements.map((requirement) => (
-                        <li key={requirement} className="text-sm text-yellow-900 flex items-start gap-2">
-                            <CheckCircle size={16} className="mt-0.5 text-yellow-600" />
-                            <span>{requirement}</span>
-                        </li>
-                    ))}
-                </ul>
-            )}
             <button className="px-8 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-2xl font-bold shadow-xl hover:shadow-2xl hover:-translate-y-1 transition flex items-center gap-2 mx-auto">
                 <FileText size={24} /> ดาวน์โหลดเกียรติบัตร (PDF)
             </button>
