@@ -1,164 +1,206 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { 
-  BookOpen, PlayCircle, Clock, CheckCircle2, Loader2, Search, Layout
-} from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import { db } from '../lib/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { ArrowRight, Clock, Loader2, Search } from "lucide-react";
+import { collection, getDocs } from "firebase/firestore";
+import { useAuth } from "../contexts/AuthContext";
+import { db } from "../lib/firebase";
+import { courseCatalog } from "../data/courseCatalog";
+import { getIcon } from "../utils/iconHelper";
+
+function formatDate(value) {
+  if (!value?.toDate) {
+    return "New enrollment";
+  }
+
+  return value.toDate().toLocaleDateString();
+}
 
 export default function MyCourses() {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
-  const [enrolledIds, setEnrolledIds] = useState([]);
+  const [enrollments, setEnrollments] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // ข้อมูลคอร์สทั้งหมด (ใช้ ID เดิมเพื่อ map กับ Database)
-  const allCourses = [
-    {
-      id: "course-teacher",
-      title: "InSPIRE for Teacher",
-      desc: "หลักสูตรพัฒนาครูนวัตกรผ่านกระบวนการ Design Thinking แบบเข้มข้น 5 Modules",
-      icon: <BookOpen className="text-white" size={32} />,
-      bgGradient: "bg-gradient-to-br from-blue-500 to-blue-700",
-      shadow: "shadow-blue-500/30",
-      path: "/course/teacher/module1",
-      modules: 5,
-      hours: 20
-    },
-    {
-      id: "course-student",
-      title: "InSPIRE for Student",
-      desc: "พื้นที่แห่งความสุขและการเรียนรู้สำหรับนักเรียน เชื่อมต่อจินตนาการด้วยเทคโนโลยี",
-      icon: <Layout className="text-white" size={32} />, 
-      bgGradient: "bg-gradient-to-br from-green-500 to-green-700",
-      shadow: "shadow-green-500/30",
-      path: "/course/student",
-      modules: 8,
-      hours: 12
-    },
-    {
-      id: "course-ai",
-      title: "AI & Innovation",
-      desc: "เตรียมพร้อมสู่ยุค AI เรียนรู้เครื่องมือใหม่ๆ เพื่อการศึกษา",
-      icon: <div className="text-white font-bold text-xl">AI</div>,
-      bgGradient: "bg-gradient-to-br from-purple-500 to-purple-700",
-      shadow: "shadow-purple-500/30",
-      path: "/course/ai-era",
-      modules: 4,
-      hours: 10
-    }
-  ];
-
   useEffect(() => {
-    const fetchEnrollments = async () => {
-      if (currentUser) {
-        try {
-          const querySnapshot = await getDocs(collection(db, "users", currentUser.uid, "enrollments"));
-          const ids = querySnapshot.docs.map(doc => doc.id);
-          setEnrolledIds(ids);
-        } catch (error) {
-          console.error("Error fetching enrollments:", error);
-        } finally {
+    let isMounted = true;
+
+    async function fetchEnrollments() {
+      if (!currentUser) {
+        return;
+      }
+
+      try {
+        const querySnapshot = await getDocs(
+          collection(db, "users", currentUser.uid, "enrollments"),
+        );
+
+        if (!isMounted) {
+          return;
+        }
+
+        setEnrollments(
+          querySnapshot.docs.map((docItem) => ({
+            id: docItem.id,
+            ...docItem.data(),
+          })),
+        );
+      } catch (error) {
+        console.error("Error fetching enrollments:", error);
+      } finally {
+        if (isMounted) {
           setLoading(false);
         }
       }
-    };
+    }
+
     fetchEnrollments();
+
+    return () => {
+      isMounted = false;
+    };
   }, [currentUser]);
 
-  // กรองเฉพาะคอร์สที่มี ID อยู่ใน enrolledIds
-  const myCourses = allCourses.filter(course => enrolledIds.includes(course.id));
+  const courses = useMemo(
+    () =>
+      enrollments
+        .map((enrollment) => {
+          const course = courseCatalog.find((item) => item.id === enrollment.id);
+          return course ? { ...course, enrollment } : null;
+        })
+        .filter(Boolean),
+    [enrollments],
+  );
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary" size={40}/></div>;
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Loader2 size={36} className="animate-spin text-white" />
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen p-4 md:p-8 font-sans animate-fade-in-up">
-      <div className="max-w-7xl mx-auto">
-        
-        <div className="flex flex-col md:flex-row justify-between items-end mb-8 border-b border-gray-100 pb-6">
-          <div>
-            <h1 className="text-3xl font-black text-gray-900 mb-2 flex items-center gap-3">
-              <Layout className="text-primary" size={32} /> คอร์สของฉัน
-            </h1>
-            <p className="text-gray-500">วิชาที่คุณลงทะเบียนเรียนไว้ทั้งหมด</p>
-          </div>
-          {myCourses.length > 0 && (
-            <div className="text-sm font-medium bg-green-50 text-green-700 px-4 py-2 rounded-lg border border-green-100 mt-4 md:mt-0">
-              กำลังเรียนอยู่ {myCourses.length} วิชา
-            </div>
-          )}
-        </div>
+    <div className="page-wrap space-y-6">
+      <section className="dark-panel p-6 sm:p-8">
+        <p className="text-[11px] uppercase tracking-[0.28em] text-amber-200">
+          My learning paths
+        </p>
+        <h2 className="mt-3 font-display text-4xl font-semibold tracking-[-0.08em] text-white">
+          Everything you have already unlocked.
+        </h2>
+        <p className="mt-4 max-w-2xl text-base leading-7 text-slate-300">
+          Return to the right course quickly, keep track of your active spaces,
+          and reduce the friction of finding where to continue.
+        </p>
+      </section>
 
-        {myCourses.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* แก้ไขตรงนี้: ลบ index ออกจาก parameter เพราะไม่ได้ใช้ */}
-            {myCourses.map((course) => (
-              <div 
-                key={course.id}
-                onClick={() => navigate(course.path)}
-                className="group bg-white rounded-3xl p-6 border border-gray-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col relative overflow-hidden"
-              >
-                {/* Progress Bar Mockup */}
-                <div className="absolute top-0 left-0 w-full h-1.5 bg-gray-100">
-                    <div className="h-full bg-green-500 w-[15%] rounded-r-full"></div>
-                </div>
-
-                <div className={`h-40 rounded-2xl ${course.bgGradient} ${course.shadow} mb-6 flex items-center justify-center relative overflow-hidden`}>
-                    <div className="absolute top-3 right-3 bg-white/20 backdrop-blur-md text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 border border-white/30">
-                        <CheckCircle2 size={12} /> Active
-                    </div>
-                    <div className="transform group-hover:scale-110 transition-transform duration-300">
-                        {course.icon}
-                    </div>
-                </div>
-                
-                <div className="space-y-3 flex-1">
-                    <h4 className="text-xl font-bold text-gray-900 group-hover:text-primary transition-colors">
+      {courses.length > 0 ? (
+        <div className="space-y-4">
+          {courses.map((course) => (
+            <article
+              key={course.id}
+              className="overflow-hidden rounded-[30px] border border-white/10 bg-slate-950/65"
+            >
+              <div className="grid gap-0 lg:grid-cols-[0.82fr_1.18fr]">
+                <div
+                  className={`relative border-b border-white/10 bg-gradient-to-br ${course.theme.glow} p-6 lg:border-b-0 lg:border-r`}
+                >
+                  <div className="flex h-full flex-col justify-between gap-10">
+                    <div>
+                      <div
+                        className={`inline-flex h-14 w-14 items-center justify-center rounded-2xl ${course.theme.iconWrap}`}
+                      >
+                        {getIcon(course.iconName, "h-6 w-6")}
+                      </div>
+                      <p
+                        className={`mt-5 text-[11px] uppercase tracking-[0.28em] ${course.theme.text}`}
+                      >
+                        {course.eyebrow}
+                      </p>
+                      <h3 className="mt-3 font-display text-3xl font-semibold tracking-[-0.06em] text-white">
                         {course.title}
-                    </h4>
-                    <p className="text-gray-500 text-sm line-clamp-2 leading-relaxed">
-                        {course.desc}
-                    </p>
-                    
-                    <div className="pt-4 flex items-center justify-between text-xs text-gray-400 font-medium border-t border-gray-50">
-                        <div className="flex items-center gap-1.5">
-                            <BookOpen size={14} /> {course.modules} Modules
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                            <Clock size={14} /> {course.hours} Hours
-                        </div>
+                      </h3>
                     </div>
+                    <div className="flex flex-wrap gap-3 text-sm text-slate-300">
+                      <span className="rounded-full border border-white/10 px-4 py-2">
+                        {course.modules} modules
+                      </span>
+                      <span className="rounded-full border border-white/10 px-4 py-2">
+                        Active
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="mt-6">
-                    <button className="w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 bg-primary text-white hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20">
-                        <PlayCircle size={18} /> สานต่อบทเรียน
-                    </button>
+                <div className="p-6">
+                  <p className="text-sm leading-7 text-slate-300">
+                    {course.description}
+                  </p>
+
+                  <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                    <div className="rounded-[22px] border border-white/10 bg-white/5 px-4 py-4">
+                      <div className="text-xs uppercase tracking-[0.24em] text-slate-400">
+                        Enrolled
+                      </div>
+                      <div className="mt-2 text-sm text-slate-200">
+                        {formatDate(course.enrollment.enrolledAt)}
+                      </div>
+                    </div>
+                    <div className="rounded-[22px] border border-white/10 bg-white/5 px-4 py-4">
+                      <div className="text-xs uppercase tracking-[0.24em] text-slate-400">
+                        Last access
+                      </div>
+                      <div className="mt-2 text-sm text-slate-200">
+                        {formatDate(course.enrollment.lastAccess)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 flex flex-wrap items-center gap-4 text-sm text-slate-400">
+                    <span className="inline-flex items-center gap-2">
+                      <Clock size={16} />
+                      {course.hours} hours estimated
+                    </span>
+                    <span className="rounded-full border border-emerald-300/15 bg-emerald-400/10 px-3 py-1 text-xs font-medium text-emerald-300">
+                      {course.enrollment.status || "active"}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => navigate(course.path)}
+                    className="mt-8 inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-950 transition hover:-translate-y-0.5 hover:bg-slate-100"
+                  >
+                    Continue course
+                    <ArrowRight size={16} />
+                  </button>
                 </div>
               </div>
-            ))}
+            </article>
+          ))}
+        </div>
+      ) : (
+        <section className="surface-panel p-10 text-center">
+          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+            <Search size={36} />
           </div>
-        ) : (
-          <div className="bg-white rounded-[2rem] p-12 text-center border-2 border-dashed border-gray-200 shadow-sm flex flex-col items-center justify-center min-h-[400px]">
-            <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-6 text-gray-400">
-                <Search size={40} />
-            </div>
-            <h3 className="text-2xl font-bold text-gray-800 mb-2">ยังไม่มีคอร์สเรียน</h3>
-            <p className="text-gray-500 mb-8 max-w-md">
-                คุณยังไม่ได้ลงทะเบียนวิชาใดๆ ไปที่หน้า Dashboard เพื่อค้นหาหลักสูตรที่น่าสนใจ
-            </p>
-            <button 
-                onClick={() => navigate('/dashboard')}
-                className="px-8 py-3 bg-primary text-white rounded-xl font-bold hover:bg-blue-700 transition shadow-lg hover:shadow-xl hover:-translate-y-1"
-            >
-                ค้นหาคอร์สเรียน
-            </button>
-          </div>
-        )}
-      </div>
+          <h3 className="mt-6 font-display text-3xl font-semibold tracking-[-0.06em] text-slate-950">
+            No courses yet
+          </h3>
+          <p className="mx-auto mt-3 max-w-lg text-sm leading-7 text-slate-500">
+            You have not entered a pathway yet. Head back to the dashboard to
+            unlock a course and start your first learning space.
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate("/dashboard")}
+            className="primary-button mt-8"
+          >
+            Explore pathways
+            <ArrowRight size={16} />
+          </button>
+        </section>
+      )}
     </div>
   );
 }

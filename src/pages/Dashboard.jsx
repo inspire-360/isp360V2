@@ -1,343 +1,480 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { 
-  BookOpen, Users, Award, PlayCircle, Clock, 
-  Sparkles, Zap, GraduationCap, CheckCircle2, 
-  Loader2, Lock, X, Globe
-} from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import { db } from '../lib/firebase';
-import { collection, getDocs, doc, setDoc, getCountFromServer } from 'firebase/firestore';
-import OnlineUsers from '../components/OnlineUsers'; // ✅ 1. Import Widget
+import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  ArrowRight,
+  BookOpen,
+  CheckCircle2,
+  Clock,
+  GraduationCap,
+  Loader2,
+  Lock,
+  Sparkles,
+  Users,
+  X,
+} from "lucide-react";
+import {
+  collection,
+  doc,
+  getCountFromServer,
+  getDocs,
+  setDoc,
+} from "firebase/firestore";
+import OnlineUsers from "../components/OnlineUsers";
+import { useAuth } from "../contexts/AuthContext";
+import { db } from "../lib/firebase";
+import { courseCatalog, operatorNotes } from "../data/courseCatalog";
+import { getRoleLabel } from "../data/profileOptions";
+import { getIcon } from "../utils/iconHelper";
 
 export default function Dashboard() {
   const { currentUser, userRole } = useAuth();
   const navigate = useNavigate();
-  
-  const [enrolledCourses, setEnrolledCourses] = useState([]); 
+
+  const [enrolledCourses, setEnrolledCourses] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [totalUsers, setTotalUsers] = useState(0); 
-  const [myCertificates, setMyCertificates] = useState(0); 
-  
-  // Modal State
+  const [totalUsers, setTotalUsers] = useState(0);
   const [showModal, setShowModal] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState(null);
-  const [accessCode, setAccessCode] = useState('');
-  const [modalError, setModalError] = useState('');
+  const [accessCode, setAccessCode] = useState("");
+  const [modalError, setModalError] = useState("");
   const [enrollLoading, setEnrollLoading] = useState(false);
 
-  const displayName = currentUser?.displayName || currentUser?.email?.split('@')[0] || "User";
-  const displayRole = userRole || "Learner";
-
-  const COURSE_KEYS = {
-    "course-teacher": "TEACHER360", 
-    "course-student": "STUDENT2024", 
-    "course-ai": "AI2024"            
-  };
-
-  const courses = [
-    {
-      id: "course-teacher",
-      title: "InSPIRE for Teacher",
-      desc: "หลักสูตรพัฒนาครูนวัตกรผ่านกระบวนการ Design Thinking แบบเข้มข้น 5 Modules",
-      icon: <BookOpen className="text-white" size={32} />,
-      bgGradient: "bg-gradient-to-br from-blue-500 to-blue-700",
-      shadow: "shadow-blue-500/30",
-      path: "/course/teacher/module1",
-      modules: 5,
-      hours: 20,
-      requiresCode: true 
-    },
-    {
-      id: "course-student",
-      title: "InSPIRE for Student",
-      desc: "พื้นที่แห่งความสุขและการเรียนรู้สำหรับนักเรียน เชื่อมต่อจินตนาการด้วยเทคโนโลยี",
-      icon: <Globe className="text-white" size={32} />,
-      bgGradient: "bg-gradient-to-br from-green-500 to-green-700",
-      shadow: "shadow-green-500/30",
-      path: "/course/student",
-      modules: 8,
-      hours: 12,
-      requiresCode: false
-    },
-    {
-      id: "course-ai",
-      title: "AI & Innovation",
-      desc: "เตรียมพร้อมสู่ยุค AI (Coming Soon) เรียนรู้เครื่องมือใหม่ๆ เพื่อการศึกษา",
-      icon: <Zap className="text-white" size={32} />,
-      bgGradient: "bg-gradient-to-br from-purple-500 to-purple-700",
-      shadow: "shadow-purple-500/30",
-      path: "/course/ai-era",
-      modules: 4,
-      hours: 10,
-      requiresCode: false 
-    }
-  ];
+  const displayName =
+    currentUser?.displayName || currentUser?.email?.split("@")[0] || "Learner";
+  const displayRole = getRoleLabel(userRole || "learner");
 
   useEffect(() => {
-    const fetchData = async () => {
-      if (currentUser) {
-        try {
-          const enrollSnapshot = await getDocs(collection(db, "users", currentUser.uid, "enrollments"));
-          const enrolledIds = enrollSnapshot.docs.map(doc => doc.id);
-          setEnrolledCourses(enrolledIds);
+    let isMounted = true;
 
-          const coll = collection(db, "users");
-          const snapshot = await getCountFromServer(coll);
-          setTotalUsers(snapshot.data().count);
+    async function fetchData() {
+      if (!currentUser) {
+        return;
+      }
 
-          setMyCertificates(0);
+      try {
+        const [enrollmentSnapshot, usersSnapshot] = await Promise.all([
+          getDocs(collection(db, "users", currentUser.uid, "enrollments")),
+          getCountFromServer(collection(db, "users")),
+        ]);
 
-        } catch (error) {
-          console.error("Error fetching data:", error);
-        } finally {
+        if (!isMounted) {
+          return;
+        }
+
+        setEnrolledCourses(enrollmentSnapshot.docs.map((docItem) => docItem.id));
+        setTotalUsers(usersSnapshot.data().count);
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error);
+      } finally {
+        if (isMounted) {
           setLoading(false);
         }
       }
-    };
+    }
+
     fetchData();
+
+    return () => {
+      isMounted = false;
+    };
   }, [currentUser]);
 
+  const enrolledSet = useMemo(() => new Set(enrolledCourses), [enrolledCourses]);
+  const recommendedCourse = useMemo(
+    () => courseCatalog.find((course) => !enrolledSet.has(course.id)) ?? courseCatalog[0],
+    [enrolledSet],
+  );
+
   const systemStats = [
-    { 
-        label: "ผู้ใช้งานทั้งหมด", 
-        value: totalUsers.toLocaleString(),
-        icon: <Users size={20} />, 
-        color: "text-blue-600", 
-        bg: "bg-blue-50" 
+    {
+      label: "Platform users",
+      value: totalUsers.toLocaleString(),
+      icon: <Users size={18} />,
     },
-    { 
-        label: "หลักสูตร", 
-        value: courses.length,
-        icon: <BookOpen size={20} />, 
-        color: "text-purple-600", 
-        bg: "bg-purple-50" 
+    {
+      label: "Available pathways",
+      value: courseCatalog.length,
+      icon: <BookOpen size={18} />,
     },
-    { 
-        label: "ลงทะเบียนแล้ว", 
-        value: enrolledCourses.length,
-        icon: <GraduationCap size={20} />, 
-        color: "text-green-600", 
-        bg: "bg-green-50" 
-    },
-    { 
-        label: "ใบรับรอง", 
-        value: myCertificates, 
-        icon: <Award size={20} />, 
-        color: "text-yellow-600", 
-        bg: "bg-yellow-50" 
+    {
+      label: "Enrolled courses",
+      value: enrolledCourses.length,
+      icon: <GraduationCap size={18} />,
     },
   ];
 
   const openEnrollModal = (course) => {
-    if (enrolledCourses.includes(course.id)) {
-        navigate(course.path);
-        return;
+    if (enrolledSet.has(course.id)) {
+      navigate(course.path);
+      return;
     }
+
     if (!course.requiresCode) {
-        processEnrollment(course.id, course.path);
-        return;
+      processEnrollment(course, "open-access");
+      return;
     }
+
     setSelectedCourse(course);
-    setAccessCode('');
-    setModalError('');
+    setAccessCode("");
+    setModalError("");
     setShowModal(true);
   };
 
   const handleConfirmEnroll = async () => {
-    if (!accessCode) {
-        setModalError('กรุณากรอกรหัสเข้าเรียน');
-        return;
+    if (!selectedCourse) {
+      return;
     }
-    const correctKey = COURSE_KEYS[selectedCourse.id];
-    if (accessCode.trim().toUpperCase() !== correctKey) {
-        setModalError('รหัสไม่ถูกต้อง');
-        return;
+
+    if (!accessCode.trim()) {
+      setModalError("Please enter the access code for this cohort.");
+      return;
     }
-    await processEnrollment(selectedCourse.id, selectedCourse.path);
+
+    if (accessCode.trim().toUpperCase() !== selectedCourse.accessCode) {
+      setModalError("That access code is incorrect.");
+      return;
+    }
+
+    await processEnrollment(selectedCourse, accessCode.trim().toUpperCase());
     setShowModal(false);
   };
 
-  const processEnrollment = async (courseId, path) => {
+  const processEnrollment = async (course, codeUsed) => {
     setEnrollLoading(true);
+
     try {
-        await setDoc(doc(db, "users", currentUser.uid, "enrollments", courseId), {
-            enrolledAt: new Date(),
-            progress: 0,
-            status: 'active',
-            lastAccess: new Date(),
-            accessCodeUsed: accessCode || 'none'
-        });
-        setEnrolledCourses(prev => [...prev, courseId]);
-        navigate(path);
+      await setDoc(doc(db, "users", currentUser.uid, "enrollments", course.id), {
+        enrolledAt: new Date(),
+        progress: 0,
+        status: "active",
+        lastAccess: new Date(),
+        accessCodeUsed: codeUsed,
+      });
+
+      setEnrolledCourses((prev) =>
+        prev.includes(course.id) ? prev : [...prev, course.id],
+      );
+      navigate(course.path);
     } catch (error) {
-        console.error("Enrollment failed:", error);
-        alert("เกิดข้อผิดพลาด");
+      console.error("Enrollment failed:", error);
+      setModalError("We could not enroll you right now. Please try again.");
     } finally {
-        setEnrollLoading(false);
+      setEnrollLoading(false);
     }
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary" size={40}/></div>;
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Loader2 size={36} className="animate-spin text-white" />
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen p-4 md:p-8 font-sans overflow-hidden">
-      
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-50 via-white to-blue-50 -z-10"></div>
-      <div className="absolute top-[-10%] right-[-5%] w-96 h-96 bg-purple-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob -z-10"></div>
+    <div className="page-wrap space-y-6">
+      <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <div className="dark-panel relative overflow-hidden p-6 sm:p-8">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(216,163,95,0.14),transparent_22%),radial-gradient(circle_at_bottom_left,rgba(37,99,235,0.18),transparent_24%)]" />
+          <div className="relative">
+            <p className="text-[11px] uppercase tracking-[0.28em] text-amber-200">
+              {displayRole} workspace
+            </p>
+            <h2 className="mt-3 font-display text-4xl font-semibold tracking-[-0.08em] text-white sm:text-5xl">
+              Welcome back, {displayName}.
+            </h2>
+            <p className="mt-4 max-w-2xl text-base leading-7 text-slate-300">
+              Keep your learning pathways visible, enroll into the right cohort,
+              and return to the exact space that needs attention.
+            </p>
 
-      <div className="max-w-7xl mx-auto">
-        
-        {/* Header */}
-        <header className="mb-8 animate-fade-in-up">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
-            <div>
-                <span className="inline-block px-3 py-1 mb-2 text-xs font-bold tracking-wider text-primary uppercase bg-primary/10 rounded-full border border-primary/20">
-                    {displayRole} Dashboard
-                </span>
-                <h1 className="text-3xl md:text-4xl font-black text-gray-900 leading-tight">
-                    ยินดีต้อนรับ, <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-blue-600">{displayName}</span>
-                </h1>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => navigate("/courses")}
+                className="primary-button"
+              >
+                Open my courses
+                <ArrowRight size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/profile")}
+                className="secondary-button border-white/10 bg-white/5 text-white hover:bg-white/10"
+              >
+                Update profile
+              </button>
+            </div>
+
+            <div className="mt-8 grid gap-4 sm:grid-cols-3">
+              {systemStats.map((stat) => (
+                <div
+                  key={stat.label}
+                  className="rounded-[24px] border border-white/10 bg-white/5 p-4"
+                >
+                  <div className="flex items-center gap-2 text-amber-200">
+                    {stat.icon}
+                    <span className="text-xs uppercase tracking-[0.24em]">
+                      {stat.label}
+                    </span>
+                  </div>
+                  <div className="mt-3 font-display text-3xl font-semibold tracking-[-0.06em] text-white">
+                    {stat.value}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-        </header>
-
-        {/* ✅ ปรับ Layout: แบ่ง 2 คอลัมน์ (ซ้าย 3/4 เนื้อหา, ขวา 1/4 Widget) */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-            
-            {/* Left Column: Stats & Courses */}
-            <div className="lg:col-span-3 space-y-8">
-                
-                {/* Stats Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-fade-in-up delay-100">
-                    {systemStats.map((stat, idx) => (
-                        <div key={idx} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center hover:shadow-md transition-shadow">
-                            <div className={`w-10 h-10 ${stat.bg} ${stat.color} rounded-xl flex items-center justify-center mb-2`}>
-                                {stat.icon}
-                            </div>
-                            <div className="text-xl font-black text-gray-900">{stat.value}</div>
-                            <div className="text-xs text-gray-500 font-medium">{stat.label}</div>
-                        </div>
-                    ))}
-                </div>
-
-                {/* Explore Courses */}
-                <div className="animate-fade-in-up delay-200">
-                    <div className="flex items-center justify-between mb-6">
-                        <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                            <Sparkles size={20} className="text-yellow-500"/> หลักสูตรทั้งหมดในระบบ
-                        </h3>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {courses.map((course) => {
-                            const isEnrolled = enrolledCourses.includes(course.id);
-                            return (
-                                <div 
-                                    key={course.id}
-                                    className="group bg-white rounded-3xl p-5 border border-gray-100 hover:shadow-xl hover:border-gray-200 transition-all duration-300 flex flex-col relative overflow-hidden"
-                                >
-                                    <div className={`h-40 rounded-2xl ${course.bgGradient} ${course.shadow} mb-4 flex items-center justify-center relative overflow-hidden`}>
-                                        {isEnrolled ? (
-                                            <div className="absolute top-3 right-3 bg-white/20 backdrop-blur-md text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 border border-white/30 shadow-lg">
-                                                <CheckCircle2 size={12} /> ลงทะเบียนแล้ว
-                                            </div>
-                                        ) : (
-                                            <div className="absolute top-3 right-3 bg-black/20 backdrop-blur-md text-white text-xs font-bold px-3 py-1 rounded-full border border-white/10">
-                                                {course.requiresCode ? 'Requires Code' : 'Free Access'}
-                                            </div>
-                                        )}
-                                        <div className="transform group-hover:scale-110 group-hover:rotate-3 transition-transform duration-500">
-                                            {course.icon}
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="space-y-2 flex-1">
-                                        <h4 className="text-lg font-bold text-gray-900 group-hover:text-primary transition-colors">
-                                            {course.title}
-                                        </h4>
-                                        <p className="text-gray-500 text-xs line-clamp-2 leading-relaxed">
-                                            {course.desc}
-                                        </p>
-                                        
-                                        <div className="flex items-center gap-4 text-xs text-gray-400 font-medium pt-2">
-                                            <span className="flex items-center gap-1"><BookOpen size={14}/> {course.modules} บทเรียน</span>
-                                            <span className="flex items-center gap-1"><Clock size={14}/> {course.hours} ชม.</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="mt-4 pt-3 border-t border-gray-50">
-                                        <button 
-                                            onClick={() => openEnrollModal(course)}
-                                            className={`
-                                                w-full py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all transform active:scale-95 text-sm
-                                                ${isEnrolled 
-                                                    ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' 
-                                                    : 'bg-primary text-white hover:bg-blue-700 shadow-lg shadow-blue-500/30'}
-                                            `}
-                                        >
-                                            {isEnrolled ? (
-                                                <><PlayCircle size={16} /> ไปที่บทเรียน</>
-                                            ) : (
-                                                <><Sparkles size={16} /> {course.requiresCode ? 'ลงทะเบียน (ใส่รหัส)' : 'ลงทะเบียนฟรี'}</>
-                                            )}
-                                        </button>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            </div>
-
-            {/* Right Column: Online Users Widget */}
-            <div className="lg:col-span-1 animate-fade-in-up delay-300">
-                <div className="sticky top-8">
-                    {/* ✅ 2. แสดง Widget คนออนไลน์ */}
-                    <OnlineUsers />
-                </div>
-            </div>
-
         </div>
 
-        {/* Modal Access Code */}
-        {showModal && selectedCourse && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowModal(false)}></div>
-                <div className="bg-white rounded-3xl p-8 w-full max-w-md relative z-10 shadow-2xl animate-fade-in-up">
-                    <button onClick={() => setShowModal(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-full transition"><X size={20} /></button>
-                    
-                    <div className="text-center mb-6">
-                        <div className={`w-16 h-16 mx-auto rounded-2xl ${selectedCourse.bgGradient} flex items-center justify-center mb-4 shadow-lg`}>
-                            <Lock className="text-white" size={32} />
-                        </div>
-                        <h3 className="text-2xl font-bold text-gray-900">ยืนยันสิทธิ์เข้าเรียน</h3>
-                        <p className="text-gray-500 mt-2 text-sm">กรอกรหัส Access Code เพื่อปลดล็อกวิชา <br/><span className="font-bold text-primary">{selectedCourse.title}</span></p>
-                    </div>
+        <div className="surface-panel p-6">
+          <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">
+            Suggested next move
+          </p>
+          <h3 className="mt-3 font-display text-3xl font-semibold tracking-[-0.06em] text-slate-950">
+            {recommendedCourse.title}
+          </h3>
+          <p className="mt-3 text-sm leading-7 text-slate-500">
+            {recommendedCourse.description}
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600">
+              {recommendedCourse.modules} modules
+            </span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600">
+              {recommendedCourse.hours} hours
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => openEnrollModal(recommendedCourse)}
+            className="mt-8 inline-flex items-center gap-2 rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800"
+          >
+            {enrolledSet.has(recommendedCourse.id) ? "Continue" : "Enter pathway"}
+            <ArrowRight size={16} />
+          </button>
+        </div>
+      </section>
 
-                    <div className="space-y-4">
-                        <input 
-                            type="text" 
-                            value={accessCode}
-                            onChange={(e) => setAccessCode(e.target.value)}
-                            className="w-full px-4 py-4 bg-gray-50 border-2 border-gray-200 rounded-xl focus:bg-white focus:border-primary focus:ring-0 outline-none transition-all text-center text-xl font-bold tracking-widest uppercase placeholder:normal-case placeholder:tracking-normal placeholder:text-base placeholder:text-gray-400"
-                            placeholder="Enter Code"
-                            autoFocus
-                        />
-                        {modalError && <div className="text-red-500 text-xs text-center font-bold bg-red-50 py-2 rounded-lg">{modalError}</div>}
-                        <button 
-                            onClick={handleConfirmEnroll}
-                            disabled={enrollLoading}
-                            className="w-full py-4 bg-primary text-white rounded-xl font-bold hover:bg-blue-700 transition shadow-lg flex items-center justify-center gap-2"
-                        >
-                            {enrollLoading ? <Loader2 className="animate-spin" /> : 'ยืนยันและลงทะเบียน'}
-                        </button>
-                    </div>
-                </div>
+      <section className="grid gap-6 xl:grid-cols-[1.28fr_0.72fr]">
+        <div className="space-y-4">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
+                Available learning spaces
+              </p>
+              <h3 className="mt-2 font-display text-3xl font-semibold tracking-[-0.06em] text-white">
+                Access the right room with less friction.
+              </h3>
             </div>
-        )}
+          </div>
 
-      </div>
+          {courseCatalog.map((course) => {
+            const isEnrolled = enrolledSet.has(course.id);
+
+            return (
+              <article
+                key={course.id}
+                className="overflow-hidden rounded-[30px] border border-white/10 bg-slate-950/65"
+              >
+                <div className="grid gap-0 lg:grid-cols-[0.84fr_1.16fr]">
+                  <div
+                    className={`relative border-b border-white/10 bg-gradient-to-br ${course.theme.glow} p-6 lg:border-b-0 lg:border-r`}
+                  >
+                    <div className="relative flex h-full flex-col justify-between gap-10">
+                      <div>
+                        <div
+                          className={`inline-flex h-14 w-14 items-center justify-center rounded-2xl ${course.theme.iconWrap}`}
+                        >
+                          {getIcon(course.iconName, "h-6 w-6")}
+                        </div>
+                        <p
+                          className={`mt-5 text-[11px] uppercase tracking-[0.28em] ${course.theme.text}`}
+                        >
+                          {course.eyebrow}
+                        </p>
+                        <h4 className="mt-3 font-display text-3xl font-semibold tracking-[-0.06em] text-white">
+                          {course.title}
+                        </h4>
+                        <p className="mt-3 text-sm leading-7 text-slate-300">
+                          {course.audience}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-3 text-sm text-slate-300">
+                        <span className="rounded-full border border-white/10 px-4 py-2">
+                          {course.modules} modules
+                        </span>
+                        <span className="rounded-full border border-white/10 px-4 py-2">
+                          {course.hours} hours
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-6">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span
+                        className={`rounded-full border px-3 py-1 text-xs font-medium ${course.theme.chip}`}
+                      >
+                        {course.accessLabel}
+                      </span>
+                      {isEnrolled && (
+                        <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-xs font-medium text-emerald-300">
+                          Enrolled
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="mt-5 text-sm leading-7 text-slate-300">
+                      {course.description}
+                    </p>
+
+                    <div className="mt-6 grid gap-3">
+                      {course.outcomes.map((item) => (
+                        <div
+                          key={item}
+                          className="rounded-[22px] border border-white/10 bg-white/5 px-4 py-4 text-sm leading-6 text-slate-200"
+                        >
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-6 flex flex-wrap items-center gap-4 text-sm text-slate-400">
+                      <span className="inline-flex items-center gap-2">
+                        <BookOpen size={16} />
+                        {course.modules} learning units
+                      </span>
+                      <span className="inline-flex items-center gap-2">
+                        <Clock size={16} />
+                        {course.hours} hours estimated
+                      </span>
+                    </div>
+
+                    <div className="mt-8">
+                      <button
+                        type="button"
+                        onClick={() => openEnrollModal(course)}
+                        className={`inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold transition hover:-translate-y-0.5 ${course.theme.button}`}
+                      >
+                        {isEnrolled ? (
+                          <>
+                            <CheckCircle2 size={16} />
+                            Continue learning
+                          </>
+                        ) : course.requiresCode ? (
+                          <>
+                            <Lock size={16} />
+                            Unlock with code
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles size={16} />
+                            Enter space
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+
+        <div className="space-y-6">
+          <OnlineUsers />
+
+          <section className="surface-panel p-6">
+            <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">
+              Operator notes
+            </p>
+            <h3 className="mt-3 font-display text-3xl font-semibold tracking-[-0.06em] text-slate-950">
+              Useful improvements behind the redesign.
+            </h3>
+            <div className="mt-6 space-y-3">
+              {operatorNotes.map((note) => (
+                <div
+                  key={note}
+                  className="rounded-[22px] border border-slate-200/80 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-600"
+                >
+                  {note}
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      </section>
+
+      {showModal && selectedCourse && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center px-4 py-6">
+          <button
+            type="button"
+            className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm"
+            onClick={() => setShowModal(false)}
+          />
+          <div className="surface-panel relative z-10 w-full max-w-lg p-6 sm:p-8">
+            <button
+              type="button"
+              onClick={() => setShowModal(false)}
+              className="absolute right-4 top-4 rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="space-y-4">
+              <div className="section-tag">Private cohort</div>
+              <h3 className="font-display text-3xl font-semibold tracking-[-0.06em] text-slate-950">
+                Unlock {selectedCourse.title}
+              </h3>
+              <p className="text-sm leading-7 text-slate-500">
+                This pathway is protected by an access code so only the intended
+                cohort can enter. Use the code provided by the facilitator.
+              </p>
+            </div>
+
+            <div className="mt-6 space-y-4">
+              <label className="field-label" htmlFor="access-code">
+                Access code
+              </label>
+              <input
+                id="access-code"
+                type="text"
+                value={accessCode}
+                onChange={(event) => setAccessCode(event.target.value)}
+                className="field-input text-center text-lg font-semibold uppercase tracking-[0.24em]"
+                placeholder="TEACHER360"
+                autoFocus
+              />
+
+              {modalError && (
+                <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                  {modalError}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleConfirmEnroll}
+                disabled={enrollLoading}
+                className="primary-button w-full justify-center"
+              >
+                {enrollLoading ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Enrolling...
+                  </>
+                ) : (
+                  <>
+                    Enter pathway
+                    <ArrowRight size={16} />
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

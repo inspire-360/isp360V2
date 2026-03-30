@@ -171,7 +171,6 @@ export const teacherCourseData = {
   description: "หลักสูตรพัฒนาครูมืออาชีพผ่านกระบวนการ Design Thinking",
   modules: [
     preTestModule,
-    moduleOne,
     ...learningModules,
     postTestModule
   ]

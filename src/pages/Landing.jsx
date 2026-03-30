@@ -1,184 +1,355 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom'; // ✅ เพิ่ม useNavigate
-import { 
-  Sparkles, ArrowRight, BookOpen, Users, Award, 
-  PlayCircle, Zap, Globe, MessageCircle, CheckCircle2 
-} from 'lucide-react';
-import { useLine } from '../contexts/LineContext'; // ✅ Import LINE Context
+import React, { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { motion, useScroll, useTransform } from "framer-motion";
+import { ArrowRight, PlayCircle } from "lucide-react";
+import BrandMark from "../components/BrandMark";
+import {
+  courseCatalog,
+  landingWorkflow,
+  platformSignals,
+} from "../data/courseCatalog";
+import { getIcon } from "../utils/iconHelper";
+import { useLine } from "../contexts/LineContext";
+
+const reveal = {
+  hidden: { opacity: 0, y: 28 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: "easeOut" } },
+};
+
+const MotionDiv = motion.div;
+const MotionArticle = motion.article;
 
 export default function Landing() {
   const [scrolled, setScrolled] = useState(false);
-  const { lineProfile } = useLine(); // ✅ ดึงข้อมูล LINE
+  const { lineProfile } = useLine();
   const navigate = useNavigate();
+  const { scrollY } = useScroll();
+  const heroY = useTransform(scrollY, [0, 500], [0, 90]);
+  const orbitY = useTransform(scrollY, [0, 500], [0, -70]);
 
-  // ✅ เพิ่ม Effect: ถ้ามี LINE Profile (login ค้างไว้) ให้เด้งไปหน้า Login เพื่อ Sync เข้า Dashboard
   useEffect(() => {
     if (lineProfile) {
-      console.log("Found LINE Session on Landing Page -> Redirecting to Sync...");
-      navigate('/login');
+      navigate("/login");
     }
   }, [lineProfile, navigate]);
 
   useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 20);
-    };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    const onScroll = () => setScrolled(window.scrollY > 18);
+
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   return (
-    <div className="min-h-screen bg-white font-sans overflow-x-hidden selection:bg-primary/20 selection:text-primary">
-      
-      {/* 1. Navbar */}
-      <nav className={`fixed top-0 w-full z-50 transition-all duration-300 ${scrolled ? 'bg-white/90 backdrop-blur-md shadow-sm py-3' : 'bg-transparent py-5'}`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary/10 text-primary rounded-lg flex items-center justify-center">
-              <Sparkles size={18} />
-            </div>
-            <span className="text-xl font-bold text-gray-900 tracking-tight">InSPIRE 360°</span>
-          </div>
-          
+    <div className="overflow-x-hidden bg-[#07111d] text-white">
+      <nav
+        className={`fixed inset-x-0 top-0 z-50 transition-all duration-300 ${
+          scrolled
+            ? "border-b border-white/10 bg-[#07111d]/82 backdrop-blur-xl"
+            : "bg-transparent"
+        }`}
+      >
+        <div className="page-wrap flex items-center justify-between px-4 py-4 sm:px-6">
+          <BrandMark invert href="/" />
           <div className="flex items-center gap-3">
-            <Link to="/login" className="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-primary transition-colors">
-              เข้าสู่ระบบ
+            <Link
+              to="/login"
+              className="hidden rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 sm:inline-flex"
+            >
+              Sign in
             </Link>
-            <Link to="/register" className="px-5 py-2 bg-gray-900 text-white text-sm font-bold rounded-full hover:bg-gray-800 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5">
-              เริ่มต้นใช้งาน
+            <Link to="/register" className="primary-button">
+              Start now
+              <ArrowRight size={16} />
             </Link>
           </div>
         </div>
       </nav>
 
-      {/* 2. Hero Section */}
-      <section className="relative min-h-screen flex items-center justify-center pt-20 pb-10 overflow-hidden">
-        
-        {/* Background */}
-        <div className="absolute inset-0 z-0">
-          <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
-          <div className="absolute left-0 right-0 top-0 -z-10 m-auto h-[310px] w-[310px] rounded-full bg-blue-400 opacity-20 blur-[100px]"></div>
-          <div className="absolute right-0 bottom-0 -z-10 h-[310px] w-[310px] rounded-full bg-purple-400 opacity-20 blur-[100px]"></div>
-        </div>
+      <section className="relative min-h-screen overflow-hidden border-b border-white/10 pt-24">
+        <MotionDiv
+          style={{ y: heroY }}
+          className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.38),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(216,163,95,0.18),transparent_24%),linear-gradient(180deg,#07111d_0%,#081426_55%,#0a1628_100%)]"
+        />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(148,163,184,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.08)_1px,transparent_1px)] bg-[size:52px_52px] opacity-35" />
 
-        <div className="relative z-10 max-w-5xl mx-auto px-4 text-center">
-          
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-100 text-blue-600 text-xs font-bold mb-6 animate-fade-in-up uppercase tracking-wider">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
-            </span>
-            The Future of EdTech
+        <div className="relative grid min-h-[calc(100vh-6rem)] items-center gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[0.92fr_1.08fr] lg:px-10">
+          <MotionDiv
+            initial="hidden"
+            animate="show"
+            variants={reveal}
+            className="mx-auto w-full max-w-xl lg:mx-0"
+          >
+            <div className="glass-chip">Editorial learning command center</div>
+            <h1 className="mt-6 font-display text-5xl font-semibold tracking-[-0.09em] text-white sm:text-6xl lg:text-7xl">
+              InSPIRE 360 turns course access into a calm, premium learning
+              experience.
+            </h1>
+            <p className="mt-6 max-w-lg text-base leading-8 text-slate-300 sm:text-lg">
+              From teacher cohorts to student spaces and AI-ready pathways, the
+              platform now feels like one intentional system instead of a set of
+              disconnected screens.
+            </p>
+
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Link to="/register" className="primary-button">
+                Create your account
+                <ArrowRight size={16} />
+              </Link>
+              <a
+                href="#pathways"
+                className="secondary-button border-white/10 bg-white/5 text-white hover:bg-white/10"
+              >
+                Explore pathways
+                <PlayCircle size={16} />
+              </a>
+            </div>
+
+            <div className="mt-10 grid gap-4 sm:grid-cols-3">
+              {platformSignals.map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-[24px] border border-white/10 bg-white/5 px-4 py-4"
+                >
+                  <div className="font-display text-3xl font-semibold tracking-[-0.06em] text-white">
+                    {item.value}
+                  </div>
+                  <div className="mt-1 text-sm text-slate-300">{item.label}</div>
+                </div>
+              ))}
+            </div>
+          </MotionDiv>
+
+          <MotionDiv
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, ease: "easeOut", delay: 0.15 }}
+            className="relative mx-auto w-full max-w-3xl"
+          >
+            <MotionDiv
+              style={{ y: orbitY }}
+              className="absolute -right-10 top-6 h-56 w-56 rounded-full border border-amber-300/20 bg-amber-300/10 blur-3xl"
+            />
+            <div className="dark-panel relative overflow-hidden p-6 sm:p-8">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(216,163,95,0.12),transparent_22%),radial-gradient(circle_at_bottom_left,rgba(37,99,235,0.2),transparent_26%)]" />
+              <div className="relative">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.28em] text-amber-200">
+                      Today&apos;s operating picture
+                    </p>
+                    <h2 className="mt-2 font-display text-3xl font-semibold tracking-[-0.06em] text-white">
+                      One entrance, three purposeful pathways.
+                    </h2>
+                  </div>
+                  <div className="hidden rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-slate-300 sm:block">
+                    Mobile-ready workspace
+                  </div>
+                </div>
+
+                <div className="mt-8 space-y-4">
+                  {courseCatalog.map((course) => (
+                    <MotionDiv
+                      key={course.id}
+                      whileHover={{ x: 6 }}
+                      className="group rounded-[28px] border border-white/10 bg-white/5 p-5 transition"
+                    >
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                        <div
+                          className={`flex h-14 w-14 items-center justify-center rounded-2xl ${course.theme.iconWrap}`}
+                        >
+                          {getIcon(course.iconName, "h-6 w-6")}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-3">
+                            <p className="font-display text-2xl font-semibold tracking-[-0.05em] text-white">
+                              {course.shortTitle}
+                            </p>
+                            <span
+                              className={`rounded-full border px-3 py-1 text-xs font-medium ${course.theme.chip}`}
+                            >
+                              {course.accessLabel}
+                            </span>
+                          </div>
+                          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
+                            {course.description}
+                          </p>
+                        </div>
+                        <div className="text-sm text-slate-400">
+                          {course.modules} modules
+                        </div>
+                      </div>
+                    </MotionDiv>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </MotionDiv>
+        </div>
+      </section>
+
+      <section
+        id="pathways"
+        className="border-b border-white/10 bg-[#091426] px-4 py-20 sm:px-6 lg:px-10"
+      >
+        <MotionDiv
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, amount: 0.2 }}
+          variants={reveal}
+          className="page-wrap"
+        >
+          <div className="max-w-2xl">
+            <p className="section-tag border-amber-300/20 bg-amber-300/10 text-amber-200">
+              Learning pathways
+            </p>
+            <h2 className="mt-5 font-display text-4xl font-semibold tracking-[-0.08em] text-white">
+              Each section has one job: guide, support, or prepare the next
+              move.
+            </h2>
+            <p className="mt-4 text-base leading-7 text-slate-300">
+              The first screen establishes the platform clearly. The next
+              sections explain the pathways without clutter and give every route
+              a distinct purpose.
+            </p>
           </div>
-          
-          {/* Main Title */}
-          <h1 className="text-7xl md:text-9xl font-black text-gray-900 mb-2 tracking-tighter animate-fade-in-up delay-100 leading-none">
-            InSPIRE
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-indigo-600 ml-2">360°</span>
-          </h1>
-          
-          {/* Subtitle */}
-          <p className="text-2xl md:text-3xl font-light text-gray-600 mb-8 animate-fade-in-up delay-200">
-            ยกระดับห้องเรียนสู่ <span className="font-semibold text-gray-900">นวัตกรรมแห่งอนาคต</span>
-          </p>
-          
-          {/* Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16 animate-fade-in-up delay-300">
-            <Link to="/register" className="group relative px-8 py-4 bg-primary text-white text-lg font-bold rounded-full overflow-hidden shadow-2xl hover:shadow-primary/50 transition-all hover:scale-105">
-              <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-              <span className="flex items-center gap-2">
-                สมัครสมาชิกฟรี <ArrowRight size={20} />
-              </span>
+
+          <div className="mt-12 space-y-5">
+            {courseCatalog.map((course, index) => (
+              <MotionArticle
+                key={course.id}
+                initial={{ opacity: 0, y: 32 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.2 }}
+                transition={{ duration: 0.65, delay: index * 0.08 }}
+                className="overflow-hidden rounded-[32px] border border-white/10 bg-slate-950/55"
+              >
+                <div className="grid gap-0 lg:grid-cols-[0.82fr_1.18fr]">
+                  <div
+                    className={`relative border-b border-white/10 bg-gradient-to-br ${course.theme.glow} p-8 lg:border-b-0 lg:border-r`}
+                  >
+                    <div className="absolute inset-0 bg-[linear-gradient(rgba(148,163,184,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.08)_1px,transparent_1px)] bg-[size:44px_44px] opacity-40" />
+                    <div className="relative flex h-full flex-col justify-between gap-12">
+                      <div>
+                        <p
+                          className={`text-[11px] uppercase tracking-[0.28em] ${course.theme.text}`}
+                        >
+                          {course.eyebrow}
+                        </p>
+                        <h3 className="mt-4 font-display text-4xl font-semibold tracking-[-0.07em] text-white">
+                          {course.title}
+                        </h3>
+                        <p className="mt-4 max-w-md text-sm leading-7 text-slate-300">
+                          {course.audience}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-3 text-sm text-slate-300">
+                        <span className="rounded-full border border-white/10 px-4 py-2">
+                          {course.modules} modules
+                        </span>
+                        <span className="rounded-full border border-white/10 px-4 py-2">
+                          {course.hours} learning hours
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-8">
+                    <p className="max-w-2xl text-base leading-7 text-slate-300">
+                      {course.description}
+                    </p>
+                    <div className="mt-8 grid gap-3">
+                      {course.outcomes.map((item) => (
+                        <div
+                          key={item}
+                          className="rounded-[22px] border border-white/10 bg-white/5 px-4 py-4 text-sm leading-6 text-slate-200"
+                        >
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </MotionArticle>
+            ))}
+          </div>
+        </MotionDiv>
+      </section>
+
+      <section className="px-4 py-20 sm:px-6 lg:px-10">
+        <div className="page-wrap grid gap-8 lg:grid-cols-[0.95fr_1.05fr]">
+          <MotionDiv
+            initial="hidden"
+            whileInView="show"
+            viewport={{ once: true, amount: 0.2 }}
+            variants={reveal}
+            className="max-w-xl"
+          >
+            <p className="section-tag border-amber-300/20 bg-amber-300/10 text-amber-200">
+              Operating logic
+            </p>
+            <h2 className="mt-5 font-display text-4xl font-semibold tracking-[-0.08em] text-white">
+              The redesign is built around entry, clarity, and useful motion.
+            </h2>
+            <p className="mt-4 text-base leading-7 text-slate-300">
+              Instead of decorative UI noise, each screen now reinforces
+              orientation and the next best action.
+            </p>
+          </MotionDiv>
+
+          <div className="grid gap-4">
+            {landingWorkflow.map((item, index) => (
+              <MotionDiv
+                key={item.title}
+                initial={{ opacity: 0, x: 24 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true, amount: 0.2 }}
+                transition={{ duration: 0.55, delay: index * 0.08 }}
+                className="rounded-[28px] border border-white/10 bg-white/5 p-6"
+              >
+                <div className="text-[11px] uppercase tracking-[0.28em] text-amber-200">
+                  0{index + 1}
+                </div>
+                <h3 className="mt-3 font-display text-2xl font-semibold tracking-[-0.05em] text-white">
+                  {item.title}
+                </h3>
+                <p className="mt-3 text-sm leading-7 text-slate-300">
+                  {item.description}
+                </p>
+              </MotionDiv>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="border-t border-white/10 bg-[#0b172b] px-4 py-16 sm:px-6 lg:px-10">
+        <div className="page-wrap flex flex-col items-start justify-between gap-6 rounded-[32px] border border-white/10 bg-white/5 p-8 lg:flex-row lg:items-center">
+          <div className="max-w-2xl">
+            <p className="section-tag border-amber-300/20 bg-amber-300/10 text-amber-200">
+              Ready to enter
+            </p>
+            <h2 className="mt-4 font-display text-4xl font-semibold tracking-[-0.07em] text-white">
+              Bring your cohort into a cleaner, more intentional digital space.
+            </h2>
+            <p className="mt-3 text-sm leading-7 text-slate-300">
+              Sign in to continue, or create a new account and move straight into
+              the redesigned workspace.
+            </p>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Link
+              to="/login"
+              className="secondary-button border-white/10 bg-white/5 text-white hover:bg-white/10"
+            >
+              Sign in
             </Link>
-            <a href="#features" className="text-gray-500 hover:text-gray-900 font-medium flex items-center gap-2 transition-colors">
-              <PlayCircle size={20} /> เรียนรู้เพิ่มเติม
-            </a>
-          </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-8 max-w-2xl mx-auto border-t border-gray-100 pt-8 animate-fade-in-up delay-500">
-            <div>
-              <div className="text-2xl font-black text-gray-900">5,000+</div>
-              <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Teachers</div>
-            </div>
-            <div>
-              <div className="text-2xl font-black text-gray-900">100+</div>
-              <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Schools</div>
-            </div>
-            <div>
-              <div className="text-2xl font-black text-gray-900">AI</div>
-              <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Powered</div>
-            </div>
+            <Link to="/register" className="primary-button">
+              Create account
+              <ArrowRight size={16} />
+            </Link>
           </div>
         </div>
       </section>
-
-      {/* 3. Features */}
-      <section id="features" className="py-20 bg-gray-50">
-        <div className="max-w-6xl mx-auto px-4">
-          <div className="grid md:grid-cols-3 gap-6">
-            <div className="bg-white p-8 rounded-3xl shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 group">
-              <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <BookOpen size={24} />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Teacher Course</h3>
-              <p className="text-gray-500 text-sm leading-relaxed">
-                หลักสูตรเข้มข้น 5 Modules พัฒนาครูสู่การเป็นนวัตกรมืออาชีพ
-              </p>
-            </div>
-
-            <div className="bg-white p-8 rounded-3xl shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 group">
-              <div className="w-12 h-12 bg-green-50 text-green-600 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <Users size={24} />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Student Space</h3>
-              <p className="text-gray-500 text-sm leading-relaxed">
-                พื้นที่เรียนรู้แห่งความสุข เชื่อมต่อจินตนาการไร้ขีดจำกัด
-              </p>
-            </div>
-
-            <div className="bg-white p-8 rounded-3xl shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 group">
-              <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <Zap size={24} />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">AI Innovation</h3>
-              <p className="text-gray-500 text-sm leading-relaxed">
-                ผสานเทคโนโลยี AI เพื่อยกระดับการจัดการเรียนการสอน
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="bg-white py-8 border-t border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-lg font-bold text-gray-900">InSPIRE 360°</span>
-            <span className="text-xs text-gray-400">© 2024</span>
-          </div>
-          <div className="flex gap-4">
-            <a href="#" className="text-gray-400 hover:text-gray-900 transition"><Globe size={18}/></a>
-            <a href="#" className="text-gray-400 hover:text-gray-900 transition"><MessageCircle size={18}/></a>
-          </div>
-        </div>
-      </footer>
-
-      <style>{`
-        @keyframes fade-in-up {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fade-in-up {
-            animation: fade-in-up 0.8s ease-out forwards;
-            opacity: 0;
-        }
-        .delay-100 { animation-delay: 0.1s; }
-        .delay-200 { animation-delay: 0.2s; }
-        .delay-300 { animation-delay: 0.3s; }
-        .delay-500 { animation-delay: 0.5s; }
-      `}</style>
     </div>
   );
 }
