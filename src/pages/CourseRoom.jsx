@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Menu, ChevronLeft, CheckCircle, PlayCircle, FileText, 
   Award, ChevronDown, ChevronRight, CheckSquare, PenTool, 
-  RotateCcw, ArrowRight, Lock, AlertTriangle, Loader2, ClipboardCheck
+  RotateCcw, ArrowRight, Lock, AlertTriangle, Loader2, ClipboardCheck, Sparkles
 } from 'lucide-react';
 import { teacherCourseData } from '../data/teacherCourse';
 import { getPreTestQuestions, getPostTestQuestions } from '../data/standardizedTests'; 
@@ -12,6 +12,18 @@ import SWOTBoard from '../components/activities/SWOTBoard';
 import { db } from '../lib/firebase';
 import { doc, getDoc, updateDoc, setDoc, arrayUnion } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
+
+const INSIGHT_DIMENSIONS = [
+  { key: 'learners', label: 'Learners' },
+  { key: 'learning_style', label: 'Learning Style' },
+  { key: 'community', label: 'Community' },
+  { key: 'pain_points', label: 'Pain Points' },
+  { key: 'opportunities', label: 'Opportunities' },
+  { key: 'passion', label: 'Passion' },
+  { key: 'threats', label: 'Threats' },
+  { key: 'vision', label: 'Vision' },
+  { key: 'small_wins', label: 'Small Wins' }
+];
 
 export default function CourseRoom() {
   const { currentUser } = useAuth();
@@ -36,6 +48,17 @@ export default function CourseRoom() {
   const [quizAnswers, setQuizAnswers] = useState({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [quizScore, setQuizScore] = useState(0);
+  const [moduleOneState, setModuleOneState] = useState({
+    dimensions: {},
+    ratings: {},
+    swot: { strengths: [], weaknesses: [], opportunities: [], threats: [] },
+    strategies: [],
+    strategyScores: {},
+    selectedStrategy: '',
+    actionPlan: { plan: '', do: '', check: '', act: '' },
+    posttestScore: null
+  });
+  const [missionDraft, setMissionDraft] = useState('');
 
   const courseId = "course-teacher";
   const currentCourse = teacherCourseData || { modules: [] };
@@ -172,6 +195,10 @@ export default function CourseRoom() {
         return;
     }
 
+    if (currentLesson.id === 'm1-posttest') {
+      setModuleOneState(prev => ({ ...prev, posttestScore: score }));
+    }
+
     if (currentLesson.content?.isPosttest) {
         const newAttempts = progressData.postTestAttempts + 1;
         await updateDoc(enrollRef, {
@@ -257,22 +284,181 @@ export default function CourseRoom() {
     </div>
   );
 
-  const renderActivity = () => (
-    <div className="animate-fade-in-up">
+  const addMissionTextToSWOT = (bucket) => {
+    if (!missionDraft.trim()) return;
+    setModuleOneState(prev => ({
+      ...prev,
+      swot: { ...prev.swot, [bucket]: [...prev.swot[bucket], missionDraft.trim()] }
+    }));
+    setMissionDraft('');
+  };
+
+  const addStrategy = () => {
+    if (!missionDraft.trim()) return;
+    setModuleOneState(prev => ({ ...prev, strategies: [...prev.strategies, missionDraft.trim()] }));
+    setMissionDraft('');
+  };
+
+  const completeMission = async () => {
+    if (currentLesson.activityType === 'insight_9_dimensions') {
+      const isCompleted9 = INSIGHT_DIMENSIONS.every((dimension) => {
+        const answer = moduleOneState.dimensions[dimension.key];
+        const rating = moduleOneState.ratings[dimension.key];
+        return answer && String(answer).trim().length > 0 && rating >= 1 && rating <= 5;
+      });
+      if (!isCompleted9) {
+        alert('กรุณากรอกคำตอบและให้คะแนน Pain Point ให้ครบทั้ง 9 มิติก่อนส่งภารกิจ');
+        return;
+      }
+    }
+    if (currentLesson.activityType === 'insight_tows' && moduleOneState.strategies.length < 3) {
+      alert('กรุณาสร้างกลยุทธ์อย่างน้อย 3 กลยุทธ์ก่อนส่งภารกิจ');
+      return;
+    }
+    if (currentLesson.activityType === 'insight_needs_detective' && !moduleOneState.selectedStrategy) {
+      alert('กรุณาเลือก 1 กลยุทธ์หลักก่อนส่งภารกิจ');
+      return;
+    }
+    if (currentLesson.activityType === 'insight_action_plan') {
+      const { plan, do: doStep, check, act } = moduleOneState.actionPlan;
+      if (!plan || !doStep || !check || !act) {
+        alert('กรุณากรอก Action Plan (PDCA) ให้ครบทุกช่อง');
+        return;
+      }
+    }
+    await markLessonComplete();
+  };
+
+  const renderActivity = () => {
+    const completed = progressData.completedLessons.includes(currentLesson.id);
+    const isInsightMission = currentLesson.activityType?.startsWith('insight_');
+
+    return (
+      <div className="animate-fade-in-up space-y-6">
         {currentLesson.activityType === 'swot_board' && <SWOTBoard />}
-        <div className="mt-8 flex justify-end">
-             {!progressData.completedLessons.includes(currentLesson.id) ? (
-                <button onClick={markLessonComplete} className="px-6 py-3 bg-primary text-white rounded-xl font-bold shadow-lg hover:bg-blue-700 transition flex items-center gap-2">
-                    <PenTool size={20} /> ส่งภารกิจเรียบร้อย
-                </button>
-             ) : (
-                <div className="flex items-center gap-2 text-green-600 font-bold bg-green-50 px-4 py-2 rounded-lg">
-                    <CheckCircle size={20} /> ส่งงานแล้ว
+
+        {isInsightMission && (
+          <div className="bg-gradient-to-br from-indigo-50 via-purple-50 to-amber-50 border border-indigo-100 rounded-2xl p-6">
+            <div className="flex items-start gap-3 mb-4">
+              <Sparkles className="text-indigo-600 mt-1" size={20} />
+              <div>
+                <p className="text-xs tracking-widest font-bold text-indigo-500">AI MENTOR</p>
+                <p className="text-sm text-gray-700">{currentLesson.content?.mentorTip || 'ลองมองมุมนี้ดูไหมครับ? เริ่มจากข้อมูลจริงในบริบทของคุณก่อนเสมอ'}</p>
+              </div>
+            </div>
+            <div className="w-full bg-white/70 rounded-full h-2 overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500" style={{ width: `${Math.min(100, ((activeLessonIndex + 1) / currentModule.lessons.length) * 100)}%` }} />
+            </div>
+          </div>
+        )}
+
+        {currentLesson.activityType === 'insight_9_dimensions' && (
+          <div className="grid md:grid-cols-2 gap-4">
+            {(currentLesson.content?.dimensions || []).map((dimension) => (
+              <div key={dimension.key} className="bg-white rounded-xl border border-gray-100 p-4">
+                <p className="font-bold text-gray-800 mb-2">{dimension.label}</p>
+                <p className="text-sm text-gray-500 mb-3">{dimension.question}</p>
+                <textarea
+                  value={moduleOneState.dimensions[dimension.key] || ''}
+                  onChange={(e) => setModuleOneState(prev => ({ ...prev, dimensions: { ...prev.dimensions, [dimension.key]: e.target.value } }))}
+                  className="w-full border rounded-lg p-2 text-sm mb-2"
+                  rows={3}
+                  placeholder="บันทึกคำตอบของคุณ"
+                />
+                <input
+                  type="number"
+                  min={1}
+                  max={5}
+                  value={moduleOneState.ratings[dimension.key] || ''}
+                  onChange={(e) => setModuleOneState(prev => ({ ...prev, ratings: { ...prev.ratings, [dimension.key]: Number(e.target.value) } }))}
+                  className="w-full border rounded-lg p-2 text-sm"
+                  placeholder="Pain Point Rating 1-5"
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {currentLesson.activityType === 'insight_swot' && (
+          <div className="space-y-4">
+            <div className="bg-white border rounded-xl p-4">
+              <p className="font-semibold mb-3">Interactive SWOT Visualizer</p>
+              <div className="flex gap-2">
+                <input value={missionDraft} onChange={(e) => setMissionDraft(e.target.value)} className="flex-1 border rounded-lg p-2 text-sm" placeholder="พิมพ์ประเด็นจาก Mission 1 หรือพิมพ์เพิ่ม" />
+                <button onClick={() => addMissionTextToSWOT('strengths')} className="px-3 py-2 bg-green-100 rounded-lg text-xs font-bold">+S</button>
+                <button onClick={() => addMissionTextToSWOT('weaknesses')} className="px-3 py-2 bg-red-100 rounded-lg text-xs font-bold">+W</button>
+                <button onClick={() => addMissionTextToSWOT('opportunities')} className="px-3 py-2 bg-blue-100 rounded-lg text-xs font-bold">+O</button>
+                <button onClick={() => addMissionTextToSWOT('threats')} className="px-3 py-2 bg-amber-100 rounded-lg text-xs font-bold">+T</button>
+              </div>
+            </div>
+            <div className="grid md:grid-cols-2 gap-4">
+              {['strengths', 'weaknesses', 'opportunities', 'threats'].map((k) => (
+                <div key={k} className="bg-white border rounded-xl p-4">
+                  <p className="font-bold uppercase text-sm mb-2">{k}</p>
+                  <ul className="list-disc pl-5 text-sm text-gray-700 space-y-1">
+                    {(moduleOneState.swot[k] || []).map((item, idx) => <li key={`${item}-${idx}`}>{item}</li>)}
+                  </ul>
                 </div>
-             )}
+              ))}
+            </div>
+          </div>
+        )}
+
+        {currentLesson.activityType === 'insight_tows' && (
+          <div className="bg-white border rounded-xl p-4 space-y-3">
+            <p className="font-semibold">Strategy Fusion (TOWS Matrix): ต้องมีอย่างน้อย 3 กลยุทธ์</p>
+            <div className="flex gap-2">
+              <input value={missionDraft} onChange={(e) => setMissionDraft(e.target.value)} className="flex-1 border rounded-lg p-2 text-sm" placeholder="ตัวอย่าง: SO - ใช้จุดแข็งการเล่าเรื่องของครู + ห้องสมุดชุมชน = นิทานสัญจร" />
+              <button onClick={addStrategy} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold">เพิ่มกลยุทธ์</button>
+            </div>
+            <ol className="list-decimal pl-6 text-sm text-gray-700 space-y-1">
+              {moduleOneState.strategies.map((s, i) => <li key={`${s}-${i}`}>{s}</li>)}
+            </ol>
+          </div>
+        )}
+
+        {currentLesson.activityType === 'insight_needs_detective' && (
+          <div className="bg-white border rounded-xl p-4 space-y-4">
+            <p className="font-semibold">Needs Detective: ให้คะแนนกลยุทธ์และเลือก 1 กลยุทธ์หลัก</p>
+            {moduleOneState.strategies.length === 0 ? (
+              <p className="text-sm text-gray-500">ยังไม่มีกลยุทธ์จาก Mission 3</p>
+            ) : moduleOneState.strategies.map((strategy, index) => (
+              <div key={`${strategy}-${index}`} className="border rounded-lg p-3">
+                <label className="flex items-center gap-2 text-sm font-medium">
+                  <input type="radio" checked={moduleOneState.selectedStrategy === strategy} onChange={() => setModuleOneState(prev => ({ ...prev, selectedStrategy: strategy }))} />
+                  {strategy}
+                </label>
+                <input type="number" min={1} max={5} className="mt-2 border rounded p-2 text-sm w-28" placeholder="คะแนน 1-5" value={moduleOneState.strategyScores[strategy] || ''} onChange={(e) => setModuleOneState(prev => ({ ...prev, strategyScores: { ...prev.strategyScores, [strategy]: Number(e.target.value) } }))} />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {currentLesson.activityType === 'insight_action_plan' && (
+          <div className="bg-white border rounded-xl p-4 grid md:grid-cols-2 gap-4">
+            {['plan', 'do', 'check', 'act'].map((step) => (
+              <div key={step}>
+                <p className="font-semibold uppercase text-sm mb-2">{step}</p>
+                <textarea rows={4} className="w-full border rounded-lg p-2 text-sm" value={moduleOneState.actionPlan[step] || ''} onChange={(e) => setModuleOneState(prev => ({ ...prev, actionPlan: { ...prev.actionPlan, [step]: e.target.value } }))} placeholder={`ระบุรายละเอียด ${step}`} />
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-8 flex justify-end">
+          {!completed ? (
+            <button onClick={isInsightMission ? completeMission : markLessonComplete} className="px-6 py-3 bg-primary text-white rounded-xl font-bold shadow-lg hover:bg-blue-700 transition flex items-center gap-2">
+              <PenTool size={20} /> ส่งภารกิจเรียบร้อย
+            </button>
+          ) : (
+            <div className="flex items-center gap-2 text-green-600 font-bold bg-green-50 px-4 py-2 rounded-lg">
+              <CheckCircle size={20} /> ส่งงานแล้ว
+            </div>
+          )}
         </div>
-    </div>
-  );
+      </div>
+    );
+  };
 
   // ✅ เพิ่มฟังก์ชันสำหรับแสดงบทความ / แบบสอบถาม (แยกจาก Video)
   const renderArticle = () => (
@@ -290,11 +476,14 @@ export default function CourseRoom() {
         
         <div className="prose max-w-none text-gray-600 text-lg leading-relaxed mb-8">
             <p>{currentLesson.content?.text}</p>
+            {currentLesson.content?.imageUrl && (
+              <img src={currentLesson.content.imageUrl} alt={currentLesson.title} className="rounded-xl border border-gray-200 my-4" />
+            )}
             {/* กรณีเป็นแบบสอบถาม (Mockup) */}
             {currentLesson.id === 'final-survey' && (
                 <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 text-center mt-4">
                     <p className="mb-4">กรุณาทำแบบประเมินความพึงพอใจเพื่อพัฒนาหลักสูตรต่อไป</p>
-                    <a href="#" className="inline-block px-6 py-2 bg-white border border-primary text-primary rounded-lg font-bold hover:bg-blue-50 transition">
+                    <a href={currentLesson.content?.surveyUrl || '#'} target="_blank" rel="noreferrer" className="inline-block px-6 py-2 bg-white border border-primary text-primary rounded-lg font-bold hover:bg-blue-50 transition">
                         เปิดแบบสอบถาม (Google Form)
                     </a>
                 </div>
@@ -396,6 +585,67 @@ export default function CourseRoom() {
 
   // ✅ 4. ปรับปรุง Render Certificate (เพิ่มเงื่อนไข)
   const renderCertificate = () => {
+    if (currentLesson.content?.isModule1ReportCard) {
+      const moduleOnePosttestPassed = progressData.completedLessons.includes('m1-posttest');
+      const insightId = `INS-${new Date().getFullYear()}-${String((currentUser?.uid || '0000').slice(-4)).toUpperCase()}`;
+
+      const downloadReportCard = () => {
+        const reportSvg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800">
+  <rect width="1200" height="800" fill="#eef2ff" />
+  <rect x="40" y="40" width="1120" height="720" rx="28" fill="#ffffff" stroke="#c7d2fe" stroke-width="4" />
+  <text x="80" y="130" font-size="46" font-family="Arial" font-weight="700" fill="#312e81">In-Sight Report Card</text>
+  <text x="80" y="180" font-size="24" font-family="Arial" fill="#4338ca">Badge: ${currentLesson.content?.badgeName || 'In-Sight Badge'}</text>
+  <text x="80" y="220" font-size="20" font-family="Arial" fill="#334155">ID: ${insightId}</text>
+  <text x="80" y="280" font-size="22" font-family="Arial" fill="#0f172a">Selected Strategy:</text>
+  <text x="80" y="320" font-size="20" font-family="Arial" fill="#1e293b">${(moduleOneState.selectedStrategy || '-').replace(/&/g, 'and')}</text>
+  <text x="80" y="380" font-size="22" font-family="Arial" fill="#0f172a">PDCA Highlights</text>
+  <text x="80" y="420" font-size="18" font-family="Arial" fill="#1e293b">Plan: ${(moduleOneState.actionPlan.plan || '-').replace(/&/g, 'and')}</text>
+  <text x="80" y="450" font-size="18" font-family="Arial" fill="#1e293b">Do: ${(moduleOneState.actionPlan.do || '-').replace(/&/g, 'and')}</text>
+  <text x="80" y="480" font-size="18" font-family="Arial" fill="#1e293b">Check: ${(moduleOneState.actionPlan.check || '-').replace(/&/g, 'and')}</text>
+  <text x="80" y="510" font-size="18" font-family="Arial" fill="#1e293b">Act: ${(moduleOneState.actionPlan.act || '-').replace(/&/g, 'and')}</text>
+  <text x="80" y="590" font-size="22" font-family="Arial" fill="#0f172a">Module 1 Post-test Score: ${moduleOneState.posttestScore ?? '-'}/5</text>
+  <text x="80" y="670" font-size="20" font-family="Arial" fill="#b45309">Unlocked: Module 2</text>
+</svg>`;
+        const blob = new Blob([reportSvg], { type: 'image/svg+xml' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `insight-report-card-${insightId}.svg`;
+        link.click();
+        URL.revokeObjectURL(url);
+      };
+
+      if (!moduleOnePosttestPassed) {
+        return (
+          <div className="animate-fade-in-up text-center py-20">
+            <Lock size={64} className="mx-auto text-gray-300 mb-6" />
+            <h2 className="text-2xl font-bold text-gray-700 mb-2">ยังไม่ปลดล็อก In-Sight Badge</h2>
+            <p className="text-gray-500">กรุณาผ่าน Post-test [Module 1] (อย่างน้อย 3/5 คะแนน) ก่อนครับ</p>
+          </div>
+        );
+      }
+
+      return (
+        <div className="animate-fade-in-up text-center py-12">
+          <Award size={80} className="mx-auto text-amber-500 mb-6" />
+          <h2 className="text-3xl font-black text-gray-900 mb-3">รับรางวัล {currentLesson.content?.badgeName}</h2>
+          <p className="text-gray-600 mb-2">Report Card ID: <span className="font-bold">{insightId}</span></p>
+          <p className="text-gray-500 mb-8 max-w-2xl mx-auto">ระบบสรุปคำตอบจาก Missions ทั้งหมดและคะแนน Post-test ของ Module 1 เรียบร้อยแล้ว คุณสามารถดาวน์โหลดเป็นไฟล์ภาพได้ทันที และ Module 2 ถูกปลดล็อกแล้ว</p>
+          <div className="flex justify-center gap-3">
+            {!progressData.completedLessons.includes(currentLesson.id) && (
+              <button onClick={markLessonComplete} className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow hover:bg-indigo-700 transition flex items-center gap-2">
+                <CheckCircle size={18} /> ยืนยันรับ Badge
+              </button>
+            )}
+            <button onClick={downloadReportCard} className="px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold shadow hover:shadow-lg transition flex items-center gap-2">
+              <FileText size={18} /> ดาวน์โหลด Report Card (SVG)
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     // เงื่อนไข: ต้องผ่าน Post-test (posttest-exam) และทำ Survey (final-survey) แล้ว
     const isPostTestPassed = progressData.completedLessons.includes("posttest-exam");
     const isSurveyDone = progressData.completedLessons.includes("final-survey");
@@ -441,6 +691,16 @@ export default function CourseRoom() {
             <p className="text-gray-500 mb-8 max-w-lg mx-auto">
                 คุณได้ผ่านการทดสอบและกิจกรรมครบถ้วนตามหลักสูตร InSPIRE for Teacher
             </p>
+            {Array.isArray(currentLesson.content?.requirements) && (
+                <ul className="text-left bg-yellow-50 border border-yellow-100 rounded-xl p-4 max-w-xl mx-auto mb-8 space-y-2">
+                    {currentLesson.content.requirements.map((requirement) => (
+                        <li key={requirement} className="text-sm text-yellow-900 flex items-start gap-2">
+                            <CheckCircle size={16} className="mt-0.5 text-yellow-600" />
+                            <span>{requirement}</span>
+                        </li>
+                    ))}
+                </ul>
+            )}
             <button className="px-8 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-2xl font-bold shadow-xl hover:shadow-2xl hover:-translate-y-1 transition flex items-center gap-2 mx-auto">
                 <FileText size={24} /> ดาวน์โหลดเกียรติบัตร (PDF)
             </button>

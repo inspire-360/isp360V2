@@ -30,7 +30,7 @@ export default function Dashboard() {
   const displayRole = userRole || "Learner";
 
   const COURSE_KEYS = {
-    "course-teacher": "TEACHER2024", 
+    "course-teacher": "TEACHER360", 
     "course-student": "STUDENT2024", 
     "course-ai": "AI2024"            
   };
