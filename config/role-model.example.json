@@ -1,7 +1,9 @@
 {
-  "roles": ["admin", "editor", "viewer"],
+  "roles": ["admin", "teacher", "learner", "editor", "viewer"],
   "notes": {
     "admin": "Full access to manage system settings and sensitive operations.",
+    "teacher": "Can access learning modules, assign coursework, and review learner progress.",
+    "learner": "Can access assigned learning pages and submit mission/post-test answers.",
     "editor": "Can create/update domain content but cannot alter global security settings.",
     "viewer": "Read-only access."
   },
