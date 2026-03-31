@@ -1,0 +1,15 @@
+{
+  "name": "isp360v2-firebase-audit",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Firebase connection and role-audit utilities",
+  "type": "module",
+  "scripts": {
+    "firebase:audit": "node scripts/firebase-audit.mjs",
+    "firebase:audit:strict": "node scripts/firebase-audit.mjs --strict",
+    "check": "node --check scripts/firebase-audit.mjs"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.4.0"
+  }
+}

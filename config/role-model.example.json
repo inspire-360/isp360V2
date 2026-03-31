@@ -1,0 +1,12 @@
+{
+  "roles": ["admin", "editor", "viewer"],
+  "notes": {
+    "admin": "Full access to manage system settings and sensitive operations.",
+    "editor": "Can create/update domain content but cannot alter global security settings.",
+    "viewer": "Read-only access."
+  },
+  "customClaimsExample": {
+    "role": "admin",
+    "roles": ["admin", "editor"]
+  }
+}
