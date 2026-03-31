@@ -1,0 +1,188 @@
+{
+  "program": {
+    "id": "inspire360",
+    "version": "2.0.0",
+    "name": "InSPIRE360",
+    "language": "th",
+    "interactionUX": {
+      "aiMentorPersona": {
+        "enabled": true,
+        "tone": ["encouraging", "probing"],
+        "examples": ["ลองมองมุมนี้ดูไหมครับ?", "เยี่ยมมากครับ! แล้วถ้า..."]
+      },
+      "progressionBar": { "enabled": true, "steps": ["Step 1", "Step 2", "Step 3", "Step 4"] },
+      "instantFeedback": { "enabled": true, "mode": "micro-reward", "animation": "success-pulse" }
+    },
+    "modules": [
+      {
+        "id": "module-1",
+        "name": "In – Sight : เปิดตา เปิดใจ ค้นหาความต้องการ",
+        "preTest": { "questions": 5, "passScore": 3 },
+        "lesson": {
+          "embedUrl": "https://www.canva.com/design/DAHFgpFnz8E/VXANS3zHrTRdvU7XGSIG8Q/view",
+          "showAfter": "pre-test"
+        },
+        "missions": [
+          {
+            "id": "m1-1",
+            "title": "9 มิติของการจัดการชั้นเรียน",
+            "parts": [
+              {
+                "part": 1,
+                "questions": [
+                  "🎯 เทคนิคหรือกิจกรรมไหนที่ทำให้เด็กๆ ตาวาว สนุก และอินกับบทเรียนมากที่สุดครับ?",
+                  "🩹 มีแผนสอนไหนที่เคยแป้ก และคิดว่าเกิดจากสาเหตุอะไรครับ?",
+                  "🎯 การจัดโต๊ะหรือกฎเหล็กข้อไหนช่วยให้ห้องสงบขึ้นอย่างชัดเจน?",
+                  "🩹 สภาพห้อง อากาศ หรือจำนวนเด็กล้นห้อง เป็นอุปสรรคมากน้อยแค่ไหน?",
+                  "🎯 วิธีตรวจงาน/ให้คะแนนแบบไหนที่ประหยัดเวลาครูและเด็กเข้าใจเกณฑ์ชัดเจน?",
+                  "🩹 งานเอกสารหรือกรอกคะแนนขั้นตอนไหนที่สูบพลังงานมากที่สุด?",
+                  "🎯 โมเมนต์ไหนในห้องเรียนที่ทำให้ครูใจฟูที่สุด?",
+                  "🩹 พฤติกรรมหรือทัศนคติแบบไหนของเด็กที่ยังรับมือได้ยาก?",
+                  "🎯 ครูมองว่าตัวเองเป็นครูสไตล์ไหน และจุดไหนที่ทำให้เด็กกล้าเข้าหา?"
+                ]
+              },
+              {
+                "part": 2,
+                "questions": [
+                  "🩹 สถานการณ์แบบไหนที่สไตล์การคุมชั้นเรียนของครูเอาไม่อยู่?",
+                  "🎯 ทีเด็ดสกิลเฉพาะตัวของครูที่ไม่มีใครเลียนแบบได้คืออะไร?",
+                  "🩹 สกิลใหม่ใดที่อยากอัปเวลเพิ่มแบบเร่งด่วน?",
+                  "🎯 แอป/เว็บไซต์/สื่อใดเป็นลูกรักที่ขาดไม่ได้ในการสอนปัจจุบัน?",
+                  "🩹 ปัญหาไอที อินเทอร์เน็ต หรืออุปกรณ์ใดที่ทำให้การสอนสะดุดบ่อย?",
+                  "🎯 ครูชาร์จพลังใจตัวเองอย่างไรให้ยังมีแพสชันทุกวัน?",
+                  "🩹 งานนอกห้องเรียนหรือความเครียดใดดึงความสุขในการสอนไปมากที่สุด?",
+                  "🎯 เคสความสำเร็จจากการทำงานร่วมกับผู้ปกครอง/เพื่อนครูมีอะไรบ้าง?",
+                  "🩹 ช่องโหว่การขอความร่วมมือหรือการซัพพอร์ตจากส่วนกลางที่อยากให้ดีขึ้นคืออะไร?"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "m1-2",
+            "title": "Look Out Of The Room: เจาะลึกปัจจัยภายนอก (PESTEL)",
+            "intro": "เราคุยเรื่องในห้องเรียนกันไปแล้ว ทีนี้ลองถอยออกมามองกว้างขึ้นอีกนิดนะครับ",
+            "parts": [
+              {
+                "part": 1,
+                "questions": [
+                  "🌟 Political (โอกาส): นโยบายโรงเรียน/กระทรวงใดช่วยให้สอนง่ายขึ้น?",
+                  "🌪️ Political (อุปสรรค): คำสั่ง/โครงการใดเพิ่มภาระจนกระทบเวลาสอน?",
+                  "🌟 Economic (โอกาส): งบหรือเครือข่ายทุนใดสนับสนุนกิจกรรมได้จริง?",
+                  "🌪️ Economic (อุปสรรค): เศรษฐกิจครอบครัวเด็กส่งผลต่อการเรียนอย่างไร?",
+                  "🌟 Social (โอกาส): เทรนด์เด็กยุคใหม่ใดนำมาเป็นตัวล่อการเรียนได้ดี?",
+                  "🌪️ Social (อุปสรรค): ปัญหาครอบครัว/ค่านิยมโซเชียลใดกระทบสมาธิเด็ก?"
+                ]
+              },
+              {
+                "part": 2,
+                "questions": [
+                  "🌟 Technological (โอกาส): เทคโนโลยีหรือ AI ใดที่อยากประยุกต์ใช้ในห้องเรียน?",
+                  "🌪️ Technological (อุปสรรค): ความเหลื่อมล้ำดิจิทัลหรือภัยไซเบอร์กระทบมากแค่ไหน?",
+                  "🌟 Environmental (โอกาส): แหล่งเรียนรู้นอกห้องเรียนจากชุมชน/ธรรมชาติคืออะไร?",
+                  "🌪️ Environmental (อุปสรรค): อากาศร้อน PM2.5 หรืออาคารทรุดโทรมกระทบบ่อยแค่ไหน?",
+                  "🌟 Legal (โอกาส): กฎระเบียบใดช่วยคุ้มครองครูและเด็กให้ทำงานได้สบายใจขึ้น?",
+                  "🌪️ Legal (อุปสรรค): PDPA/สิทธิเด็ก/กติกาทางสังคมทำให้ครูเกร็งเรื่องใดบ้าง?"
+                ]
+              }
+            ],
+            "analysisHint": {
+              "swotOpportunities": "จับคู่ O กับ S เพื่อสร้างกลยุทธ์เชิงรุก",
+              "swotThreats": "จับคู่ T กับ W เพื่อสร้างกลยุทธ์เชิงรับ/ป้องกัน"
+            }
+          },
+          { "id": "m1-3", "title": "Strategy Fusion (TOW Matrix)", "passCriteria": "สร้าง 3 กลยุทธ์จาก SWOT" },
+          { "id": "m1-4", "title": "Needs Detective", "passCriteria": "จัดอันดับกลยุทธ์และเลือก 1 กลยุทธ์ทำ Action Plan" },
+          { "id": "m1-5", "title": "Action Plan (PDCA)", "passCriteria": "ออกแบบแผน PDCA ครบ Plan-Do-Check-Act" }
+        ],
+        "postTest": { "questions": 5, "passScore": 3 },
+        "completion": { "reportCard": "Module 1 (All Answers)", "badge": "In-Sight Badge", "unlockModule": "module-2" }
+      },
+      {
+        "id": "module-2",
+        "name": "S - Design : ออกแบบฝัน ปั้นแผนสู่การพัฒนา",
+        "preTest": { "questions": 5, "passScore": 3 },
+        "lesson": {
+          "embedUrl": "https://www.canva.com/design/DAHFggQuQrA/wjrRXDYOTSIPJ65KkbAlLA/view",
+          "showAfter": "pre-test"
+        },
+        "missions": [
+          { "id": "m2-1", "title": "Dream Lab & TOWS Matrix", "deliverable": "คำตอบปลายเปิด SO, WO, ST, WT ครบ 4 ข้อ" },
+          { "id": "m2-2", "title": "Vibe Check", "deliverable": "Sensory Board: Visual, Audio, Feeling" },
+          { "id": "m2-3", "title": "Mapping the Journey", "deliverable": "30-Day Sprint: Week1-SetUp, Week2-Pilot, Week3-Feedback, Week4-Showcase" },
+          { "id": "m2-4", "title": "Define 5W1H", "deliverable": "Pitch Deck สรุป Who/What/Where/When/Why/How" },
+          { "id": "m2-5", "title": "SMART Objective", "deliverable": "คำมั่นสัญญา SMART 1-2 ประโยค" },
+          {
+            "id": "m2-6",
+            "title": "SMART Quality Check",
+            "lenses": [
+              "Global Lens: OECD Learning Compass 2030 + Student Agency + AAR",
+              "National Lens: พระบรมราโชบาย ร.10 (4 เสาหลัก)",
+              "Local Lens: SEZ ชายแดนตาก (พบพระ/ตาก)"
+            ]
+          }
+        ],
+        "postTest": { "questions": 5, "passScore": 3 },
+        "completion": { "reportCard": "Module 2 (Road Map)", "badge": "S-Design Badge", "unlockModule": "module-3" }
+      },
+      {
+        "id": "module-3",
+        "name": "P - PLC : รวมพลัง สร้างเครือข่ายแห่งการเรียนรู้",
+        "preTest": { "questions": 5, "passScore": 3 },
+        "lesson": {
+          "embedUrl": "https://www.canva.com/design/DAHFglrceqA/WbTYzz93vBYgo8m30raOQg/view",
+          "showAfter": "pre-test"
+        },
+        "missions": [
+          { "id": "m3-1", "title": "The Mastermind Match", "deliverable": "สร้างกลุ่ม 3-4 คน + บทบาท + ลิงก์ประชุม/พิกัด + วันเวลา" },
+          { "id": "m3-2", "title": "The Alchemy Logbook", "deliverable": "One-Page Logbook + ภาพ/วิดีโอ Vibe Check" },
+          { "id": "m3-3", "title": "The 60-Second Spell", "deliverable": "ไฟล์เสียง/วิดีโอ 1-1.5 นาที + สคริปต์ Hook-Pain-Solution-Impact" }
+        ],
+        "postTest": {
+          "title": "The Reflection Mirror",
+          "questions": 1,
+          "passRule": "ตอบคำถามปลายเปิดครบถ้วน"
+        },
+        "completion": { "reportCard": "Module 3 (PLC)", "badge": "P-PLC Badge", "unlockModule": "module-4" }
+      },
+      {
+        "id": "module-4",
+        "name": "I - Innovation : ก้าวสู่ความพร้อม จุดประกายนวัตกรรม",
+        "preTest": { "questions": 5, "passScore": 3 },
+        "lesson": {
+          "embedUrl": "https://www.canva.com/design/DAHFgi56U6Q/zlELbaa9zOznNXxcgepZdQ/view",
+          "showAfter": "pre-test"
+        },
+        "missions": [
+          { "id": "m4-1", "title": "Innovation Lab", "deliverable": "สูตรผสม Tool + Active Learning + ชื่อนวัตกรรม" },
+          { "id": "m4-2", "title": "The Master Blueprint", "deliverable": "One-Page Blueprint: Hook 5 นาที / Action 35 นาที / Reflect 10 นาที" },
+          { "id": "m4-3", "title": "Crafting Session", "deliverable": "ชิ้นงานจริง (ดิจิทัลลิงก์ หรือภาพสื่อทำมือ+คำอธิบาย)" },
+          { "id": "m4-4", "title": "The Beta Test", "deliverable": "ฟีดแบ็กทดสอบ + Reflection 2 ข้อ (จุดเด่น/เวอร์ชัน 2.0)" }
+        ],
+        "postTest": { "questions": 5, "passScore": 3 },
+        "completion": { "reportCard": "Module 4 (Innovation)", "badge": "In-Innovation Badge", "unlockModule": "module-5" }
+      },
+      {
+        "id": "module-5",
+        "name": "Re - Reflection : สะท้อนผล",
+        "preTest": { "questions": 5, "passScore": 3 },
+        "lesson": {
+          "embedUrl": "https://www.canva.com/design/DAHFgqmbbOo/SOLFw8FFKEblrDUr3_1UQg/view",
+          "showAfter": "pre-test"
+        },
+        "missions": [
+          { "id": "m5-1", "title": "สอนจริงในห้องเรียน", "deliverable": "คลิปการสอนจริง 50-60 นาที" },
+          { "id": "m5-2", "title": "บันทึกหลังการใช้แผน", "deliverable": "Reflective note หลังสอน" },
+          { "id": "m5-3", "title": "แนวทางพัฒนา/ต่อยอด", "deliverable": "แผนปรับปรุงแผนการสอนหรือนวัตกรรม" }
+        ],
+        "postTest": { "questions": 5, "passScore": 3 },
+        "completion": { "reportCard": "Module 5 (RE-Reflection)", "badge": "RE-Reflection Badge", "unlockModule": "final-post-test" }
+      }
+    ],
+    "finalPostTest": {
+      "passPercent": 80,
+      "retryLimit": 3,
+      "cooldownHoursAfterLimit": 12,
+      "afterCompletion": ["แบบประเมินความพึงพอใจการใช้ Platform", "Certificate of InSPIRE360"]
+    }
+  }
+}

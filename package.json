@@ -7,7 +7,8 @@
   "scripts": {
     "firebase:audit": "node scripts/firebase-audit.mjs",
     "firebase:audit:strict": "node scripts/firebase-audit.mjs --strict",
-    "check": "node --check scripts/firebase-audit.mjs"
+    "check": "node --check scripts/firebase-audit.mjs",
+    "curriculum:validate": "node scripts/validate-curriculum.mjs"
   },
   "dependencies": {
     "firebase-admin": "^13.4.0"
