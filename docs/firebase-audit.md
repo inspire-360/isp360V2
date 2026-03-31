@@ -3,6 +3,7 @@
 เอกสารนี้ออกแบบมาเพื่อตรวจสอบ 2 เรื่องหลักแบบมืออาชีพ:
 1. การเชื่อมต่อฐานข้อมูล Firebase (Firestore + Realtime Database)
 2. การกำหนดบทบาท (Role Assignment) ผ่าน Firebase Auth custom claims
+3. สิทธิ์เข้า "หน้าเรียน" จาก role ของผู้ใช้
 
 ## สิ่งที่เพิ่มในโปรเจกต์
 - สคริปต์ตรวจสอบอัตโนมัติ: `scripts/firebase-audit.mjs`
@@ -24,6 +25,7 @@ npm install
 - `FIREBASE_PROJECT_ID` (ไม่บังคับ)
 - `FIREBASE_TEST_UID` (ไม่บังคับ แต่แนะนำ ถ้าจะตรวจ role จริง)
 - `FIREBASE_REQUIRED_ROLES` (ไม่บังคับ เช่น `admin,editor`)
+- `FIREBASE_LEARNING_PAGE_ROLES` (ไม่บังคับ ค่าเริ่มต้นคือ `learner,teacher,admin`)
 
 ตัวอย่างบน Linux/macOS:
 ```bash
@@ -49,6 +51,7 @@ npm run firebase:audit:strict
 - `firestoreConnection` — การเข้าถึง Firestore
 - `realtimeDatabaseConnection` — การเข้าถึง Realtime Database
 - `roleAssignment` — การตรวจ custom claims ของ user
+- `learningPageAccess` — ตรวจว่าผู้ใช้มี role ที่ได้รับอนุญาตให้เข้า "หน้าเรียน" หรือไม่
 
 ## แนวปฏิบัติแนะนำ (Professional Baseline)
 - ใช้ service account แยกตาม environment (dev/staging/prod)

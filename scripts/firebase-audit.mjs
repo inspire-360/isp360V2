@@ -13,7 +13,8 @@ const result = {
     adminInit: { ok: false, details: '' },
     firestoreConnection: { ok: false, details: '' },
     realtimeDatabaseConnection: { ok: false, details: '' },
-    roleAssignment: { ok: false, details: '' }
+    roleAssignment: { ok: false, details: '' },
+    learningPageAccess: { ok: false, details: '' }
   }
 };
 
@@ -32,6 +33,14 @@ function readServiceAccount() {
 
 function parseRequiredRoles() {
   const raw = process.env.FIREBASE_REQUIRED_ROLES || '';
+  return raw
+    .split(',')
+    .map((r) => r.trim())
+    .filter(Boolean);
+}
+
+function parseLearningPageRoles() {
+  const raw = process.env.FIREBASE_LEARNING_PAGE_ROLES || 'learner,teacher,admin';
   return raw
     .split(',')
     .map((r) => r.trim())
@@ -115,11 +124,16 @@ async function run() {
   try {
     const uid = process.env.FIREBASE_TEST_UID;
     const requiredRoles = parseRequiredRoles();
+    const learningPageRoles = parseLearningPageRoles();
 
     if (!uid) {
       result.checks.roleAssignment = {
         ok: true,
         details: 'Skipped role-assignment check (FIREBASE_TEST_UID not provided).'
+      };
+      result.checks.learningPageAccess = {
+        ok: true,
+        details: 'Skipped learning-page access check (FIREBASE_TEST_UID not provided).'
       };
     } else {
       const userRecord = await admin.auth().getUser(uid);
@@ -142,11 +156,28 @@ async function run() {
           details: `User ${uid} has expected role claims. Current roles: ${[...roleValues].join(', ') || '(none)'}`
         };
       }
+
+      const matchedLearningRoles = learningPageRoles.filter((r) => roleValues.has(r));
+      if (matchedLearningRoles.length > 0) {
+        result.checks.learningPageAccess = {
+          ok: true,
+          details: `User ${uid} can access learning page via role(s): ${matchedLearningRoles.join(', ')}`
+        };
+      } else {
+        result.checks.learningPageAccess = {
+          ok: false,
+          details: `User ${uid} cannot access learning page. Allowed roles: ${learningPageRoles.join(', ')}`
+        };
+      }
     }
   } catch (error) {
     result.checks.roleAssignment = {
       ok: false,
       details: `Role-assignment check failed: ${error.message}`
+    };
+    result.checks.learningPageAccess = {
+      ok: false,
+      details: `Learning-page access check failed: ${error.message}`
     };
   }
 
