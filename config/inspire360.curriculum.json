@@ -1,0 +1,193 @@
+{
+  "program": {
+    "name": "InSPIRE360",
+    "language": "th",
+    "interactionUX": {
+      "aiMentorPersona": {
+        "enabled": true,
+        "tone": ["encouraging", "probing"],
+        "examplePrompts": [
+          "ลองมองมุมนี้ดูไหมครับ?",
+          "เยี่ยมมากครับ! แล้วถ้า..."
+        ]
+      },
+      "progressionBar": {
+        "enabled": true,
+        "label": "Step 1-4"
+      },
+      "instantFeedback": {
+        "enabled": true,
+        "type": "micro-reward",
+        "trigger": "on_step_complete"
+      }
+    },
+    "modules": [
+      {
+        "id": "module-1",
+        "name": "In – Sight : เปิดตา เปิดใจ ค้นหาความต้องการ",
+        "lessonUrl": "https://www.canva.com/design/DAHFgpFnz8E/VXANS3zHrTRdvU7XGSIG8Q/view",
+        "lessonPlacement": "after_pretest",
+        "missions": [
+          {
+            "id": "m1-1",
+            "title": "9 มิติของการจัดการชั้นเรียน",
+            "parts": 2,
+            "questionsPerPart": 9,
+            "questions": [
+              "(Teaching Strategies) จุดแข็ง: เทคนิคหรือกิจกรรมที่ทำให้เด็กๆ ตาวาวคืออะไร?",
+              "(Teaching Strategies) จุดอ่อน: แผนที่เคยแป้กและความท้าทายห้องเรียนคละความสามารถคืออะไร?",
+              "(Classroom Environment) จุดแข็ง: การจัดห้อง/กติกาที่ทำให้ชั้นเรียนสงบคืออะไร?",
+              "(Classroom Environment) จุดอ่อน: สภาพห้อง/จำนวนเด็กส่งผลต่อการสอนอย่างไร?",
+              "(Systems & Assessment) จุดแข็ง: วิธีตรวจงานหรือประเมินผลที่ทั้งไวและโปร่งใสคืออะไร?",
+              "(Systems & Assessment) จุดอ่อน: งานเอกสาร/งานระบบใดดูดพลังที่สุด?",
+              "(Relationships & Shared Values) จุดแข็ง: โมเมนต์ใจฟูที่สะท้อนความสัมพันธ์ดีในห้องคืออะไร?",
+              "(Relationships & Shared Values) จุดอ่อน: พฤติกรรมหรือกำแพงใจของเด็กที่รับมือยากคืออะไร?",
+              "(Teacher's Style & Leadership) จุดแข็ง: สไตล์ครูที่ทำให้เด็กกล้าเข้าหาคืออะไร?",
+              "(Teacher's Style & Leadership) จุดอ่อน: สถานการณ์ที่สไตล์ครูเอาไม่อยู่คืออะไร?",
+              "(Skills & Mastery) จุดแข็ง: ทีเด็ดเฉพาะตัวที่โดดเด่นที่สุดคืออะไร?",
+              "(Skills & Mastery) จุดอ่อน: สกิลใหม่ที่อยากอัปเลเวลด่วนคืออะไร?",
+              "(Tech & Tools) จุดแข็ง: เครื่องมือหรือสื่อที่ช่วยให้การสอนปังที่สุดคืออะไร?",
+              "(Tech & Tools) จุดอ่อน: ปัญหาไอที/อินเทอร์เน็ต/อุปกรณ์ใดทำให้สะดุดบ่อย?",
+              "(Teacher Well-being & Workload) จุดแข็ง: วิธีชาร์จแบตเพื่อรักษาแพสชันคืออะไร?",
+              "(Teacher Well-being & Workload) จุดอ่อน: ความเครียดหรืองานใดดึงพลังจากการสอนมากที่สุด?",
+              "(Network & Partnership) จุดแข็ง: เคสที่ร่วมมือกับผู้ปกครอง/เพื่อนครูจนสำเร็จคืออะไร?",
+              "(Network & Partnership) จุดอ่อน: ช่องโหว่การสื่อสารหรือการซัพพอร์ตที่ควรพัฒนาคืออะไร?"
+            ]
+          },
+          {
+            "id": "m1-2",
+            "title": "Look Out Of The Room (PESTEL)",
+            "parts": 2,
+            "questionsPerPart": 6,
+            "intro": "เราคุยเรื่องในห้องเรียนกันไปแล้ว ทีนี้ลองถอยออกมามองกว้างขึ้นอีกนิด...",
+            "questions": [
+              "Political โอกาส: นโยบายใดช่วยให้สอนง่ายขึ้น?",
+              "Political อุปสรรค: นโยบายใดเพิ่มภาระจนกระทบเวลาเด็ก?",
+              "Economic โอกาส: งบหรือทุนใดสนับสนุนกิจกรรมการเรียนรู้ได้จริง?",
+              "Economic อุปสรรค: ปัจจัยเศรษฐกิจครอบครัวใดกระทบการเรียนมากที่สุด?",
+              "Social โอกาส: เทรนด์สังคมใดใช้เป็นตัวล่อให้เด็กอยากเรียนได้?",
+              "Social อุปสรรค: ปัญหาครอบครัว/ค่านิยมใดกระทบพฤติกรรมการเรียนมากที่สุด?",
+              "Technological โอกาส: เทคโนโลยี/AI ใดที่ควรนำเข้าห้องเรียน?",
+              "Technological อุปสรรค: ความเหลื่อมล้ำหรือภัยไซเบอร์ใดน่ากังวล?",
+              "Environmental โอกาส: แหล่งเรียนรู้นอกห้องเรียนจากพื้นที่รอบโรงเรียนคืออะไร?",
+              "Environmental อุปสรรค: อากาศ/PM2.5/โครงสร้างอาคารกระทบสุขภาพและสมาธิแค่ไหน?",
+              "Legal โอกาส: กติกาความปลอดภัยข้อใดช่วยครูและนักเรียนมากที่สุด?",
+              "Legal อุปสรรค: PDPA/สิทธิเด็ก/กฎระเบียบใดทำให้การจัดการชั้นเรียนยากขึ้น?"
+            ],
+            "analysisHint": {
+              "opportunities": "จับคู่ O กับ S เพื่อสร้างกลยุทธ์เชิงรุก",
+              "threats": "จับคู่ T กับ W เพื่อสร้างกลยุทธ์เชิงรับ"
+            }
+          },
+          {
+            "id": "m1-3",
+            "title": "Strategy Fusion (TOW Matrix)",
+            "passCriteria": "สร้างกลยุทธ์จาก SWOT อย่างน้อย 3 กลยุทธ์"
+          },
+          {
+            "id": "m1-4",
+            "title": "Needs Detective",
+            "passCriteria": "ให้คะแนนกลยุทธ์จาก Mission 3 และคัดเลือก 1 กลยุทธ์สำหรับ Action Plan"
+          },
+          {
+            "id": "m1-5",
+            "title": "Action Plan (PDCA)",
+            "passCriteria": "ออกแบบแผนด้วยวงจร PDCA ครบถ้วน"
+          }
+        ],
+        "postTest": { "questions": 5, "passScore": 3 },
+        "completion": {
+          "reportCard": "Module 1 (All Answers)",
+          "badge": "In-Sight Badge",
+          "unlock": "module-2"
+        }
+      },
+      {
+        "id": "module-2",
+        "name": "S - Design : ออกแบบฝัน ปั้นแผนสู่การพัฒนา",
+        "lessonUrl": "https://www.canva.com/design/DAHFggQuQrA/wjrRXDYOTSIPJ65KkbAlLA/view",
+        "lessonPlacement": "after_pretest",
+        "missions": [
+          { "id": "m2-1", "title": "Dream Lab & TOWS Matrix", "deliverable": "ตอบคำถาม SO/WO/ST/WT ครบ 4 ข้อ" },
+          { "id": "m2-2", "title": "Vibe Check", "deliverable": "อธิบาย Visual/Audio/Feeling" },
+          { "id": "m2-3", "title": "Mapping the Journey", "deliverable": "Roadmap 30 วัน (Week 1-4)" },
+          { "id": "m2-4", "title": "Define 5W1H", "deliverable": "Pitch Deck แบบย่อ" },
+          { "id": "m2-5", "title": "Design SMART Objective", "deliverable": "เป้าหมาย SMART 1-2 ประโยค" },
+          {
+            "id": "m2-6",
+            "title": "SMART Quality Check",
+            "lenses": ["Global (OECD Learning Compass 2030)", "National (พระบรมราโชบาย ร.10)", "Local (SEZ ชายแดนตาก)"]
+          }
+        ],
+        "postTest": { "questions": 5, "passScore": 3 },
+        "completion": {
+          "reportCard": "Module 2 (Road Map)",
+          "badge": "S-Design Badge",
+          "unlock": "module-3"
+        }
+      },
+      {
+        "id": "module-3",
+        "name": "P - PLC : รวมพลัง สร้างเครือข่ายแห่งการเรียนรู้",
+        "lessonUrl": "https://www.canva.com/design/DAHFglrceqA/WbTYzz93vBYgo8m30raOQg/view",
+        "lessonPlacement": "after_pretest",
+        "missions": [
+          { "id": "m3-1", "title": "The Mastermind Match", "deliverable": "ลิงก์ประชุมหรือสถานที่ + วันเวลา + บทบาทในทีม" },
+          { "id": "m3-2", "title": "The Alchemy Logbook", "deliverable": "One-Page Logbook + Vibe Check Evidence" },
+          { "id": "m3-3", "title": "The 60-Second Spell", "deliverable": "สคริปต์ + ลิงก์เสียง/วิดีโอ 1-1.5 นาที" }
+        ],
+        "postTest": {
+          "title": "The Reflection Mirror",
+          "questions": 1,
+          "type": "open-ended"
+        },
+        "completion": {
+          "reportCard": "Module 3 (PLC)",
+          "badge": "P-PLC Badge",
+          "unlock": "module-4"
+        }
+      },
+      {
+        "id": "module-4",
+        "name": "I - Innovation : ก้าวสู่ความพร้อม จุดประกายนวัตกรรม",
+        "lessonUrl": "https://www.canva.com/design/DAHFgi56U6Q/zlELbaa9zOznNXxcgepZdQ/view",
+        "lessonPlacement": "after_pretest",
+        "missions": [
+          { "id": "m4-1", "title": "Innovation Lab", "deliverable": "สูตรผสมเครื่องมือ+วิธีสอน + ชื่อนวัตกรรม" },
+          { "id": "m4-2", "title": "The Master Blueprint", "deliverable": "One-Page Lesson Blueprint (Hook/Action/Reflect)" },
+          { "id": "m4-3", "title": "Crafting Session", "deliverable": "ไฟล์สื่อดิจิทัลหรือภาพสื่อทำมือ + คำอธิบาย" },
+          { "id": "m4-4", "title": "The Beta Test", "deliverable": "ตอบสะท้อนคิด 2 ข้อ (จุดเด่น/อัปเกรด 2.0)" }
+        ],
+        "postTest": { "questions": 5, "passScore": 3 },
+        "completion": {
+          "reportCard": "Module 4 (Innovation)",
+          "badge": "In-Innovation Badge",
+          "unlock": "module-5"
+        }
+      },
+      {
+        "id": "module-5",
+        "name": "Re - Reflection : สะท้อนผล",
+        "lessonUrl": "https://www.canva.com/design/DAHFgqmbbOo/SOLFw8FFKEblrDUr3_1UQg/view",
+        "lessonPlacement": "after_pretest",
+        "missions": [
+          { "id": "m5-1", "title": "สอนจริงในห้องเรียน", "deliverable": "คลิป 50-60 นาที" },
+          { "id": "m5-2", "title": "บันทึกหลังสอน", "deliverable": "Reflection หลังใช้แผน" },
+          { "id": "m5-3", "title": "แนวทางพัฒนา/ต่อยอด", "deliverable": "Improvement Plan" }
+        ],
+        "postTest": { "questions": 5, "passScore": 3 },
+        "completion": {
+          "reportCard": "Module 5 (RE-Reflection)",
+          "badge": "RE-Reflection Badge",
+          "unlock": "final-posttest"
+        }
+      }
+    ],
+    "finalPostTest": {
+      "passPercent": 80,
+      "maxRetriesBeforeCooldown": 3,
+      "cooldownHours": 12,
+      "afterCompletion": ["แบบประเมินความพึงพอใจการใช้ Platform", "Certificate of InSPIRE360"]
+    }
+  }
+}
