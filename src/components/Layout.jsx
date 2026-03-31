@@ -5,60 +5,65 @@ import {
   BookOpen,
   ChevronRight,
   Home,
+  LifeBuoy,
   LogOut,
   Menu,
+  ShieldCheck,
   User,
   X,
 } from "lucide-react";
-import { doc, onSnapshot } from "firebase/firestore";
-import { auth, db } from "../lib/firebase";
+import { auth } from "../lib/firebase";
 import { useAuth } from "../contexts/AuthContext";
 import { useLine } from "../contexts/LineContext";
 import { usePresence } from "../hooks/usePresence";
 import { getRoleLabel } from "../data/profileOptions";
 import BrandMark from "./BrandMark";
 
-const NAV_ITEMS = [
-  {
-    icon: Home,
-    label: "Dashboard",
-    path: "/dashboard",
-    description: "Overview, access, and live activity",
-  },
-  {
-    icon: BookOpen,
-    label: "My Courses",
-    path: "/courses",
-    description: "Your enrolled learning paths",
-  },
-  {
-    icon: User,
-    label: "Profile",
-    path: "/profile",
-    description: "Identity and account settings",
-  },
-];
-
 const PAGE_COPY = [
   {
     match: (pathname) => pathname.startsWith("/dashboard"),
-    title: "Learning Workspace",
-    description: "Track cohorts, unlock spaces, and keep the next action obvious.",
+    title: "แดชบอร์ด",
+    description: "ติดตามเส้นทางเรียนรู้ สิทธิ์เข้าใช้งาน และภาพรวมการทำงานในระบบ",
   },
   {
     match: (pathname) => pathname.startsWith("/courses"),
-    title: "Active Learning Paths",
-    description: "Everything you have joined, with progress and return points in one place.",
+    title: "คอร์สของฉัน",
+    description: "กลับเข้าสู่คอร์สที่ปลดล็อกแล้วและดูจุดที่ต้องไปต่อ",
   },
   {
     match: (pathname) => pathname.startsWith("/profile"),
-    title: "Profile Settings",
-    description: "Keep your identity, school, and account details current.",
+    title: "โปรไฟล์",
+    description: "ปรับข้อมูลส่วนตัว โรงเรียน และข้อมูลบัญชีให้เป็นปัจจุบัน",
+  },
+  {
+    match: (pathname) => pathname.startsWith("/sos"),
+    title: "SOS to DU",
+    description: "ส่งคำร้อง ขอข้อมูล หรือขอรับการช่วยเหลือพร้อมติดตามสถานะ",
+  },
+  {
+    match: (pathname) => pathname.startsWith("/admin"),
+    title: "ศูนย์ควบคุมผู้ดูแล",
+    description: "จัดการผู้ใช้ ตรวจสอบ SOS และติดตามภาพรวมของทั้งระบบ",
+  },
+  {
+    match: (pathname) => pathname.startsWith("/course/teacher"),
+    title: "เส้นทางครู InSPIRE360",
+    description: "เรียนรู้ทีละโมดูล พร้อมภารกิจ รายงาน และการปลดล็อกอย่างต่อเนื่อง",
+  },
+  {
+    match: (pathname) => pathname.startsWith("/course/student"),
+    title: "พื้นที่ผู้เรียน",
+    description: "พื้นที่เรียนรู้แบบเปิดสำหรับผู้เรียนและกิจกรรมดูแลใจ",
+  },
+  {
+    match: (pathname) => pathname.startsWith("/course/ai-era"),
+    title: "AI & Innovation",
+    description: "เส้นทางเตรียมความพร้อมสำหรับการเรียนรู้ยุค AI",
   },
 ];
 
 export default function Layout() {
-  const { currentUser } = useAuth();
+  const { currentUser, profile, userRole } = useAuth();
   const { logoutLine } = useLine();
   const location = useLocation();
   const navigate = useNavigate();
@@ -67,41 +72,6 @@ export default function Layout() {
 
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [showFocusNotice, setShowFocusNotice] = useState(false);
-  const [userData, setUserData] = useState({
-    name: currentUser?.displayName || currentUser?.email?.split("@")[0] || "Learner",
-    role: "learner",
-    photoURL: currentUser?.photoURL || "",
-  });
-
-  useEffect(() => {
-    if (!currentUser) {
-      return undefined;
-    }
-
-    const fallbackName =
-      currentUser.displayName || currentUser.email?.split("@")[0] || "Learner";
-
-    const unsubscribe = onSnapshot(doc(db, "users", currentUser.uid), (snapshot) => {
-      if (!snapshot.exists()) {
-        setUserData({
-          name: fallbackName,
-          role: "learner",
-          photoURL: currentUser.photoURL || "",
-        });
-        return;
-      }
-
-      const data = snapshot.data();
-
-      setUserData({
-        name: data.name || fallbackName,
-        role: data.role || "learner",
-        photoURL: data.photoURL || currentUser.photoURL || "",
-      });
-    });
-
-    return () => unsubscribe();
-  }, [currentUser]);
 
   useEffect(() => {
     let timeoutId;
@@ -124,17 +94,55 @@ export default function Layout() {
     };
   }, []);
 
+  const navItems = useMemo(() => {
+    const items = [
+      {
+        icon: Home,
+        label: "แดชบอร์ด",
+        path: "/dashboard",
+        description: "ภาพรวมการใช้งาน",
+      },
+      {
+        icon: BookOpen,
+        label: "คอร์สของฉัน",
+        path: "/courses",
+        description: "คอร์สที่ปลดล็อกแล้ว",
+      },
+      {
+        icon: LifeBuoy,
+        label: "SOS to DU",
+        path: "/sos",
+        description: "ส่งคำร้องและติดตามสถานะ",
+      },
+      {
+        icon: User,
+        label: "โปรไฟล์",
+        path: "/profile",
+        description: "ข้อมูลส่วนตัวและโรงเรียน",
+      },
+    ];
+
+    if (userRole === "admin") {
+      items.splice(3, 0, {
+        icon: ShieldCheck,
+        label: "ดูแลระบบ",
+        path: "/admin",
+        description: "ผู้ใช้ สิทธิ์ และคิว SOS",
+      });
+    }
+
+    return items;
+  }, [userRole]);
+
   const pageMeta =
     PAGE_COPY.find((item) => item.match(location.pathname)) ?? PAGE_COPY[0];
 
-  const avatarUrl = useMemo(
-    () =>
-      userData.photoURL ||
-      `https://ui-avatars.com/api/?name=${encodeURIComponent(
-        userData.name,
-      )}&background=0f172a&color=fff`,
-    [userData.name, userData.photoURL],
-  );
+  const avatarUrl =
+    profile?.photoURL ||
+    currentUser?.photoURL ||
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(
+      profile?.name || currentUser?.displayName || currentUser?.email || "User",
+    )}&background=0f172a&color=fff`;
 
   const handleLogout = async () => {
     try {
@@ -158,10 +166,9 @@ export default function Layout() {
               <AlertTriangle size={18} />
             </div>
             <div>
-              <p className="font-semibold">Focus tracking resumed</p>
+              <p className="font-semibold">กลับเข้าสู่พื้นที่ทำงานแล้ว</p>
               <p className="mt-1 text-xs leading-5 text-slate-300">
-                Welcome back. The workspace is active again and your presence is
-                being updated.
+                ระบบกลับมาซิงก์สถานะการใช้งานให้อัตโนมัติ
               </p>
             </div>
           </div>
@@ -196,7 +203,7 @@ export default function Layout() {
 
           <div className="mt-5 rounded-[28px] border border-white/10 bg-white/5 p-4">
             <p className="text-[11px] uppercase tracking-[0.28em] text-amber-200">
-              Current Space
+              พื้นที่ปัจจุบัน
             </p>
             <h2 className="mt-2 font-display text-2xl font-semibold tracking-[-0.06em] text-white">
               {pageMeta.title}
@@ -207,7 +214,7 @@ export default function Layout() {
           </div>
 
           <nav className="mt-5 flex-1 space-y-2 overflow-y-auto custom-scrollbar pr-1">
-            {NAV_ITEMS.map((item) => {
+            {navItems.map((item) => {
               const Icon = item.icon;
 
               return (
@@ -262,14 +269,16 @@ export default function Layout() {
             <div className="flex items-center gap-3">
               <img
                 src={avatarUrl}
-                alt={userData.name}
+                alt={profile?.name || "User"}
                 referrerPolicy="no-referrer"
                 className="h-12 w-12 rounded-2xl object-cover ring-2 ring-white/10"
               />
               <div className="min-w-0 flex-1">
-                <p className="truncate font-semibold text-white">{userData.name}</p>
+                <p className="truncate font-semibold text-white">
+                  {profile?.name || currentUser?.displayName || "ผู้ใช้งาน"}
+                </p>
                 <p className="mt-1 text-xs uppercase tracking-[0.22em] text-slate-400">
-                  {getRoleLabel(userData.role)}
+                  {getRoleLabel(userRole || "teacher")}
                 </p>
               </div>
             </div>
@@ -280,7 +289,7 @@ export default function Layout() {
               className="flex w-full items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:border-red-300/20 hover:bg-red-400/10 hover:text-red-100"
             >
               <LogOut size={16} />
-              Sign out
+              ออกจากระบบ
             </button>
           </div>
         </aside>
@@ -307,7 +316,7 @@ export default function Layout() {
               </div>
 
               <div className="hidden rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-slate-300 md:block">
-                {getRoleLabel(userData.role)} account active
+                บัญชี {getRoleLabel(userRole || "teacher")} กำลังใช้งาน
               </div>
             </div>
           </header>

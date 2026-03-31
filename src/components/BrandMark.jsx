@@ -22,7 +22,7 @@ function BrandInner({ invert = false, compact = false }) {
         </div>
         {!compact && (
           <div className={`mt-1 text-xs font-medium ${metaClassName}`}>
-            Learning platform for purposeful digital classrooms
+            แพลตฟอร์มการเรียนรู้เพื่อห้องเรียนที่ตั้งใจพัฒนา
           </div>
         )}
       </div>

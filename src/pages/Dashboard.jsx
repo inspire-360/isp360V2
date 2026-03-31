@@ -6,8 +6,10 @@ import {
   CheckCircle2,
   Clock,
   GraduationCap,
+  LifeBuoy,
   Loader2,
   Lock,
+  ShieldCheck,
   Sparkles,
   Users,
   X,
@@ -27,12 +29,13 @@ import { getRoleLabel } from "../data/profileOptions";
 import { getIcon } from "../utils/iconHelper";
 
 export default function Dashboard() {
-  const { currentUser, userRole } = useAuth();
+  const { currentUser, userRole, isAdmin, profile } = useAuth();
   const navigate = useNavigate();
 
   const [enrolledCourses, setEnrolledCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [totalUsers, setTotalUsers] = useState(0);
+  const [sosCount, setSosCount] = useState(0);
   const [showModal, setShowModal] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [accessCode, setAccessCode] = useState("");
@@ -40,8 +43,8 @@ export default function Dashboard() {
   const [enrollLoading, setEnrollLoading] = useState(false);
 
   const displayName =
-    currentUser?.displayName || currentUser?.email?.split("@")[0] || "Learner";
-  const displayRole = getRoleLabel(userRole || "learner");
+    profile?.name || currentUser?.displayName || currentUser?.email?.split("@")[0] || "ผู้ใช้งาน";
+  const displayRole = getRoleLabel(userRole || "teacher");
 
   useEffect(() => {
     let isMounted = true;
@@ -52,9 +55,10 @@ export default function Dashboard() {
       }
 
       try {
-        const [enrollmentSnapshot, usersSnapshot] = await Promise.all([
+        const [enrollmentSnapshot, usersSnapshot, sosSnapshot] = await Promise.all([
           getDocs(collection(db, "users", currentUser.uid, "enrollments")),
           getCountFromServer(collection(db, "users")),
+          getDocs(collection(db, "sosRequests")),
         ]);
 
         if (!isMounted) {
@@ -63,6 +67,13 @@ export default function Dashboard() {
 
         setEnrolledCourses(enrollmentSnapshot.docs.map((docItem) => docItem.id));
         setTotalUsers(usersSnapshot.data().count);
+        setSosCount(
+          isAdmin
+            ? sosSnapshot.docs.length
+            : sosSnapshot.docs.filter(
+                (docItem) => docItem.data().requesterId === currentUser.uid,
+              ).length,
+        );
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
       } finally {
@@ -77,29 +88,35 @@ export default function Dashboard() {
     return () => {
       isMounted = false;
     };
-  }, [currentUser]);
+  }, [currentUser, isAdmin]);
 
   const enrolledSet = useMemo(() => new Set(enrolledCourses), [enrolledCourses]);
   const recommendedCourse = useMemo(
-    () => courseCatalog.find((course) => !enrolledSet.has(course.id)) ?? courseCatalog[0],
+    () =>
+      courseCatalog.find((course) => !enrolledSet.has(course.id)) ?? courseCatalog[0],
     [enrolledSet],
   );
 
   const systemStats = [
     {
-      label: "Platform users",
+      label: "ผู้ใช้ในระบบ",
       value: totalUsers.toLocaleString(),
       icon: <Users size={18} />,
     },
     {
-      label: "Available pathways",
+      label: "เส้นทางเรียนรู้",
       value: courseCatalog.length,
       icon: <BookOpen size={18} />,
     },
     {
-      label: "Enrolled courses",
+      label: "คอร์สที่ปลดล็อกแล้ว",
       value: enrolledCourses.length,
       icon: <GraduationCap size={18} />,
+    },
+    {
+      label: isAdmin ? "คำร้อง SOS ทั้งหมด" : "คำร้อง SOS ของฉัน",
+      value: sosCount,
+      icon: <LifeBuoy size={18} />,
     },
   ];
 
@@ -126,12 +143,12 @@ export default function Dashboard() {
     }
 
     if (!accessCode.trim()) {
-      setModalError("Please enter the access code for this cohort.");
+      setModalError("กรุณากรอกรหัสเข้าร่วมรุ่น");
       return;
     }
 
     if (accessCode.trim().toUpperCase() !== selectedCourse.accessCode) {
-      setModalError("That access code is incorrect.");
+      setModalError("รหัสเข้าร่วมไม่ถูกต้อง");
       return;
     }
 
@@ -157,7 +174,7 @@ export default function Dashboard() {
       navigate(course.path);
     } catch (error) {
       console.error("Enrollment failed:", error);
-      setModalError("We could not enroll you right now. Please try again.");
+      setModalError("ไม่สามารถลงทะเบียนคอร์สได้ในขณะนี้");
     } finally {
       setEnrollLoading(false);
     }
@@ -173,19 +190,18 @@ export default function Dashboard() {
 
   return (
     <div className="page-wrap space-y-6">
-      <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+      <section className="grid gap-6 xl:grid-cols-[1.18fr_0.82fr]">
         <div className="dark-panel relative overflow-hidden p-6 sm:p-8">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(216,163,95,0.14),transparent_22%),radial-gradient(circle_at_bottom_left,rgba(37,99,235,0.18),transparent_24%)]" />
           <div className="relative">
             <p className="text-[11px] uppercase tracking-[0.28em] text-amber-200">
-              {displayRole} workspace
+              บัญชี {displayRole}
             </p>
             <h2 className="mt-3 font-display text-4xl font-semibold tracking-[-0.08em] text-white sm:text-5xl">
-              Welcome back, {displayName}.
+              ยินดีต้อนรับกลับ, {displayName}
             </h2>
             <p className="mt-4 max-w-2xl text-base leading-7 text-slate-300">
-              Keep your learning pathways visible, enroll into the right cohort,
-              and return to the exact space that needs attention.
+              เลือกคอร์สที่ต้องไปต่อ ติดตามคำร้อง SOS และกลับเข้าสู่พื้นที่ทำงานที่สำคัญได้จากหน้าเดียว
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -194,19 +210,28 @@ export default function Dashboard() {
                 onClick={() => navigate("/courses")}
                 className="primary-button"
               >
-                Open my courses
+                ไปที่คอร์สของฉัน
                 <ArrowRight size={16} />
               </button>
               <button
                 type="button"
-                onClick={() => navigate("/profile")}
+                onClick={() => navigate("/sos")}
                 className="secondary-button border-white/10 bg-white/5 text-white hover:bg-white/10"
               >
-                Update profile
+                ส่ง SOS to DU
               </button>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => navigate("/admin")}
+                  className="secondary-button border-white/10 bg-white/5 text-white hover:bg-white/10"
+                >
+                  ดูแลระบบ
+                </button>
+              )}
             </div>
 
-            <div className="mt-8 grid gap-4 sm:grid-cols-3">
+            <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {systemStats.map((stat) => (
                 <div
                   key={stat.label}
@@ -229,7 +254,7 @@ export default function Dashboard() {
 
         <div className="surface-panel p-6">
           <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">
-            Suggested next move
+            คำแนะนำถัดไป
           </p>
           <h3 className="mt-3 font-display text-3xl font-semibold tracking-[-0.06em] text-slate-950">
             {recommendedCourse.title}
@@ -239,10 +264,10 @@ export default function Dashboard() {
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <span className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600">
-              {recommendedCourse.modules} modules
+              {recommendedCourse.modules} โมดูล
             </span>
             <span className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600">
-              {recommendedCourse.hours} hours
+              {recommendedCourse.hours} ชั่วโมง
             </span>
           </div>
           <button
@@ -250,7 +275,7 @@ export default function Dashboard() {
             onClick={() => openEnrollModal(recommendedCourse)}
             className="mt-8 inline-flex items-center gap-2 rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800"
           >
-            {enrolledSet.has(recommendedCourse.id) ? "Continue" : "Enter pathway"}
+            {enrolledSet.has(recommendedCourse.id) ? "เรียนต่อ" : "เข้าสู่เส้นทางนี้"}
             <ArrowRight size={16} />
           </button>
         </div>
@@ -258,15 +283,13 @@ export default function Dashboard() {
 
       <section className="grid gap-6 xl:grid-cols-[1.28fr_0.72fr]">
         <div className="space-y-4">
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <p className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
-                Available learning spaces
-              </p>
-              <h3 className="mt-2 font-display text-3xl font-semibold tracking-[-0.06em] text-white">
-                Access the right room with less friction.
-              </h3>
-            </div>
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
+              พื้นที่เรียนรู้ที่เปิดให้เข้าใช้
+            </p>
+            <h3 className="mt-2 font-display text-3xl font-semibold tracking-[-0.06em] text-white">
+              เลือกห้องเรียนที่ตรงกับบริบทของคุณ
+            </h3>
           </div>
 
           {courseCatalog.map((course) => {
@@ -302,10 +325,10 @@ export default function Dashboard() {
                       </div>
                       <div className="flex flex-wrap gap-3 text-sm text-slate-300">
                         <span className="rounded-full border border-white/10 px-4 py-2">
-                          {course.modules} modules
+                          {course.modules} โมดูล
                         </span>
                         <span className="rounded-full border border-white/10 px-4 py-2">
-                          {course.hours} hours
+                          {course.hours} ชั่วโมง
                         </span>
                       </div>
                     </div>
@@ -320,7 +343,7 @@ export default function Dashboard() {
                       </span>
                       {isEnrolled && (
                         <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-xs font-medium text-emerald-300">
-                          Enrolled
+                          ปลดล็อกแล้ว
                         </span>
                       )}
                     </div>
@@ -343,11 +366,11 @@ export default function Dashboard() {
                     <div className="mt-6 flex flex-wrap items-center gap-4 text-sm text-slate-400">
                       <span className="inline-flex items-center gap-2">
                         <BookOpen size={16} />
-                        {course.modules} learning units
+                        {course.modules} หน่วยเรียนรู้
                       </span>
                       <span className="inline-flex items-center gap-2">
                         <Clock size={16} />
-                        {course.hours} hours estimated
+                        ใช้เวลาประมาณ {course.hours} ชั่วโมง
                       </span>
                     </div>
 
@@ -360,17 +383,17 @@ export default function Dashboard() {
                         {isEnrolled ? (
                           <>
                             <CheckCircle2 size={16} />
-                            Continue learning
+                            เรียนต่อ
                           </>
                         ) : course.requiresCode ? (
                           <>
                             <Lock size={16} />
-                            Unlock with code
+                            ปลดล็อกด้วยรหัส
                           </>
                         ) : (
                           <>
                             <Sparkles size={16} />
-                            Enter space
+                            เข้าใช้งานได้ทันที
                           </>
                         )}
                       </button>
@@ -387,10 +410,10 @@ export default function Dashboard() {
 
           <section className="surface-panel p-6">
             <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">
-              Operator notes
+              หมายเหตุสำหรับการใช้งาน
             </p>
             <h3 className="mt-3 font-display text-3xl font-semibold tracking-[-0.06em] text-slate-950">
-              Useful improvements behind the redesign.
+              สิ่งที่ถูกยกระดับในเวอร์ชันนี้
             </h3>
             <div className="mt-6 space-y-3">
               {operatorNotes.map((note) => (
@@ -423,19 +446,18 @@ export default function Dashboard() {
             </button>
 
             <div className="space-y-4">
-              <div className="section-tag">Private cohort</div>
+              <div className="section-tag">รุ่นเฉพาะ</div>
               <h3 className="font-display text-3xl font-semibold tracking-[-0.06em] text-slate-950">
-                Unlock {selectedCourse.title}
+                ปลดล็อก {selectedCourse.title}
               </h3>
               <p className="text-sm leading-7 text-slate-500">
-                This pathway is protected by an access code so only the intended
-                cohort can enter. Use the code provided by the facilitator.
+                คอร์สนี้จำกัดเฉพาะรุ่นที่ได้รับสิทธิ์ กรุณากรอกรหัสเข้าร่วมที่ผู้ดูแลโครงการให้มา
               </p>
             </div>
 
             <div className="mt-6 space-y-4">
               <label className="field-label" htmlFor="access-code">
-                Access code
+                รหัสเข้าร่วม
               </label>
               <input
                 id="access-code"
@@ -462,11 +484,11 @@ export default function Dashboard() {
                 {enrollLoading ? (
                   <>
                     <Loader2 size={16} className="animate-spin" />
-                    Enrolling...
+                    กำลังปลดล็อกคอร์ส
                   </>
                 ) : (
                   <>
-                    Enter pathway
+                    เข้าสู่คอร์ส
                     <ArrowRight size={16} />
                   </>
                 )}

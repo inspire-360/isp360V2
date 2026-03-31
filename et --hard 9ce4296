@@ -1,0 +1,18 @@
+[33madfa46c[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mcodex/redesign-project-isp360[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m HEAD@{0}: reset: moving to origin/main
+[33mdfe994d[m[33m ([m[1;31morigin/codex/redesign-project-isp360[m[33m)[m HEAD@{1}: commit: Fix teacher course navigation to use module-level routes
+[33m3062951[m HEAD@{2}: commit: Fix course mission routing and improve admin learning flows
+[33md18776a[m HEAD@{3}: commit: Fix Firebase profile auth sync and refine SOS taxonomy
+[33me3e0ca5[m HEAD@{4}: commit: Expand admin controls and track course completion status
+[33m8e3b10e[m HEAD@{5}: commit: Track presence in Firestore and refine SOS workflow
+[33mf236df3[m HEAD@{6}: commit: Add local enrollment cache fallback for course access
+[33m23f2924[m HEAD@{7}: commit: Fix enrollment flow and stabilize presence updates
+[33m7ee5f23[m HEAD@{8}: commit: Add admin dashboard, SOS support, and reliable presence sync
+[33m6177887[m HEAD@{9}: commit: Rebuild teacher course flow with interactive report cards
+[33m9fb1ba6[m HEAD@{10}: commit: Redesign app UI and split bundles for a cleaner workspace
+[33m9ce4296[m[33m ([m[1;31morigin/codex/modify-and-create-course-materials-r3n4yg[m[33m, [m[1;32mcodex/modify-and-create-course-materials-r3n4yg[m[33m)[m HEAD@{11}: checkout: moving from codex/modify-and-create-course-materials-r3n4yg to codex/redesign-project-isp360
+[33m9ce4296[m[33m ([m[1;31morigin/codex/modify-and-create-course-materials-r3n4yg[m[33m, [m[1;32mcodex/modify-and-create-course-materials-r3n4yg[m[33m)[m HEAD@{12}: reset: moving to HEAD
+[33m9ce4296[m[33m ([m[1;31morigin/codex/modify-and-create-course-materials-r3n4yg[m[33m, [m[1;32mcodex/modify-and-create-course-materials-r3n4yg[m[33m)[m HEAD@{13}: commit (merge): Merge remote-tracking branch 'origin/main' into codex/modify-and-create-course-materials-r3n4yg
+[33mc5c98d0[m HEAD@{14}: checkout: moving from main to codex/modify-and-create-course-materials-r3n4yg
+[33md5c63e2[m[33m ([m[1;32mmain[m[33m)[m HEAD@{15}: pull --tags origin main: Fast-forward
+[33m469e5b8[m HEAD@{16}: Branch: renamed refs/heads/main to refs/heads/main
+[33m469e5b8[m HEAD@{18}: commit (initial): First commit

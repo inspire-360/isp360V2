@@ -7,7 +7,14 @@ import {
   updateProfile,
 } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { ArrowRight, CheckCircle2, Loader2, Lock, Mail, MessageCircle } from "lucide-react";
+import {
+  ArrowRight,
+  CheckCircle2,
+  Loader2,
+  Lock,
+  Mail,
+  MessageCircle,
+} from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import AuthShell from "../components/AuthShell";
 import { auth, db } from "../lib/firebase";
@@ -15,21 +22,21 @@ import { useLine } from "../contexts/LineContext";
 
 const HIGHLIGHTS = [
   {
-    title: "One workspace",
-    description: "Landing, login, dashboard, and settings now follow the same visual system.",
+    title: "ทางเข้าเดียว",
+    description: "อีเมล Google และ LINE อยู่ใน flow เดียวกันแบบไม่สลับประสบการณ์ใช้งาน",
   },
   {
-    title: "Flexible entry",
-    description: "Support email, Google, and LINE without fragmenting the product flow.",
+    title: "พร้อมใช้งานทันที",
+    description: "ข้อมูลผู้ใช้ถูกซิงก์เข้าระบบเพื่อเข้าแดชบอร์ดและคอร์สได้ต่อเนื่อง",
   },
   {
-    title: "Cohort-ready",
-    description: "Private access and open spaces can live together without confusing users.",
+    title: "รองรับการดูแลรุ่นเรียน",
+    description: "โครงสร้างบัญชีถูกเตรียมไว้สำหรับสิทธิ์คอร์สและการติดตามในระบบ",
   },
 ];
 
 function splitName(fullName) {
-  const parts = fullName ? fullName.split(" ") : ["User", ""];
+  const parts = fullName ? fullName.split(" ") : ["ผู้ใช้", ""];
   return {
     firstName: parts[0],
     lastName: parts.slice(1).join(" ") || "",
@@ -42,7 +49,7 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [isProcessingLine, setIsProcessingLine] = useState(false);
-  const [lineStatus, setLineStatus] = useState("Preparing LINE account...");
+  const [lineStatus, setLineStatus] = useState("กำลังเตรียมเชื่อมต่อบัญชี LINE...");
   const [lineCompleted, setLineCompleted] = useState(false);
 
   const processingRef = useRef(false);
@@ -58,11 +65,11 @@ export default function Login() {
       processingRef.current = true;
       setIsProcessingLine(true);
       setLineCompleted(false);
-      setLineStatus("Verifying LINE profile...");
+      setLineStatus("กำลังตรวจสอบโปรไฟล์ LINE...");
       setError("");
 
       try {
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 400));
 
         const virtualEmail = `line.${lineProfile.userId.toLowerCase()}@inspire.local`;
         const virtualPassword = `line-secure-${lineProfile.userId}`;
@@ -70,8 +77,7 @@ export default function Login() {
         let user = auth.currentUser;
 
         if (!user) {
-          setLineStatus("Checking for an existing LINE workspace...");
-
+          setLineStatus("กำลังค้นหาบัญชีที่ผูกกับ LINE...");
           try {
             const credential = await signInWithEmailAndPassword(
               auth,
@@ -84,7 +90,7 @@ export default function Login() {
               loginError.code === "auth/user-not-found" ||
               loginError.code === "auth/invalid-credential"
             ) {
-              setLineStatus("Creating a new LINE workspace...");
+              setLineStatus("ยังไม่พบบัญชี กำลังสร้างพื้นที่ทำงานใหม่...");
               const credential = await createUserWithEmailAndPassword(
                 auth,
                 virtualEmail,
@@ -97,7 +103,7 @@ export default function Login() {
           }
         }
 
-        setLineStatus("Updating profile details...");
+        setLineStatus("กำลังอัปเดตข้อมูลโปรไฟล์...");
         await updateProfile(user, {
           displayName: lineProfile.displayName,
           photoURL: lineProfile.pictureUrl,
@@ -106,25 +112,25 @@ export default function Login() {
         const userRef = doc(db, "users", user.uid);
         const userSnapshot = await getDoc(userRef);
         const { firstName, lastName } = splitName(lineProfile.displayName);
-
         const lineData = {
           name: lineProfile.displayName,
           photoURL: lineProfile.pictureUrl,
           lineUserId: lineProfile.userId,
           lastLogin: new Date(),
+          status: "active",
         };
 
-        setLineStatus("Saving access data...");
+        setLineStatus("กำลังบันทึกข้อมูลการเข้าใช้งาน...");
 
         if (!userSnapshot.exists()) {
           await setDoc(userRef, {
             uid: user.uid,
             email: `line_${lineProfile.userId}@inspire.com`,
-            role: "learner",
+            role: "teacher",
             firstName,
             lastName,
             prefix: "คุณ",
-            position: "อื่นๆ",
+            position: "ครู",
             school: "",
             createdAt: new Date(),
             badges: [],
@@ -135,13 +141,13 @@ export default function Login() {
           await setDoc(userRef, lineData, { merge: true });
         }
 
-        setLineStatus("LINE connected. Entering the workspace...");
+        setLineStatus("เชื่อมต่อ LINE สำเร็จ กำลังเข้าสู่แดชบอร์ด...");
         setLineCompleted(true);
-        await new Promise((resolve) => setTimeout(resolve, 450));
+        await new Promise((resolve) => setTimeout(resolve, 400));
         navigate("/dashboard");
       } catch (syncError) {
         console.error("LINE Sync Error:", syncError);
-        setError(`LINE sign-in failed: ${syncError.message}`);
+        setError(`ไม่สามารถเข้าสู่ระบบด้วย LINE ได้: ${syncError.message}`);
         processingRef.current = false;
         setIsProcessingLine(false);
         setLineCompleted(false);
@@ -173,11 +179,11 @@ export default function Login() {
         await setDoc(userRef, {
           uid: user.uid,
           email: user.email,
-          role: "learner",
+          role: "teacher",
           firstName,
           lastName,
           prefix: "คุณ",
-          position: "อื่นๆ",
+          position: "ครู",
           school: "",
           createdAt: new Date(),
           badges: [],
@@ -185,6 +191,7 @@ export default function Login() {
           name: user.displayName,
           photoURL: user.photoURL,
           lastLogin: new Date(),
+          status: "active",
         });
       } else {
         await setDoc(
@@ -192,6 +199,7 @@ export default function Login() {
           {
             lastLogin: new Date(),
             photoURL: user.photoURL,
+            status: "active",
           },
           { merge: true },
         );
@@ -200,7 +208,7 @@ export default function Login() {
       navigate("/dashboard");
     } catch (googleError) {
       console.error("Google Login Error:", googleError);
-      setError(`Google sign-in failed: ${googleError.message}`);
+      setError(`ไม่สามารถเข้าสู่ระบบด้วย Google ได้: ${googleError.message}`);
     }
   };
 
@@ -220,7 +228,7 @@ export default function Login() {
       navigate("/dashboard");
     } catch (loginError) {
       console.error(loginError);
-      setError("Email or password is incorrect.");
+      setError("อีเมลหรือรหัสผ่านไม่ถูกต้อง");
     } finally {
       setLoading(false);
     }
@@ -228,11 +236,11 @@ export default function Login() {
 
   return (
     <AuthShell
-      eyebrow="Member access"
-      title="Sign in to the redesigned workspace"
-      description="Use the sign-in method that fits your account and continue into the updated learning environment."
-      asideTitle="A calmer sign-in surface for a more focused first step."
-      asideCopy="The new entry flow keeps orientation clear, supports social login, and carries the same premium visual language into the signed-in product."
+      eyebrow="เข้าสู่ระบบ"
+      title="เข้าสู่ InSPIRE Workspace"
+      description="เลือกวิธีการเข้าสู่ระบบที่เหมาะกับบัญชีของคุณ แล้วไปต่อยังพื้นที่เรียนรู้และการทำงาน"
+      asideTitle="เริ่มต้นอย่างนิ่ง ชัด และพร้อมใช้งานจริง"
+      asideCopy="หน้าทางเข้าถูกออกแบบให้รองรับทั้งครู ผู้เรียน และผู้ดูแลระบบใน flow เดียวกัน พร้อมพาเข้าสู่ workspace ได้ต่อเนื่อง"
       highlights={HIGHLIGHTS}
     >
       {isProcessingLine ? (
@@ -240,15 +248,11 @@ export default function Login() {
           <div className="relative">
             <div className="h-20 w-20 rounded-full border-4 border-emerald-100 border-t-[#06C755] animate-spin" />
             <div className="absolute inset-0 flex items-center justify-center text-[#06C755]">
-              {lineCompleted ? (
-                <CheckCircle2 size={30} />
-              ) : (
-                <MessageCircle size={28} />
-              )}
+              {lineCompleted ? <CheckCircle2 size={30} /> : <MessageCircle size={28} />}
             </div>
           </div>
           <h3 className="mt-6 font-display text-2xl font-semibold tracking-[-0.05em] text-slate-950">
-            {lineCompleted ? "LINE connected" : "Connecting LINE"}
+            {lineCompleted ? "เชื่อมต่อ LINE สำเร็จ" : "กำลังเชื่อมต่อ LINE"}
           </h3>
           <p className="mt-3 max-w-sm text-sm leading-7 text-slate-500">
             {lineStatus}
@@ -265,7 +269,7 @@ export default function Login() {
           <form onSubmit={handleLogin} className="space-y-5">
             <div>
               <label htmlFor="email" className="field-label">
-                Email
+                อีเมล
               </label>
               <div className="relative">
                 <Mail
@@ -286,7 +290,7 @@ export default function Login() {
 
             <div>
               <label htmlFor="password" className="field-label">
-                Password
+                รหัสผ่าน
               </label>
               <div className="relative">
                 <Lock
@@ -299,7 +303,7 @@ export default function Login() {
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   className="field-input pl-11"
-                  placeholder="Enter your password"
+                  placeholder="กรอกรหัสผ่าน"
                   required
                 />
               </div>
@@ -309,11 +313,11 @@ export default function Login() {
               {loading ? (
                 <>
                   <Loader2 size={16} className="animate-spin" />
-                  Signing in...
+                  กำลังเข้าสู่ระบบ
                 </>
               ) : (
                 <>
-                  Continue to dashboard
+                  เข้าสู่แดชบอร์ด
                   <ArrowRight size={16} />
                 </>
               )}
@@ -323,7 +327,7 @@ export default function Login() {
           <div className="my-6 flex items-center gap-4">
             <div className="h-px flex-1 bg-slate-200" />
             <span className="text-xs uppercase tracking-[0.28em] text-slate-400">
-              Or use
+              หรือใช้
             </span>
             <div className="h-px flex-1 bg-slate-200" />
           </div>
@@ -335,7 +339,7 @@ export default function Login() {
               className="flex items-center justify-center gap-2 rounded-2xl border border-[#06C755]/20 bg-[#06C755]/10 px-4 py-3 text-sm font-semibold text-[#06C755] transition hover:bg-[#06C755]/15"
             >
               <MessageCircle size={18} />
-              Continue with LINE
+              เข้าด้วย LINE
             </button>
 
             <button
@@ -361,14 +365,14 @@ export default function Login() {
                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 0 0 2.18 7.07l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38Z"
                 />
               </svg>
-              Continue with Google
+              เข้าด้วย Google
             </button>
           </div>
 
           <p className="mt-8 text-center text-sm text-slate-500">
-            Need a new account?{" "}
+            ยังไม่มีบัญชี?{" "}
             <Link to="/register" className="font-semibold text-slate-950">
-              Create one here
+              สมัครใช้งานที่นี่
             </Link>
           </p>
         </>

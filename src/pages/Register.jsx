@@ -1,24 +1,34 @@
 import React, { useState } from "react";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
-import { ArrowRight, CheckCircle2, Loader2, Mail, ShieldCheck } from "lucide-react";
+import {
+  ArrowRight,
+  CheckCircle2,
+  Loader2,
+  Mail,
+  ShieldCheck,
+} from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import AuthShell from "../components/AuthShell";
 import { auth, db } from "../lib/firebase";
-import { positionOptions, prefixOptions } from "../data/profileOptions";
+import {
+  positionOptions,
+  prefixOptions,
+  roleOptions,
+} from "../data/profileOptions";
 
 const HIGHLIGHTS = [
   {
-    title: "Structured onboarding",
-    description: "Account details, school context, and consent are grouped into one readable form.",
+    title: "สมัครครั้งเดียว",
+    description: "เก็บข้อมูลตัวตน โรงเรียน และประเภทผู้ใช้ไว้พร้อมสำหรับการใช้งานจริง",
   },
   {
-    title: "Learner-first default",
-    description: "New accounts land in the workspace with the same clear profile model used across the app.",
+    title: "เข้า workspace ได้ทันที",
+    description: "เมื่อสมัครเสร็จ ระบบจะสร้างบัญชีและพาเข้าสู่แดชบอร์ดอัตโนมัติ",
   },
   {
-    title: "Ready for cohorts",
-    description: "The account record supports private access codes and future course unlocks cleanly.",
+    title: "รองรับการดูแลสิทธิ์ต่อ",
+    description: "ผู้ดูแลระบบสามารถปรับบทบาทและสิทธิ์เพิ่มเติมได้ภายหลัง",
   },
 ];
 
@@ -30,6 +40,7 @@ export default function Register() {
     lastName: "",
     position: "ครู",
     otherPosition: "",
+    role: "teacher",
     school: "",
     email: "",
     password: "",
@@ -55,19 +66,19 @@ export default function Register() {
     setError("");
 
     if (formData.password !== formData.confirmPassword) {
-      setError("Password and confirmation do not match.");
+      setError("รหัสผ่านและการยืนยันรหัสผ่านไม่ตรงกัน");
       setLoading(false);
       return;
     }
 
     if (formData.password.length < 6) {
-      setError("Password must be at least 6 characters long.");
+      setError("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
       setLoading(false);
       return;
     }
 
     if (!formData.pdpaAccepted) {
-      setError("Please accept the PDPA consent checkbox before continuing.");
+      setError("กรุณายอมรับข้อตกลงการใช้ข้อมูลส่วนบุคคลก่อนดำเนินการต่อ");
       setLoading(false);
       return;
     }
@@ -81,7 +92,7 @@ export default function Register() {
           : formData.position;
 
       if (!finalPrefix || !formData.firstName || !formData.lastName) {
-        throw new Error("Please complete your name details.");
+        throw new Error("กรุณากรอกข้อมูลชื่อ-นามสกุลให้ครบ");
       }
 
       const fullName = `${finalPrefix}${formData.firstName} ${formData.lastName}`;
@@ -108,9 +119,10 @@ export default function Register() {
         position: finalPosition,
         school: formData.school,
         email: formData.email,
-        role: "learner",
+        role: formData.role,
         photoURL: user.photoURL,
         createdAt: new Date(),
+        status: "active",
         pdpaAccepted: true,
         pdpaAcceptedAt: new Date(),
         badges: [],
@@ -120,7 +132,7 @@ export default function Register() {
     } catch (registerError) {
       console.error("Register Error:", registerError);
       if (registerError.code === "auth/email-already-in-use") {
-        setError("This email is already registered.");
+        setError("อีเมลนี้ถูกใช้งานแล้ว");
       } else {
         setError(registerError.message);
       }
@@ -131,11 +143,11 @@ export default function Register() {
 
   return (
     <AuthShell
-      eyebrow="New member"
-      title="Create your InSPIRE account"
-      description="Set up your identity and school context once, then move straight into the redesigned workspace."
-      asideTitle="A cleaner onboarding flow for educators and learners."
-      asideCopy="The registration experience now feels like part of the product, with clearer grouping, calmer hierarchy, and less visual clutter."
+      eyebrow="สมัครใช้งาน"
+      title="สร้างบัญชี InSPIRE"
+      description="กรอกข้อมูลพื้นฐานเพียงครั้งเดียว แล้วเข้าสู่ระบบเพื่อเริ่มใช้งานพื้นที่เรียนรู้และการดูแลระบบ"
+      asideTitle="ลงทะเบียนให้ครบ ใช้งานต่อได้จริง"
+      asideCopy="หน้า signup นี้ถูกจัดให้อ่านง่ายและเป็นภาษาไทยเต็มรูปแบบ พร้อมเชื่อมข้อมูลตัวตนของคุณกับคอร์สและเครื่องมือในระบบ"
       highlights={HIGHLIGHTS}
     >
       {error && (
@@ -148,10 +160,10 @@ export default function Register() {
         <section className="space-y-4 rounded-[28px] border border-slate-200 bg-slate-50/70 p-5">
           <div>
             <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">
-              Identity
+              ตัวตน
             </p>
             <h3 className="mt-2 font-display text-2xl font-semibold tracking-[-0.05em] text-slate-950">
-              Your personal details
+              ข้อมูลส่วนตัว
             </h3>
           </div>
 
@@ -223,14 +235,35 @@ export default function Register() {
         <section className="space-y-4 rounded-[28px] border border-slate-200 bg-slate-50/70 p-5">
           <div>
             <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">
-              Context
+              บริบทการใช้งาน
             </p>
             <h3 className="mt-2 font-display text-2xl font-semibold tracking-[-0.05em] text-slate-950">
-              School and role information
+              บทบาทและหน่วยงาน
             </h3>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-3">
+            <div>
+              <label htmlFor="role" className="field-label">
+                ประเภทผู้ใช้
+              </label>
+              <select
+                id="role"
+                name="role"
+                value={formData.role}
+                onChange={handleChange}
+                className="field-select"
+              >
+                {roleOptions
+                  .filter((option) => option.value !== "admin")
+                  .map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
             <div>
               <label htmlFor="position" className="field-label">
                 ตำแหน่ง
@@ -263,7 +296,7 @@ export default function Register() {
 
             <div>
               <label htmlFor="school" className="field-label">
-                สังกัด / สถานศึกษา
+                โรงเรียน / หน่วยงาน
               </label>
               <input
                 id="school"
@@ -282,16 +315,16 @@ export default function Register() {
         <section className="space-y-4 rounded-[28px] border border-slate-200 bg-slate-50/70 p-5">
           <div>
             <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">
-              Account
+              บัญชี
             </p>
             <h3 className="mt-2 font-display text-2xl font-semibold tracking-[-0.05em] text-slate-950">
-              Login credentials
+              ข้อมูลเข้าสู่ระบบ
             </h3>
           </div>
 
           <div>
             <label htmlFor="email" className="field-label">
-              Email
+              อีเมล
             </label>
             <div className="relative">
               <Mail
@@ -314,7 +347,7 @@ export default function Register() {
           <div className="grid gap-4 md:grid-cols-2">
             <div>
               <label htmlFor="password" className="field-label">
-                Password
+                รหัสผ่าน
               </label>
               <input
                 id="password"
@@ -323,14 +356,14 @@ export default function Register() {
                 value={formData.password}
                 onChange={handleChange}
                 className="field-input"
-                placeholder="At least 6 characters"
+                placeholder="อย่างน้อย 6 ตัวอักษร"
                 required
               />
             </div>
 
             <div>
               <label htmlFor="confirmPassword" className="field-label">
-                Confirm password
+                ยืนยันรหัสผ่าน
               </label>
               <input
                 id="confirmPassword"
@@ -339,7 +372,7 @@ export default function Register() {
                 value={formData.confirmPassword}
                 onChange={handleChange}
                 className="field-input"
-                placeholder="Repeat your password"
+                placeholder="กรอกรหัสผ่านอีกครั้ง"
                 required
               />
             </div>
@@ -358,12 +391,11 @@ export default function Register() {
             />
             <div>
               <label htmlFor="pdpa" className="font-medium text-slate-800">
-                I agree to the PDPA / privacy consent
+                ยอมรับข้อตกลงการใช้ข้อมูลส่วนบุคคล (PDPA)
               </label>
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                Your profile information is used to personalize the learning
-                workspace, enroll you into the correct pathways, and support the
-                ongoing course experience.
+                ข้อมูลของคุณจะถูกใช้เพื่อสร้างโปรไฟล์ เข้าถึงคอร์สที่เกี่ยวข้อง ติดตามความก้าวหน้า
+                และสนับสนุนประสบการณ์การใช้งานบนแพลตฟอร์ม
               </p>
             </div>
           </div>
@@ -373,12 +405,12 @@ export default function Register() {
           {loading ? (
             <>
               <Loader2 size={16} className="animate-spin" />
-              Creating account...
+              กำลังสร้างบัญชี
             </>
           ) : (
             <>
               <CheckCircle2 size={16} />
-              Create account
+              สร้างบัญชี
               <ArrowRight size={16} />
             </>
           )}
@@ -388,11 +420,10 @@ export default function Register() {
           <div className="flex items-start gap-3">
             <ShieldCheck size={18} className="mt-0.5 text-slate-400" />
             <p className="leading-6">
-              Already have an account?{" "}
+              มีบัญชีอยู่แล้ว?{" "}
               <Link to="/login" className="font-semibold text-slate-950">
-                Sign in here
+                เข้าสู่ระบบที่นี่
               </Link>
-              .
             </p>
           </div>
         </div>

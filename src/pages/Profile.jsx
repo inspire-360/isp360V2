@@ -29,7 +29,7 @@ export default function Profile() {
     position: "ครู",
     school: "",
     email: "",
-    role: "learner",
+    role: "teacher",
     photoURL: "",
   });
 
@@ -58,7 +58,7 @@ export default function Profile() {
             position: data.position || "ครู",
             school: data.school || "",
             email: data.email || currentUser.email || "",
-            role: data.role || "learner",
+            role: data.role || "teacher",
             photoURL: data.photoURL || currentUser.photoURL || "",
           });
           return;
@@ -110,7 +110,7 @@ export default function Profile() {
     if (!currentUser) {
       setMessage({
         type: "error",
-        text: "Please sign in again before editing your profile.",
+        text: "กรุณาเข้าสู่ระบบใหม่ก่อนแก้ไขโปรไฟล์",
       });
       setLoading(false);
       return;
@@ -143,14 +143,14 @@ export default function Profile() {
 
       setMessage({
         type: "success",
-        text: "Profile updated successfully.",
+        text: "อัปเดตโปรไฟล์เรียบร้อยแล้ว",
       });
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
       console.error("Error updating profile:", error);
       setMessage({
         type: "error",
-        text: `Could not update the profile: ${error.message}`,
+        text: `ไม่สามารถอัปเดตโปรไฟล์ได้: ${error.message}`,
       });
     } finally {
       setLoading(false);
@@ -162,14 +162,13 @@ export default function Profile() {
       <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
-            Account settings
+            โปรไฟล์
           </p>
           <h2 className="mt-2 font-display text-4xl font-semibold tracking-[-0.08em] text-white">
-            Keep your profile current.
+            ดูแลข้อมูลของคุณให้เป็นปัจจุบัน
           </h2>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300">
-            This page now matches the rest of the workspace: cleaner grouping,
-            clearer hierarchy, and less visual noise around routine profile edits.
+            โปรไฟล์ที่ครบถ้วนช่วยให้ระบบแสดงบทบาท ห้องเรียน และการประสานงานได้ตรงกับบริบทของคุณมากขึ้น
           </p>
         </div>
 
@@ -179,7 +178,7 @@ export default function Profile() {
           className="secondary-button self-start border-white/10 bg-white/5 text-white hover:bg-white/10"
         >
           <ArrowLeft size={16} />
-          Back to dashboard
+          กลับไปแดชบอร์ด
         </button>
       </section>
 
@@ -193,9 +192,9 @@ export default function Profile() {
               className="h-28 w-28 rounded-[28px] object-cover ring-4 ring-white/10"
             />
             <h3 className="mt-5 font-display text-3xl font-semibold tracking-[-0.06em] text-white">
-              {formData.firstName || "Your"} {formData.lastName || "Profile"}
+              {formData.firstName || "โปรไฟล์"} {formData.lastName || ""}
             </h3>
-            <p className="mt-2 text-sm text-slate-300">{formData.email || "No email"}</p>
+            <p className="mt-2 text-sm text-slate-300">{formData.email || "ไม่มีอีเมล"}</p>
             <span className="mt-4 rounded-full border border-amber-300/20 bg-amber-300/10 px-4 py-2 text-xs font-medium uppercase tracking-[0.24em] text-amber-200">
               {getRoleLabel(formData.role)}
             </span>
@@ -204,18 +203,18 @@ export default function Profile() {
           <div className="mt-8 space-y-3">
             <div className="rounded-[22px] border border-white/10 bg-white/5 px-4 py-4">
               <p className="text-xs uppercase tracking-[0.24em] text-slate-400">
-                Current position
+                ตำแหน่ง
               </p>
               <p className="mt-2 text-sm text-slate-200">
-                {formData.position || "Not specified"}
+                {formData.position || "ยังไม่ระบุ"}
               </p>
             </div>
             <div className="rounded-[22px] border border-white/10 bg-white/5 px-4 py-4">
               <p className="text-xs uppercase tracking-[0.24em] text-slate-400">
-                School
+                โรงเรียน / หน่วยงาน
               </p>
               <p className="mt-2 text-sm text-slate-200">
-                {formData.school || "Not specified"}
+                {formData.school || "ยังไม่ระบุ"}
               </p>
             </div>
           </div>
@@ -238,11 +237,11 @@ export default function Profile() {
             <section className="space-y-4">
               <div>
                 <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">
-                  Identity
+                  ตัวตน
                 </p>
                 <h3 className="mt-2 flex items-center gap-2 font-display text-2xl font-semibold tracking-[-0.05em] text-slate-950">
                   <User size={18} />
-                  Personal details
+                  ข้อมูลส่วนตัว
                 </h3>
               </div>
 
@@ -301,11 +300,11 @@ export default function Profile() {
             <section className="space-y-4">
               <div>
                 <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">
-                  Context
+                  หน่วยงาน
                 </p>
                 <h3 className="mt-2 flex items-center gap-2 font-display text-2xl font-semibold tracking-[-0.05em] text-slate-950">
                   <Briefcase size={18} />
-                  Work information
+                  ข้อมูลการทำงาน
                 </h3>
               </div>
 
@@ -327,7 +326,7 @@ export default function Profile() {
 
                 <div>
                   <label htmlFor="school" className="field-label">
-                    สถานศึกษา
+                    โรงเรียน / หน่วยงาน
                   </label>
                   <div className="relative">
                     <School
@@ -351,17 +350,17 @@ export default function Profile() {
             <section className="space-y-4">
               <div>
                 <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">
-                  Access
+                  บัญชี
                 </p>
                 <h3 className="mt-2 flex items-center gap-2 font-display text-2xl font-semibold tracking-[-0.05em] text-slate-950">
                   <Mail size={18} />
-                  Account details
+                  ข้อมูลการเข้าสู่ระบบ
                 </h3>
               </div>
 
               <div>
                 <label htmlFor="email" className="field-label">
-                  Email
+                  อีเมล
                 </label>
                 <input
                   id="email"
@@ -372,7 +371,7 @@ export default function Profile() {
                 />
                 <p className="mt-3 flex items-center gap-2 text-xs text-slate-400">
                   <ShieldCheck size={14} />
-                  Email is locked for account security.
+                  อีเมลถูกล็อกไว้เพื่อความปลอดภัยของบัญชี
                 </p>
               </div>
             </section>
@@ -381,12 +380,12 @@ export default function Profile() {
               {loading ? (
                 <>
                   <Save size={16} />
-                  Saving profile...
+                  กำลังบันทึก
                 </>
               ) : (
                 <>
                   <Save size={16} />
-                  Save changes
+                  บันทึกการเปลี่ยนแปลง
                   <CheckCircle2 size={16} />
                 </>
               )}

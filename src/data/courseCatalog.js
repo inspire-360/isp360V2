@@ -1,23 +1,23 @@
 export const courseCatalog = [
   {
     id: "course-teacher",
-    title: "InSPIRE for Teacher",
-    shortTitle: "Teacher Lab",
-    eyebrow: "Flagship Cohort",
-    audience: "For educators and school leaders",
+    title: "InSPIRE360 สำหรับครู",
+    shortTitle: "เส้นทางครู",
+    eyebrow: "รุ่นหลักของแพลตฟอร์ม",
+    audience: "สำหรับครู ผู้บริหาร และบุคลากรทางการศึกษา",
     description:
-      "A guided five-module sprint for teachers who want to design stronger learning experiences and apply design thinking in daily practice.",
+      "หลักสูตร 5 โมดูลเพื่อพาครูสำรวจปัญหาจริง ออกแบบทางออก สร้างเครือข่าย ทดลองนวัตกรรม และสะท้อนผลอย่างเป็นระบบ",
     modules: 5,
-    hours: 20,
+    hours: 30,
     iconName: "BookOpen",
     requiresCode: true,
     accessCode: "TEACHER360",
-    path: "/course/teacher/module1",
-    accessLabel: "Private cohort access",
+    path: "/course/teacher",
+    accessLabel: "ห้องเรียนสำหรับรุ่นเฉพาะ",
     outcomes: [
-      "Structured learning journey with milestone activities",
-      "Practical design-thinking missions for classroom use",
-      "Progress tracking that keeps every module visible",
+      "มีภารกิจที่ต่อเนื่องตั้งแต่ Needs Assessment จนถึง Reflection",
+      "สรุปเป็นรายงานรายโมดูล พร้อม Badge และปลดล็อกโมดูลถัดไป",
+      "ออกแบบ Action Plan และนวัตกรรมที่นำไปใช้จริงในห้องเรียนได้",
     ],
     theme: {
       line: "bg-sky-400/45",
@@ -32,23 +32,23 @@ export const courseCatalog = [
   },
   {
     id: "course-student",
-    title: "InSPIRE for Student",
-    shortTitle: "Student Space",
-    eyebrow: "Open Learning Space",
-    audience: "For student exploration and wellbeing",
+    title: "InSPIRE Space สำหรับผู้เรียน",
+    shortTitle: "พื้นที่ผู้เรียน",
+    eyebrow: "พื้นที่เรียนรู้แบบเปิด",
+    audience: "สำหรับนักเรียนที่ต้องการพื้นที่เรียนรู้และดูแลใจ",
     description:
-      "An open learning environment that connects curiosity, creativity, and wellbeing into one calm digital space for students.",
+      "พื้นที่เรียนรู้แบบเปิดที่เน้นความสบายใจ เข้าถึงง่าย และต่อยอดการเรียนรู้ร่วมกับครูในระบบเดียวกัน",
     modules: 8,
     hours: 12,
     iconName: "Layout",
     requiresCode: false,
     accessCode: "",
     path: "/course/student",
-    accessLabel: "Open access",
+    accessLabel: "เข้าใช้งานได้ทันที",
     outcomes: [
-      "Low-friction access for student discovery",
-      "A lighter, happier space that complements the teacher pathway",
-      "Designed to keep navigation simple on mobile",
+      "เข้าใช้งานง่ายบนมือถือและเดสก์ท็อป",
+      "เหมาะกับการเรียนรู้แบบสำรวจตัวเองและพัฒนาทักษะชีวิต",
+      "เชื่อมประสบการณ์กับพื้นที่ของครูได้อย่างไม่ซับซ้อน",
     ],
     theme: {
       line: "bg-emerald-400/45",
@@ -65,21 +65,21 @@ export const courseCatalog = [
     id: "course-ai",
     title: "AI & Innovation",
     shortTitle: "AI Era",
-    eyebrow: "Next Release",
-    audience: "For future-facing digital teaching practice",
+    eyebrow: "กำลังเตรียมเปิดตัว",
+    audience: "สำหรับการต่อยอดทักษะดิจิทัลและนวัตกรรมยุค AI",
     description:
-      "A coming-soon track focused on AI fluency, classroom experimentation, and practical innovation for the next generation of learning.",
+      "ห้องเรียนต้นแบบสำหรับทดลองใช้ AI ในงานสอน การออกแบบกิจกรรม และการใช้นวัตกรรมอย่างมีจริยธรรม",
     modules: 4,
     hours: 10,
     iconName: "Zap",
     requiresCode: false,
     accessCode: "",
     path: "/course/ai-era",
-    accessLabel: "Preview access",
+    accessLabel: "กำลังเปิดตัว",
     outcomes: [
-      "Foundations for AI-enhanced teaching practice",
-      "Clear framing for experimentation and ethics",
-      "A runway for future platform expansions",
+      "ต่อยอดสมรรถนะด้าน AI สำหรับครูยุคใหม่",
+      "มีกรอบคิดเรื่องจริยธรรมและการทดลองใช้อย่างปลอดภัย",
+      "รองรับการขยายแพลตฟอร์มในระยะถัดไป",
     ],
     theme: {
       line: "bg-amber-300/55",
@@ -99,33 +99,33 @@ export const courseCatalogById = Object.fromEntries(
 );
 
 export const platformSignals = [
-  { label: "Teacher cohorts", value: "5,000+" },
-  { label: "Partner schools", value: "100+" },
-  { label: "Active pathways", value: "3" },
+  { label: "เส้นทางหลัก", value: "5 โมดูล" },
+  { label: "พื้นที่สนับสนุน", value: "Admin + SOS" },
+  { label: "ประสบการณ์", value: "ไทยเต็มระบบ" },
 ];
 
 export const landingWorkflow = [
   {
-    title: "Enter with the right identity",
+    title: "เริ่มจากตัวตนที่ถูกต้อง",
     description:
-      "Support email, Google, and LINE sign-in so educators and learners can start from the path that matches their context.",
+      "รองรับอีเมล Google และ LINE พร้อมข้อมูลโปรไฟล์ที่ต่อยอดสู่การใช้งานจริงได้ทันที",
   },
   {
-    title: "Unlock the right learning room",
+    title: "เข้าห้องเรียนที่ตรงบริบท",
     description:
-      "Use access-controlled spaces for private cohorts and open spaces when the learning experience should feel lighter and broader.",
+      "แยกห้องเรียนเฉพาะรุ่น พื้นที่ผู้เรียน และทางลัดสำหรับการช่วยเหลือไว้อย่างชัดเจน",
   },
   {
-    title: "Operate from one calm workspace",
+    title: "ดูแลจากศูนย์กลางเดียว",
     description:
-      "Track enrollments, progress, live cohort signals, and profile details without bouncing between disconnected layouts.",
+      "ติดตามการเรียน ความเคลื่อนไหว SOS และงานดูแลระบบได้จาก workspace เดียว",
   },
 ];
 
 export const operatorNotes = [
-  "The workspace is designed to read cleanly on mobile and desktop.",
-  "Course metadata now stays consistent across landing, dashboard, and my courses.",
-  "Access-code protected rooms keep private cohorts separate without complicating the UI.",
+  "เมนูและข้อความหลักถูกปรับเป็นภาษาไทยเพื่อให้ใช้งานจริงได้ทันที",
+  "Admin สามารถติดตามผู้ใช้ คำร้อง SOS และรีเซ็ตความก้าวหน้าได้จากหน้าเดียว",
+  "ข้อมูลคอร์สครูถูกย้ายไปอยู่ในโครงสร้างแบบ data-driven เพื่อขยายต่อได้ง่ายขึ้น",
 ];
 
 export const getCourseById = (courseId) => courseCatalogById[courseId];

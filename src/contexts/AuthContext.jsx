@@ -1,47 +1,77 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import { auth, db } from "../lib/firebase";
 
-const AuthContext = createContext();
+const AuthContext = createContext(null);
+
+function buildFallbackProfile(user) {
+  return {
+    uid: user?.uid || "",
+    name: user?.displayName || user?.email?.split("@")[0] || "ผู้ใช้งาน",
+    email: user?.email || "",
+    photoURL: user?.photoURL || "",
+    role: "teacher",
+    status: "active",
+  };
+}
 
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
-  const [userRole, setUserRole] = useState(null);
+  const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        try {
-          const docRef = doc(db, "users", user.uid);
-          const docSnap = await getDoc(docRef);
+    let unsubscribeProfile = () => {};
 
-          if (docSnap.exists()) {
-            setUserRole(docSnap.data().role || "learner");
-          } else {
-            setUserRole("learner");
-          }
-        } catch (error) {
-          console.error("Error fetching user role:", error);
-          setUserRole("learner");
-        }
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      unsubscribeProfile();
 
-        setCurrentUser(user);
-      } else {
+      if (!user) {
         setCurrentUser(null);
-        setUserRole(null);
+        setProfile(null);
+        setLoading(false);
+        return;
       }
 
-      setLoading(false);
+      setLoading(true);
+      setCurrentUser(user);
+
+      unsubscribeProfile = onSnapshot(
+        doc(db, "users", user.uid),
+        (snapshot) => {
+          if (snapshot.exists()) {
+            setProfile({
+              uid: user.uid,
+              ...buildFallbackProfile(user),
+              ...snapshot.data(),
+            });
+          } else {
+            setProfile(buildFallbackProfile(user));
+          }
+
+          setLoading(false);
+        },
+        (error) => {
+          console.error("Error syncing user profile:", error);
+          setProfile(buildFallbackProfile(user));
+          setLoading(false);
+        },
+      );
     });
 
-    return unsubscribe;
+    return () => {
+      unsubscribeProfile();
+      unsubscribeAuth();
+    };
   }, []);
 
   const value = {
     currentUser,
-    userRole,
+    profile,
+    userRole: profile?.role || null,
+    userStatus: profile?.status || null,
+    isAdmin: profile?.role === "admin",
     loading,
   };
 
