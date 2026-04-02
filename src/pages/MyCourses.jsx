@@ -1,164 +1,198 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { 
-  BookOpen, PlayCircle, Clock, CheckCircle2, Loader2, Search, Layout
-} from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import { db } from '../lib/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  ArrowUpRight,
+  BookOpen,
+  CheckCircle2,
+  Loader2,
+  Search,
+  Sparkles,
+} from "lucide-react";
+import { collection, getDocs } from "firebase/firestore";
+import { useAuth } from "../contexts/AuthContext";
+import { courseCatalog } from "../data/courseCatalog";
+import { db } from "../lib/firebase";
+import { getCourseIcon } from "../utils/courseIcons";
 
 export default function MyCourses() {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
-  const [enrolledIds, setEnrolledIds] = useState([]);
+  const [enrollments, setEnrollments] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // ข้อมูลคอร์สทั้งหมด (ใช้ ID เดิมเพื่อ map กับ Database)
-  const allCourses = [
-    {
-      id: "course-teacher",
-      title: "InSPIRE for Teacher",
-      desc: "หลักสูตรพัฒนาครูนวัตกรผ่านกระบวนการ Design Thinking แบบเข้มข้น 5 Modules",
-      icon: <BookOpen className="text-white" size={32} />,
-      bgGradient: "bg-gradient-to-br from-blue-500 to-blue-700",
-      shadow: "shadow-blue-500/30",
-      path: "/course/teacher/module1",
-      modules: 5,
-      hours: 20
-    },
-    {
-      id: "course-student",
-      title: "InSPIRE for Student",
-      desc: "พื้นที่แห่งความสุขและการเรียนรู้สำหรับนักเรียน เชื่อมต่อจินตนาการด้วยเทคโนโลยี",
-      icon: <Layout className="text-white" size={32} />, 
-      bgGradient: "bg-gradient-to-br from-green-500 to-green-700",
-      shadow: "shadow-green-500/30",
-      path: "/course/student",
-      modules: 8,
-      hours: 12
-    },
-    {
-      id: "course-ai",
-      title: "AI & Innovation",
-      desc: "เตรียมพร้อมสู่ยุค AI เรียนรู้เครื่องมือใหม่ๆ เพื่อการศึกษา",
-      icon: <div className="text-white font-bold text-xl">AI</div>,
-      bgGradient: "bg-gradient-to-br from-purple-500 to-purple-700",
-      shadow: "shadow-purple-500/30",
-      path: "/course/ai-era",
-      modules: 4,
-      hours: 10
-    }
-  ];
 
   useEffect(() => {
     const fetchEnrollments = async () => {
-      if (currentUser) {
-        try {
-          const querySnapshot = await getDocs(collection(db, "users", currentUser.uid, "enrollments"));
-          const ids = querySnapshot.docs.map(doc => doc.id);
-          setEnrolledIds(ids);
-        } catch (error) {
-          console.error("Error fetching enrollments:", error);
-        } finally {
-          setLoading(false);
-        }
+      if (!currentUser) return;
+
+      try {
+        const snapshot = await getDocs(collection(db, "users", currentUser.uid, "enrollments"));
+        const nextEnrollments = snapshot.docs.map((item) => ({
+          id: item.id,
+          ...item.data(),
+        }));
+        setEnrollments(nextEnrollments);
+      } catch (error) {
+        console.error("Error fetching enrollments:", error);
+      } finally {
+        setLoading(false);
       }
     };
+
     fetchEnrollments();
   }, [currentUser]);
 
-  // กรองเฉพาะคอร์สที่มี ID อยู่ใน enrolledIds
-  const myCourses = allCourses.filter(course => enrolledIds.includes(course.id));
+  const enrollmentMap = useMemo(
+    () =>
+      enrollments.reduce((accumulator, enrollment) => {
+        accumulator[enrollment.id] = enrollment;
+        return accumulator;
+      }, {}),
+    [enrollments],
+  );
+
+  const myCourses = courseCatalog
+    .filter((course) => enrollmentMap[course.id])
+    .map((course) => {
+      const enrollment = enrollmentMap[course.id];
+      const completedLessons = Array.isArray(enrollment.completedLessons)
+        ? enrollment.completedLessons.length
+        : 0;
+      const progressPercent = completedLessons
+        ? Math.min(100, Math.round((completedLessons / course.lessonCount) * 100))
+        : Math.round(enrollment.progress || 0);
+
+      return {
+        ...course,
+        progressPercent,
+        completedLessons,
+        lastAccess: enrollment.lastAccess,
+      };
+    });
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary" size={40}/></div>;
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Loader2 className="animate-spin text-primary" size={38} />
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen p-4 md:p-8 font-sans animate-fade-in-up">
-      <div className="max-w-7xl mx-auto">
-        
-        <div className="flex flex-col md:flex-row justify-between items-end mb-8 border-b border-gray-100 pb-6">
+    <div className="brand-shell space-y-8">
+      <section className="brand-panel p-6 md:p-8">
+        <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div>
-            <h1 className="text-3xl font-black text-gray-900 mb-2 flex items-center gap-3">
-              <Layout className="text-primary" size={32} /> คอร์สของฉัน
+            <p className="brand-chip border-primary/10 bg-primary/5 text-primary">
+              <Sparkles size={14} />
+              Active learning
+            </p>
+            <h1 className="mt-3 font-display text-3xl font-bold text-ink md:text-4xl">
+              คอร์สของฉัน
             </h1>
-            <p className="text-gray-500">วิชาที่คุณลงทะเบียนเรียนไว้ทั้งหมด</p>
+            <p className="mt-2 text-sm leading-7 text-slate-600">
+              ติดตามว่าคุณอยู่ตรงไหนของแต่ละ track และกลับเข้า mission ต่อได้ทันที
+            </p>
           </div>
-          {myCourses.length > 0 && (
-            <div className="text-sm font-medium bg-green-50 text-green-700 px-4 py-2 rounded-lg border border-green-100 mt-4 md:mt-0">
-              กำลังเรียนอยู่ {myCourses.length} วิชา
+
+          {myCourses.length > 0 ? (
+            <div className="rounded-[24px] border border-primary/10 bg-primary/5 px-4 py-3 text-sm text-primary">
+              กำลังเรียน {myCourses.length} track
             </div>
-          )}
+          ) : null}
         </div>
+      </section>
 
-        {myCourses.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* แก้ไขตรงนี้: ลบ index ออกจาก parameter เพราะไม่ได้ใช้ */}
-            {myCourses.map((course) => (
-              <div 
-                key={course.id}
-                onClick={() => navigate(course.path)}
-                className="group bg-white rounded-3xl p-6 border border-gray-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col relative overflow-hidden"
-              >
-                {/* Progress Bar Mockup */}
-                <div className="absolute top-0 left-0 w-full h-1.5 bg-gray-100">
-                    <div className="h-full bg-green-500 w-[15%] rounded-r-full"></div>
-                </div>
-
-                <div className={`h-40 rounded-2xl ${course.bgGradient} ${course.shadow} mb-6 flex items-center justify-center relative overflow-hidden`}>
-                    <div className="absolute top-3 right-3 bg-white/20 backdrop-blur-md text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 border border-white/30">
-                        <CheckCircle2 size={12} /> Active
-                    </div>
-                    <div className="transform group-hover:scale-110 transition-transform duration-300">
-                        {course.icon}
-                    </div>
-                </div>
-                
-                <div className="space-y-3 flex-1">
-                    <h4 className="text-xl font-bold text-gray-900 group-hover:text-primary transition-colors">
-                        {course.title}
-                    </h4>
-                    <p className="text-gray-500 text-sm line-clamp-2 leading-relaxed">
-                        {course.desc}
-                    </p>
-                    
-                    <div className="pt-4 flex items-center justify-between text-xs text-gray-400 font-medium border-t border-gray-50">
-                        <div className="flex items-center gap-1.5">
-                            <BookOpen size={14} /> {course.modules} Modules
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                            <Clock size={14} /> {course.hours} Hours
-                        </div>
-                    </div>
-                </div>
-
-                <div className="mt-6">
-                    <button className="w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 bg-primary text-white hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20">
-                        <PlayCircle size={18} /> สานต่อบทเรียน
-                    </button>
+      {myCourses.length > 0 ? (
+        <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
+          {myCourses.map((course) => (
+            <article
+              key={course.id}
+              className="overflow-hidden rounded-[30px] border border-slate-100 bg-white shadow-[0_18px_60px_rgba(13,17,100,0.06)]"
+            >
+              <div className={`bg-gradient-to-r ${course.gradientClass} p-5 text-white`}>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <span className="brand-chip border-white/[0.20] bg-white/[0.12] text-white">
+                      {course.statusLabel}
+                    </span>
+                    <h2 className="mt-4 font-display text-2xl font-bold">{course.title}</h2>
+                  </div>
+                  <div className="flex h-14 w-14 items-center justify-center rounded-[22px] bg-white/[0.12]">
+                    {getCourseIcon(course.iconKey, { size: 26 })}
+                  </div>
                 </div>
               </div>
-            ))}
+
+              <div className="p-5">
+                <p className="text-sm leading-7 text-slate-600">{course.desc}</p>
+
+                <div className="mt-5 rounded-[26px] border border-slate-100 bg-slate-50/80 p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Progress</p>
+                      <p className="mt-2 text-2xl font-bold text-ink">{course.progressPercent}%</p>
+                    </div>
+                    <div className="text-right text-sm text-slate-500">
+                      <p>{course.completedLessons} lessons done</p>
+                      <p>{course.lessonCount} planned</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
+                    <div
+                      className={`h-full rounded-full bg-gradient-to-r ${course.gradientClass}`}
+                      style={{ width: `${course.progressPercent}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-5 grid grid-cols-3 gap-3">
+                  <div className="rounded-3xl border border-slate-100 bg-slate-50/80 p-3">
+                    <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Modules</p>
+                    <p className="mt-2 text-xl font-bold text-ink">{course.modules}</p>
+                  </div>
+                  <div className="rounded-3xl border border-slate-100 bg-slate-50/80 p-3">
+                    <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Missions</p>
+                    <p className="mt-2 text-xl font-bold text-ink">{course.missionCount}</p>
+                  </div>
+                  <div className="rounded-3xl border border-slate-100 bg-slate-50/80 p-3">
+                    <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Hours</p>
+                    <p className="mt-2 text-xl font-bold text-ink">{course.hours}</p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => navigate(course.path)}
+                  className="brand-button-primary mt-6 w-full"
+                >
+                  <ArrowUpRight size={16} />
+                  Continue mission
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="brand-panel p-12 text-center">
+          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <Search size={36} />
           </div>
-        ) : (
-          <div className="bg-white rounded-[2rem] p-12 text-center border-2 border-dashed border-gray-200 shadow-sm flex flex-col items-center justify-center min-h-[400px]">
-            <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-6 text-gray-400">
-                <Search size={40} />
-            </div>
-            <h3 className="text-2xl font-bold text-gray-800 mb-2">ยังไม่มีคอร์สเรียน</h3>
-            <p className="text-gray-500 mb-8 max-w-md">
-                คุณยังไม่ได้ลงทะเบียนวิชาใดๆ ไปที่หน้า Dashboard เพื่อค้นหาหลักสูตรที่น่าสนใจ
-            </p>
-            <button 
-                onClick={() => navigate('/dashboard')}
-                className="px-8 py-3 bg-primary text-white rounded-xl font-bold hover:bg-blue-700 transition shadow-lg hover:shadow-xl hover:-translate-y-1"
-            >
-                ค้นหาคอร์สเรียน
-            </button>
-          </div>
-        )}
-      </div>
+          <h2 className="mt-6 font-display text-3xl font-bold text-ink">ยังไม่มีคอร์สที่ลงทะเบียน</h2>
+          <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-slate-500">
+            ไปที่ Dashboard เพื่อเลือก track ที่เหมาะกับคุณ แล้วเริ่มต้น mission แรกได้เลย
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate("/dashboard")}
+            className="brand-button-primary mt-8"
+          >
+            <BookOpen size={16} />
+            Explore tracks
+          </button>
+        </div>
+      )}
     </div>
   );
 }
+

@@ -1,0 +1,62 @@
+export const COURSE_ACCESS_KEYS = {
+  "course-teacher": "TEACHER2024",
+  "course-student": "STUDENT2024",
+  "course-ai": "AI2024",
+};
+
+export const courseCatalog = [
+  {
+    id: "course-teacher",
+    title: "InSPIRE for Teacher",
+    desc: "หลักสูตรพัฒนาครูนวัตกรผ่านกระบวนการ Design Thinking แบบเข้มข้น พร้อมภารกิจที่ต่อยอดใช้ได้จริงในโรงเรียน",
+    path: "/course/teacher/module1",
+    iconKey: "BookOpen",
+    modules: 5,
+    lessonCount: 19,
+    hours: 20,
+    missionCount: 5,
+    requiresCode: true,
+    accessCode: COURSE_ACCESS_KEYS["course-teacher"],
+    statusLabel: "Quest Track",
+    gradientClass: "from-primary via-secondary to-accent",
+    glowClass: "shadow-[0_28px_80px_rgba(100,13,95,0.32)]",
+    chipClass: "bg-primary/10 text-primary border-primary/15",
+  },
+  {
+    id: "course-student",
+    title: "InSPIRE for Student",
+    desc: "พื้นที่เรียนรู้และค้นหาตัวเองสำหรับนักเรียน เชื่อมกิจกรรมสร้างสรรค์กับการดูแลและการเติบโตอย่างปลอดภัย",
+    path: "/course/student",
+    iconKey: "Globe",
+    modules: 8,
+    lessonCount: 8,
+    hours: 12,
+    missionCount: 3,
+    requiresCode: false,
+    accessCode: COURSE_ACCESS_KEYS["course-student"],
+    statusLabel: "Open Space",
+    gradientClass: "from-secondary via-accent to-warm",
+    glowClass: "shadow-[0_28px_80px_rgba(234,34,100,0.28)]",
+    chipClass: "bg-secondary/10 text-secondary border-secondary/15",
+  },
+  {
+    id: "course-ai",
+    title: "AI & Innovation",
+    desc: "เตรียมพร้อมสู่ยุค AI ด้วยแนวคิด เครื่องมือ และการประยุกต์ใช้เพื่อขยายผลในชั้นเรียนและงานพัฒนาองค์กร",
+    path: "/course/ai-era",
+    iconKey: "Zap",
+    modules: 4,
+    lessonCount: 4,
+    hours: 10,
+    missionCount: 4,
+    requiresCode: false,
+    accessCode: COURSE_ACCESS_KEYS["course-ai"],
+    statusLabel: "Next Release",
+    gradientClass: "from-primary via-accent to-warm",
+    glowClass: "shadow-[0_28px_80px_rgba(247,141,96,0.28)]",
+    chipClass: "bg-accent/10 text-accent border-accent/15",
+  },
+];
+
+export const getCourseById = (courseId) =>
+  courseCatalog.find((course) => course.id === courseId);

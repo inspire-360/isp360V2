@@ -219,20 +219,20 @@ export default function Login() {
   return (
     <div className="relative min-h-screen flex items-center justify-center overflow-hidden font-sans p-4">
       {/* ... (UI ส่วนเดิม ไม่ต้องแก้) ... */}
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-100 via-purple-50 to-blue-100"></div>
-      <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
-      <div className="absolute bottom-[-20%] left-[20%] w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-4000"></div>
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-secondary/10 to-warm/10"></div>
+      <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-secondary/30 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
+      <div className="absolute bottom-[-20%] left-[20%] w-96 h-96 bg-accent/25 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-4000"></div>
 
       <div className="relative w-full max-w-sm">
         <div className="absolute inset-0 bg-white shadow-2xl rounded-3xl -rotate-1 opacity-50 transform scale-105"></div>
-        <div className="relative bg-white/80 backdrop-blur-xl border border-white/50 p-8 rounded-3xl shadow-xl min-h-[500px] flex flex-col justify-center">
+        <div className="relative bg-white/[0.80] backdrop-blur-xl border border-white/50 p-8 rounded-3xl shadow-xl min-h-[500px] flex flex-col justify-center">
             
             <div className="text-center mb-6">
-              <div className="inline-flex items-center justify-center w-14 h-14 bg-gradient-to-br from-primary to-blue-600 rounded-2xl shadow-lg mb-4 text-white transform rotate-3 hover:rotate-6 transition-all duration-300">
+              <div className="inline-flex items-center justify-center w-14 h-14 bg-gradient-to-br from-primary to-secondary rounded-2xl shadow-lg mb-4 text-white transform rotate-3 hover:rotate-6 transition-all duration-300">
                 <Sparkles size={28} />
               </div>
               <h1 className="text-3xl font-extrabold text-gray-800 tracking-tight">
-                InSPIRE <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-purple-600">360°</span>
+                InSPIRE <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-secondary to-accent">360°</span>
               </h1>
               {!isProcessingLine && (
                 <p className="text-gray-500 text-sm mt-2 font-medium">เข้าสู่ระบบการเรียนรู้แห่งอนาคต</p>
@@ -301,7 +301,7 @@ export default function Login() {
                   <button 
                     type="submit" 
                     disabled={loading}
-                    className="w-full bg-gradient-to-r from-primary to-blue-700 text-white py-3.5 rounded-2xl font-bold shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 flex justify-center items-center gap-2 group"
+                    className="w-full bg-gradient-to-r from-primary via-secondary to-accent text-white py-3.5 rounded-2xl font-bold shadow-lg shadow-secondary/20 hover:shadow-accent/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 flex justify-center items-center gap-2 group"
                   >
                     {loading ? (
                       <Loader2 size={20} className="animate-spin" />
@@ -379,3 +379,4 @@ export default function Login() {
     </div>
   );
 }
+

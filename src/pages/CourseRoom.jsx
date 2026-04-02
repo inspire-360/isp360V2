@@ -1,76 +1,165 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { 
-  Menu, ChevronLeft, CheckCircle, PlayCircle, FileText, 
-  Award, ChevronDown, ChevronRight, CheckSquare, PenTool, 
-  RotateCcw, ArrowRight, Lock, AlertTriangle, Loader2, ClipboardCheck
-} from 'lucide-react';
-import { teacherCourseData } from '../data/teacherCourse';
-import { getPreTestQuestions, getPostTestQuestions } from '../data/standardizedTests'; 
-import { getIcon } from '../utils/iconHelper';
-import SWOTBoard from '../components/activities/SWOTBoard';
-import { db } from '../lib/firebase';
-import { doc, getDoc, updateDoc, setDoc, arrayUnion } from 'firebase/firestore';
-import { useAuth } from '../contexts/AuthContext';
+import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  ArrowRight,
+  Award,
+  CheckCircle2,
+  CheckSquare,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Flame,
+  Loader2,
+  Lock,
+  Menu,
+  PenTool,
+  PlayCircle,
+  RotateCcw,
+  ShieldCheck,
+  Sparkles,
+  Trophy,
+} from "lucide-react";
+import { arrayUnion, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import SWOTBoard from "../components/activities/SWOTBoard";
+import { useAuth } from "../contexts/AuthContext";
+import { getPostTestQuestions, getPreTestQuestions } from "../data/standardizedTests";
+import { teacherCourseData } from "../data/teacherCourse";
+import { db } from "../lib/firebase";
+import { getIcon } from "../utils/iconHelper";
+
+const defaultPointsByType = {
+  video: 60,
+  article: 70,
+  activity: 120,
+  quiz: 90,
+  certificate: 140,
+};
+
+const rankMilestones = [
+  { label: "Observer", minXp: 0 },
+  { label: "Architect", minXp: 260 },
+  { label: "Connector", minXp: 520 },
+  { label: "Builder", minXp: 800 },
+  { label: "Storyteller", minXp: 1080 },
+];
+
+const getLessonXp = (lesson) =>
+  lesson?.content?.gamification?.xp ?? defaultPointsByType[lesson?.type] ?? 40;
+
+const getRankLabel = (xp) =>
+  [...rankMilestones].reverse().find((milestone) => xp >= milestone.minXp)?.label || "Observer";
+
+const isMissionLesson = (lesson) =>
+  lesson?.content?.gamification?.difficulty === "Heroic" || lesson?.id?.includes("mission");
 
 export default function CourseRoom() {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
-  
-  // --- 1. Hooks ---
+
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [expandedModules, setExpandedModules] = useState({});
   const [loading, setLoading] = useState(true);
-
   const [activeModuleIndex, setActiveModuleIndex] = useState(0);
   const [activeLessonIndex, setActiveLessonIndex] = useState(0);
-  
   const [progressData, setProgressData] = useState({
     completedLessons: [],
     currentModuleIndex: 0,
     postTestAttempts: 0,
-    score: 0
+    score: 0,
   });
-
   const [quizQuestions, setQuizQuestions] = useState([]);
   const [quizAnswers, setQuizAnswers] = useState({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [quizScore, setQuizScore] = useState(0);
 
   const courseId = "course-teacher";
-  const currentCourse = teacherCourseData || { modules: [] };
+  const currentCourse = teacherCourseData;
+
+  const lessonMap = useMemo(() => {
+    const nextMap = new Map();
+    currentCourse.modules.forEach((module, moduleIndex) => {
+      module.lessons.forEach((lesson, lessonIndex) => {
+        nextMap.set(lesson.id, { lesson, module, moduleIndex, lessonIndex });
+      });
+    });
+    return nextMap;
+  }, [currentCourse.modules]);
+
+  const allLessons = useMemo(
+    () =>
+      currentCourse.modules.flatMap((module) =>
+        module.lessons.map((lesson) => ({ module, lesson })),
+      ),
+    [currentCourse.modules],
+  );
+
   const currentModule = currentCourse.modules?.[activeModuleIndex];
   const currentLesson = currentModule?.lessons?.[activeLessonIndex];
+  const currentGamification = currentLesson?.content?.gamification;
+  const completedSet = useMemo(
+    () => new Set(progressData.completedLessons),
+    [progressData.completedLessons],
+  );
 
-  // --- 2. Effects ---
+  const totalXp = useMemo(
+    () => allLessons.reduce((sum, item) => sum + getLessonXp(item.lesson), 0),
+    [allLessons],
+  );
+  const earnedXp = useMemo(
+    () =>
+      progressData.completedLessons.reduce((sum, lessonId) => {
+        const entry = lessonMap.get(lessonId);
+        return sum + (entry ? getLessonXp(entry.lesson) : 0);
+      }, 0),
+    [lessonMap, progressData.completedLessons],
+  );
+  const completedMissionCount = useMemo(
+    () => allLessons.filter((item) => isMissionLesson(item.lesson) && completedSet.has(item.lesson.id)).length,
+    [allLessons, completedSet],
+  );
+  const totalMissionCount = useMemo(
+    () => allLessons.filter((item) => isMissionLesson(item.lesson)).length,
+    [allLessons],
+  );
+  const courseProgressPercent = Math.round((progressData.completedLessons.length / allLessons.length) * 100) || 0;
+
+  const getFirstPendingLessonIndex = (moduleIndex, completedLessons) => {
+    const lessonIndex = currentCourse.modules[moduleIndex]?.lessons.findIndex(
+      (lesson) => !completedLessons.includes(lesson.id),
+    );
+    return lessonIndex === -1 ? 0 : lessonIndex;
+  };
+
   useEffect(() => {
     const loadProgress = async () => {
       if (!currentUser) return;
+
       try {
         const enrollRef = doc(db, "users", currentUser.uid, "enrollments", courseId);
-        const docSnap = await getDoc(enrollRef);
+        const snapshot = await getDoc(enrollRef);
 
-        if (docSnap.exists()) {
-          const data = docSnap.data();
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          const completedLessons = data.completedLessons || [];
+          const currentModuleIndex = data.currentModuleIndex || 0;
+
           setProgressData({
-            completedLessons: data.completedLessons || [],
-            currentModuleIndex: data.currentModuleIndex || 0,
+            completedLessons,
+            currentModuleIndex,
             postTestAttempts: data.postTestAttempts || 0,
-            score: data.score || 0
+            score: data.score || 0,
           });
-          
-          const lastModuleIdx = data.currentModuleIndex || 0;
-          if (teacherCourseData.modules && lastModuleIdx < teacherCourseData.modules.length) {
-              setExpandedModules({ [lastModuleIdx]: true });
-              setActiveModuleIndex(lastModuleIdx);
-          }
+
+          setExpandedModules({ [currentModuleIndex]: true });
+          setActiveModuleIndex(currentModuleIndex);
+          setActiveLessonIndex(getFirstPendingLessonIndex(currentModuleIndex, completedLessons));
         } else {
           await setDoc(enrollRef, {
             enrolledAt: new Date(),
             completedLessons: [],
-            currentModuleIndex: 0, 
+            currentModuleIndex: 0,
             postTestAttempts: 0,
-            status: 'active'
+            status: "active",
           });
         }
       } catch (error) {
@@ -79,88 +168,125 @@ export default function CourseRoom() {
         setLoading(false);
       }
     };
+
     loadProgress();
   }, [currentUser]);
 
   useEffect(() => {
-    if (currentLesson && currentLesson.type === 'quiz') {
-      let questions = [];
-      if (currentLesson.content?.isPretest) {
-        questions = getPreTestQuestions(); 
-      } else if (currentLesson.content?.isPosttest) {
-        questions = getPostTestQuestions(currentLesson.content.questionsCount || 10);
-      } else {
-        questions = currentLesson.content?.questions || [];
-      }
-      setQuizQuestions(questions);
-      setQuizAnswers({});
-      setQuizSubmitted(false);
-      setQuizScore(0);
+    if (!currentLesson || currentLesson.type !== "quiz") return;
+
+    let questions = [];
+    if (currentLesson.content?.isPretest) {
+      questions = getPreTestQuestions();
+    } else if (currentLesson.content?.isPosttest) {
+      questions = getPostTestQuestions(currentLesson.content.questionsCount || 10);
+    } else {
+      questions = currentLesson.content?.questions || [];
     }
+
+    setQuizQuestions(questions);
+    setQuizAnswers({});
+    setQuizSubmitted(false);
+    setQuizScore(0);
   }, [currentLesson]);
 
-  // --- 3. Logic ---
-  const handleLessonChange = (modIndex, lessIndex) => {
-    if (modIndex > progressData.currentModuleIndex) {
-      alert("🔒 กรุณาเรียนบทเรียนก่อนหน้าให้ครบถ้วนก่อนครับ");
+  const handleLessonChange = (moduleIndex, lessonIndex) => {
+    if (moduleIndex > progressData.currentModuleIndex) {
+      alert("กรุณาเรียนตามลำดับก่อนเพื่อปลดล็อก module ถัดไป");
       return;
     }
-    setActiveModuleIndex(modIndex);
-    setActiveLessonIndex(lessIndex);
+
+    setActiveModuleIndex(moduleIndex);
+    setActiveLessonIndex(lessonIndex);
     if (window.innerWidth < 768) setSidebarOpen(false);
   };
 
   const toggleModule = (index) => {
-    setExpandedModules(prev => ({ ...prev, [index]: !prev[index] }));
+    setExpandedModules((previous) => ({ ...previous, [index]: !previous[index] }));
   };
 
   const markLessonComplete = async () => {
-    if (!currentLesson || progressData.completedLessons.includes(currentLesson.id)) return;
+    if (!currentUser || !currentLesson || completedSet.has(currentLesson.id)) return;
 
     try {
       const enrollRef = doc(db, "users", currentUser.uid, "enrollments", courseId);
-      
-      await updateDoc(enrollRef, {
-        completedLessons: arrayUnion(currentLesson.id),
-        lastAccess: new Date()
-      });
-
       const newCompleted = [...progressData.completedLessons, currentLesson.id];
-      const allLessonsInModule = currentModule.lessons.map(l => l.id);
-      const isModuleDone = allLessonsInModule.every(id => newCompleted.includes(id));
+      const isModuleDone = currentModule.lessons.every((lesson) => newCompleted.includes(lesson.id));
+      const updates = {
+        completedLessons: arrayUnion(currentLesson.id),
+        lastAccess: new Date(),
+      };
 
       if (isModuleDone) {
-        const nextModuleIdx = activeModuleIndex + 1;
-        if (nextModuleIdx < currentCourse.modules.length) {
-           if (nextModuleIdx > progressData.currentModuleIndex) {
-             await updateDoc(enrollRef, { currentModuleIndex: nextModuleIdx });
-             setProgressData(prev => ({ ...prev, completedLessons: newCompleted, currentModuleIndex: nextModuleIdx }));
-             alert(`🎉 ยินดีด้วย! ปลดล็อก ${currentCourse.modules[nextModuleIdx].title} แล้ว`);
-           } else {
-             setProgressData(prev => ({ ...prev, completedLessons: newCompleted }));
-           }
-        } else {
-             setProgressData(prev => ({ ...prev, completedLessons: newCompleted }));
+        const nextModuleIndex = activeModuleIndex + 1;
+        if (nextModuleIndex < currentCourse.modules.length && nextModuleIndex > progressData.currentModuleIndex) {
+          updates.currentModuleIndex = nextModuleIndex;
         }
-      } else {
-        setProgressData(prev => ({ ...prev, completedLessons: newCompleted }));
       }
 
+      await updateDoc(enrollRef, updates);
+
+      const nextModuleIndex =
+        typeof updates.currentModuleIndex === "number" ? updates.currentModuleIndex : progressData.currentModuleIndex;
+
+      setProgressData((previous) => ({
+        ...previous,
+        completedLessons: newCompleted,
+        currentModuleIndex: nextModuleIndex,
+      }));
+
+      if (isModuleDone) {
+        const unlockedModule = activeModuleIndex + 1;
+        if (unlockedModule < currentCourse.modules.length) {
+          setExpandedModules((previous) => ({ ...previous, [unlockedModule]: true }));
+          setActiveModuleIndex(unlockedModule);
+          setActiveLessonIndex(getFirstPendingLessonIndex(unlockedModule, newCompleted));
+          alert(`ปลดล็อก ${currentCourse.modules[unlockedModule].title} แล้ว`);
+        }
+      } else {
+        const nextLessonIndex = currentModule.lessons.findIndex(
+          (lesson) => !newCompleted.includes(lesson.id),
+        );
+        if (nextLessonIndex !== -1) {
+          setActiveLessonIndex(nextLessonIndex);
+        }
+      }
     } catch (error) {
-      console.error("Error marking complete:", error);
+      console.error("Error marking lesson complete:", error);
     }
   };
 
   const handleQuizSelect = (questionId, optionIndex) => {
     if (quizSubmitted) return;
-    setQuizAnswers(prev => ({ ...prev, [questionId]: optionIndex }));
+    setQuizAnswers((previous) => ({ ...previous, [questionId]: optionIndex }));
+  };
+
+  const resetCourseProgress = async () => {
+    if (!currentUser) return;
+    setLoading(true);
+    try {
+      const enrollRef = doc(db, "users", currentUser.uid, "enrollments", courseId);
+      await updateDoc(enrollRef, {
+        currentModuleIndex: 1,
+        completedLessons: ["pretest-exam"],
+        postTestAttempts: 0,
+        score: 0,
+      });
+      window.location.reload();
+    } catch (error) {
+      console.error("Reset failed:", error);
+      setLoading(false);
+    }
   };
 
   const submitQuiz = async () => {
+    if (!currentUser || !currentLesson) return;
+
     let score = 0;
-    quizQuestions.forEach((q) => {
-        if (quizAnswers[q.id] === q.correctAnswer) score += 1;
+    quizQuestions.forEach((question) => {
+      if (quizAnswers[question.id] === question.correctAnswer) score += 1;
     });
+
     setQuizScore(score);
     setQuizSubmitted(true);
 
@@ -168,378 +294,478 @@ export default function CourseRoom() {
     const enrollRef = doc(db, "users", currentUser.uid, "enrollments", courseId);
 
     if (currentLesson.content?.isPretest) {
-        await markLessonComplete(); 
-        return;
+      await markLessonComplete();
+      return;
     }
 
     if (currentLesson.content?.isPosttest) {
-        const newAttempts = progressData.postTestAttempts + 1;
-        await updateDoc(enrollRef, {
-            postTestAttempts: newAttempts,
-            score: score, 
-            lastAccess: new Date()
-        });
-        setProgressData(prev => ({ ...prev, postTestAttempts: newAttempts, score: score }));
+      const newAttempts = progressData.postTestAttempts + 1;
+      await updateDoc(enrollRef, {
+        postTestAttempts: newAttempts,
+        score,
+        lastAccess: new Date(),
+      });
+      setProgressData((previous) => ({ ...previous, postTestAttempts: newAttempts, score }));
 
-        if (isPassed) {
-            await markLessonComplete();
-            alert("🎉 ยินดีด้วย! คุณสอบผ่าน Post-test แล้ว");
-        } else {
-            if (newAttempts >= 5) {
-                alert("❌ คุณสอบไม่ผ่านครบ 5 ครั้ง ระบบจะทำการรีเซ็ตการเรียนรู้ใหม่ตั้งแต่ต้น");
-                await resetCourseProgress();
-            }
-        }
-    } else {
-        if (isPassed) await markLessonComplete();
+      if (isPassed) {
+        await markLessonComplete();
+        alert("ยินดีด้วย คุณผ่าน post-test แล้ว");
+      } else if (newAttempts >= (currentLesson.content?.maxAttempts || 5)) {
+        alert("คุณไม่ผ่านครบตามจำนวนครั้ง ระบบจะเริ่มต้นใหม่จาก Module 1");
+        await resetCourseProgress();
+      }
+      return;
     }
-  };
 
-  const resetCourseProgress = async () => {
-    setLoading(true);
-    try {
-        const enrollRef = doc(db, "users", currentUser.uid, "enrollments", courseId);
-        await updateDoc(enrollRef, {
-            currentModuleIndex: 1, 
-            completedLessons: ["pretest-exam"], 
-            postTestAttempts: 0,
-            score: 0
-        });
-        window.location.reload();
-    } catch (error) {
-        console.error("Reset failed:", error);
-        setLoading(false);
-    }
+    if (isPassed) await markLessonComplete();
   };
 
   const retryQuiz = () => {
     if (currentLesson.content?.isPosttest) {
-        setQuizQuestions(getPostTestQuestions(10));
+      setQuizQuestions(getPostTestQuestions(10));
     }
     setQuizAnswers({});
     setQuizSubmitted(false);
     setQuizScore(0);
   };
 
-  // --- 4. Render Helpers ---
-  const renderVideo = () => (
-    <div className="animate-fade-in-up">
-      <div className="aspect-video w-full bg-black rounded-2xl overflow-hidden shadow-2xl mb-8 relative group">
-        {currentLesson.content?.videoUrl ? (
-          <iframe 
-            src={currentLesson.content.videoUrl} 
-            title="Video Player"
-            className="w-full h-full border-0"
-            allowFullScreen
-          />
-        ) : (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-white/50 bg-gray-900">
-            <PlayCircle size={64} className="mb-4 opacity-50" />
-            <p className="text-lg">Video Placeholder</p>
+  const renderQuestBrief = () => {
+    if (!currentGamification) return null;
+
+    return (
+      <div className="brand-panel-strong overflow-hidden p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <span className="brand-chip border-white/[0.18] bg-white/[0.10] text-white/[0.80]">
+              <Sparkles size={14} />
+              {currentGamification.arc}
+            </span>
+            <h2 className="mt-4 font-display text-3xl font-bold">{currentLesson.title}</h2>
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-white/[0.74]">
+              {currentGamification.objective}
+            </p>
           </div>
-        )}
+          <div className="rounded-[26px] border border-white/[0.12] bg-white/[0.10] px-4 py-3 text-right">
+            <p className="text-xs uppercase tracking-[0.18em] text-white/[0.50]">Reward</p>
+            <p className="mt-2 text-lg font-semibold">{currentGamification.reward}</p>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-4 lg:grid-cols-3">
+          <div className="rounded-[24px] border border-white/[0.12] bg-white/[0.10] p-4">
+            <p className="text-xs uppercase tracking-[0.18em] text-white/[0.50]">Badge</p>
+            <p className="mt-2 text-xl font-semibold">{currentGamification.badge}</p>
+          </div>
+          <div className="rounded-[24px] border border-white/[0.12] bg-white/[0.10] p-4">
+            <p className="text-xs uppercase tracking-[0.18em] text-white/[0.50]">XP</p>
+            <p className="mt-2 text-xl font-semibold">{currentGamification.xp}</p>
+          </div>
+          <div className="rounded-[24px] border border-white/[0.12] bg-white/[0.10] p-4">
+            <p className="text-xs uppercase tracking-[0.18em] text-white/[0.50]">Difficulty</p>
+            <p className="mt-2 text-xl font-semibold">{currentGamification.difficulty}</p>
+          </div>
+        </div>
+
+        {currentGamification.deliverable ? (
+          <p className="mt-5 rounded-[24px] border border-white/[0.12] bg-white/[0.10] px-4 py-3 text-sm leading-7 text-white/[0.80]">
+            Deliverable: {currentGamification.deliverable}
+          </p>
+        ) : null}
+
+        {currentGamification.checkpoints?.length ? (
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            {currentGamification.checkpoints.map((checkpoint) => (
+              <div key={checkpoint} className="rounded-[24px] border border-white/[0.12] bg-white/[0.10] p-4 text-sm leading-7 text-white/[0.78]">
+                {checkpoint}
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {currentGamification.duSignal ? (
+          <div className="mt-5 flex items-start gap-3 rounded-[24px] border border-white/[0.12] bg-white/[0.10] px-4 py-4 text-sm leading-7 text-white/[0.80]">
+            <ShieldCheck size={18} className="mt-0.5 flex-shrink-0" />
+            <span>{currentGamification.duSignal}</span>
+          </div>
+        ) : null}
       </div>
-      <div className="prose max-w-none">
-        <h3 className="text-2xl font-bold text-gray-800 mb-4">{currentLesson.title}</h3>
-        <p className="text-gray-600 leading-relaxed text-lg">{currentLesson.content?.description}</p>
+    );
+  };
+
+  const renderActionFooter = (label, icon) => (
+    <div className="mt-6 flex justify-end">
+      {completedSet.has(currentLesson.id) ? (
+        <div className="flex items-center gap-2 rounded-full border border-primary/10 bg-primary/5 px-4 py-2 text-sm font-semibold text-primary">
+          <CheckCircle2 size={16} />
+          Completed
+        </div>
+      ) : (
+        <button type="button" onClick={markLessonComplete} className="brand-button-primary">
+          {icon}
+          {label}
+        </button>
+      )}
+    </div>
+  );
+
+  const renderVideo = () => (
+    <div className="space-y-6">
+      {renderQuestBrief()}
+      <div className="brand-panel p-6">
+        <div className="aspect-video overflow-hidden rounded-[28px] bg-black">
+          {currentLesson.content?.videoUrl ? (
+            <iframe
+              src={currentLesson.content.videoUrl}
+              title="Video Player"
+              className="h-full w-full border-0"
+              allowFullScreen
+            />
+          ) : null}
+        </div>
+        <p className="mt-6 text-base leading-8 text-slate-600">{currentLesson.content?.description}</p>
+        {renderActionFooter("Mark as completed", <PlayCircle size={16} />)}
       </div>
-      <div className="mt-8 flex justify-end">
-         {!progressData.completedLessons.includes(currentLesson.id) ? (
-            <button onClick={markLessonComplete} className="px-6 py-3 bg-primary text-white rounded-xl font-bold shadow-lg hover:bg-blue-700 transition flex items-center gap-2">
-                <CheckCircle size={20} /> ทำเครื่องหมายว่าเรียนจบ
-            </button>
-         ) : (
-            <div className="flex items-center gap-2 text-green-600 font-bold bg-green-50 px-4 py-2 rounded-lg">
-                <CheckCircle size={20} /> เรียนจบแล้ว
+    </div>
+  );
+
+  const renderArticle = () => (
+    <div className="space-y-6">
+      {renderQuestBrief()}
+      <div className="brand-panel p-6">
+        <p className="text-base leading-8 text-slate-600">{currentLesson.content?.text}</p>
+
+        {Array.isArray(currentLesson.content?.resources) && currentLesson.content.resources.length > 0 ? (
+          <div className="mt-6 rounded-[28px] border border-primary/10 bg-primary/5 p-5">
+            <p className="text-sm font-semibold text-primary">Resources</p>
+            <div className="mt-3 space-y-2 text-sm leading-7 text-slate-600">
+              {currentLesson.content.resources.map((resource) => (
+                <p key={resource}>{resource}</p>
+              ))}
             </div>
-         )}
+          </div>
+        ) : null}
+
+        {currentLesson.id === "final-survey" ? (
+          <div className="mt-6 rounded-[28px] border border-secondary/10 bg-secondary/5 p-6">
+            <p className="text-base leading-8 text-slate-600">
+              เมื่อทำแบบสอบถามแล้ว ให้กลับมากด completed เพื่อปลดล็อก certificate vault
+            </p>
+            <a
+              href={currentLesson.content?.surveyUrl || "#"}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="brand-button-secondary mt-4"
+            >
+              เปิดแบบสอบถาม
+              <ArrowRight size={16} />
+            </a>
+          </div>
+        ) : null}
+
+        {renderActionFooter("Complete this brief", <CheckCircle2 size={16} />)}
       </div>
     </div>
   );
 
   const renderActivity = () => (
-    <div className="animate-fade-in-up">
-        {currentLesson.activityType === 'swot_board' && <SWOTBoard />}
-        <div className="mt-8 flex justify-end">
-             {!progressData.completedLessons.includes(currentLesson.id) ? (
-                <button onClick={markLessonComplete} className="px-6 py-3 bg-primary text-white rounded-xl font-bold shadow-lg hover:bg-blue-700 transition flex items-center gap-2">
-                    <PenTool size={20} /> ส่งภารกิจเรียบร้อย
-                </button>
-             ) : (
-                <div className="flex items-center gap-2 text-green-600 font-bold bg-green-50 px-4 py-2 rounded-lg">
-                    <CheckCircle size={20} /> ส่งงานแล้ว
-                </div>
-             )}
-        </div>
-    </div>
-  );
-
-  // ✅ เพิ่มฟังก์ชันสำหรับแสดงบทความ / แบบสอบถาม (แยกจาก Video)
-  const renderArticle = () => (
-    <div className="animate-fade-in-up">
-      <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
-        <div className="flex items-center gap-4 mb-6 pb-6 border-b border-gray-100">
-            <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center">
-                <FileText size={32} />
-            </div>
-            <div>
-                <h2 className="text-2xl font-bold text-gray-900">{currentLesson.title}</h2>
-                <p className="text-gray-500">เอกสารการเรียนรู้ / กิจกรรม</p>
-            </div>
-        </div>
-        
-        <div className="prose max-w-none text-gray-600 text-lg leading-relaxed mb-8">
-            <p>{currentLesson.content?.text}</p>
-
-            {Array.isArray(currentLesson.content?.resources) && currentLesson.content.resources.length > 0 && (
-                <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4">
-                    <p className="font-semibold text-blue-900 mb-2">เอกสารประกอบบทเรียน</p>
-                    <ul className="list-disc pl-5 space-y-1 text-base text-blue-800">
-                        {currentLesson.content.resources.map((resource, idx) => (
-                            <li key={`${currentLesson.id}-resource-${idx}`}>{resource}</li>
-                        ))}
-                    </ul>
-                </div>
-            )}
-
-            {currentLesson.id === 'final-survey' && (
-                <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 text-center mt-4">
-                    <p className="mb-4">กรุณาทำแบบประเมินความพึงพอใจเพื่อพัฒนาหลักสูตรต่อไป</p>
-                    <a
-                        href={currentLesson.content?.surveyUrl || '#'}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-block px-6 py-2 bg-white border border-primary text-primary rounded-lg font-bold hover:bg-blue-50 transition"
-                    >
-                        {currentLesson.content?.surveyLabel || 'เปิดแบบสอบถาม (Google Form)'}
-                    </a>
-                </div>
-            )}
-        </div>
-
-        <div className="flex justify-end pt-4 border-t border-gray-50">
-            {!progressData.completedLessons.includes(currentLesson.id) ? (
-                <button onClick={markLessonComplete} className="px-6 py-3 bg-primary text-white rounded-xl font-bold shadow-lg hover:bg-blue-700 transition flex items-center gap-2">
-                    <CheckCircle size={20} /> ทำรายการเสร็จสมบูรณ์
-                </button>
-            ) : (
-                <div className="flex items-center gap-2 text-green-600 font-bold bg-green-50 px-4 py-2 rounded-lg">
-                    <CheckCircle size={20} /> ดำเนินการเรียบร้อยแล้ว
-                </div>
-            )}
-        </div>
+    <div className="space-y-6">
+      {renderQuestBrief()}
+      <div className="brand-panel p-6">
+        {currentLesson.activityType === "swot_board" ? <SWOTBoard /> : null}
+        {renderActionFooter("Submit mission", <PenTool size={16} />)}
       </div>
     </div>
   );
 
   const renderQuizUI = () => {
     const isPosttest = currentLesson.content?.isPosttest;
-    const maxAttempts = currentLesson.content?.maxAttempts || 5;
     const isPassed = quizScore >= (currentLesson.content?.passScore || 0);
-    const isCompleted = progressData.completedLessons.includes(currentLesson.id);
+    const isCompleted = completedSet.has(currentLesson.id);
 
     if (quizSubmitted || isCompleted) {
       return (
-        <div className="max-w-2xl mx-auto text-center py-10 animate-fade-in-up">
-          <div className={`w-24 h-24 mx-auto rounded-full flex items-center justify-center mb-6 shadow-xl ${isPassed || isCompleted ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
-            {isPassed || isCompleted ? <Award size={48} /> : <RotateCcw size={48} />}
-          </div>
-          <h2 className="text-3xl font-black text-gray-900 mb-2">
-            {isCompleted ? "ผ่านการทดสอบแล้ว" : `คะแนน: ${quizScore} / ${quizQuestions.length}`}
-          </h2>
-          {isPosttest && !isPassed && !isCompleted && (
-             <div className="bg-red-50 text-red-700 px-4 py-2 rounded-lg inline-block mb-4 border border-red-200 font-bold">
-                สอบครั้งที่ {progressData.postTestAttempts} / {maxAttempts}
-             </div>
-          )}
-          <p className="text-gray-500 mb-8 text-lg">
-            {(isPassed || isCompleted) ? "คุณผ่านเกณฑ์การทดสอบเรียบร้อยแล้ว" : "คุณยังไม่ผ่านเกณฑ์ กรุณาทบทวนเนื้อหาและลองใหม่อีกครั้ง"}
-          </p>
-          <div className="flex justify-center gap-4">
-            {(!isPassed && !isCompleted) && (progressData.postTestAttempts < maxAttempts || !isPosttest) && (
-              <button onClick={retryQuiz} className="px-8 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold transition flex items-center gap-2">
-                <RotateCcw size={20} /> ทำข้อสอบใหม่
+        <div className="space-y-6">
+          {renderQuestBrief()}
+          <div className="brand-panel p-8 text-center">
+            <div className={`mx-auto flex h-24 w-24 items-center justify-center rounded-full ${isPassed || isCompleted ? "bg-primary/10 text-primary" : "bg-accent/10 text-accent"}`}>
+              {isPassed || isCompleted ? <Award size={44} /> : <RotateCcw size={44} />}
+            </div>
+            <h2 className="mt-6 font-display text-3xl font-bold text-ink">
+              {isCompleted ? "Checkpoint cleared" : `${quizScore} / ${quizQuestions.length}`}
+            </h2>
+            <p className="mt-3 text-sm leading-7 text-slate-500">
+              {isPassed || isCompleted
+                ? "คุณผ่าน checkpoint นี้แล้ว"
+                : "ยังไม่ผ่านเกณฑ์ ลองทำใหม่ได้จากปุ่มด้านล่าง"}
+            </p>
+            {!isPassed && !isCompleted ? (
+              <button type="button" onClick={retryQuiz} className="brand-button-secondary mt-6">
+                <RotateCcw size={16} />
+                Retry quiz
               </button>
-            )}
+            ) : null}
           </div>
         </div>
       );
     }
 
     return (
-      <div className="max-w-3xl mx-auto animate-fade-in-up">
-        <div className="bg-blue-50 border border-blue-100 p-6 rounded-2xl mb-8">
-          <div className="flex items-start gap-4">
-            <div className="bg-blue-100 p-2 rounded-lg text-primary"><CheckSquare size={24} /></div>
-            <div>
-              <h3 className="font-bold text-gray-900 text-lg">{currentLesson.title}</h3>
-              <p className="text-gray-600 text-sm mt-1">
-                ตอบคำถาม {quizQuestions.length} ข้อ 
-                {currentLesson.content?.passScore > 0 && ` (เกณฑ์ผ่าน ${currentLesson.content.passScore} คะแนน)`}
-              </p>
-            </div>
+      <div className="space-y-6">
+        {renderQuestBrief()}
+        <div className="brand-panel p-6">
+          <div className="rounded-[28px] border border-primary/10 bg-primary/5 p-5">
+            <p className="text-sm font-semibold text-primary">{currentLesson.title}</p>
+            <p className="mt-2 text-sm leading-7 text-slate-600">
+              ตอบให้ครบ {quizQuestions.length} ข้อ
+              {isPosttest ? ` • attempt ${progressData.postTestAttempts + 1}/${currentLesson.content?.maxAttempts || 5}` : ""}
+            </p>
           </div>
-          {isPosttest && (
-             <div className="mt-4 flex items-center gap-2 text-sm text-orange-700 bg-orange-100/50 px-4 py-3 rounded-xl border border-orange-200">
-                <AlertTriangle size={18} /> 
-                <strong>คำเตือน:</strong> หากสอบไม่ผ่านครบ {maxAttempts} ครั้ง ระบบจะรีเซ็ตการเรียนรู้ใหม่ตั้งแต่ Module 1
-             </div>
-          )}
-        </div>
-        <div className="space-y-6">
-          {quizQuestions.map((q, index) => (
-            <div key={q.id || index} className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
-              <h4 className="font-bold text-gray-800 text-lg mb-4">{index + 1}. {q.question}</h4>
-              <div className="space-y-3">
-                {q.options.map((option, optIndex) => (
-                  <label key={optIndex} className={`flex items-center p-4 rounded-xl border-2 cursor-pointer transition-all ${quizAnswers[q.id] === optIndex ? 'border-primary bg-primary/5' : 'border-gray-100 hover:border-gray-200'}`}>
-                    <input type="radio" name={`question-${q.id || index}`} className="w-5 h-5 text-primary" checked={quizAnswers[q.id] === optIndex} onChange={() => handleQuizSelect(q.id, optIndex)} />
-                    <span className="ml-3 text-gray-700 font-medium">{option}</span>
-                  </label>
-                ))}
+
+          <div className="mt-6 space-y-4">
+            {quizQuestions.map((question, index) => (
+              <div key={question.id || index} className="rounded-[28px] border border-slate-100 bg-slate-50/80 p-5">
+                <h3 className="text-lg font-semibold text-ink">{index + 1}. {question.question}</h3>
+                <div className="mt-4 space-y-3">
+                  {question.options.map((option, optionIndex) => (
+                    <label key={`${question.id}-${option}`} className={`flex cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3 transition ${quizAnswers[question.id] === optionIndex ? "border-primary/25 bg-primary/5" : "border-white bg-white hover:border-accent/20"}`}>
+                      <input
+                        type="radio"
+                        name={`question-${question.id || index}`}
+                        checked={quizAnswers[question.id] === optionIndex}
+                        onChange={() => handleQuizSelect(question.id, optionIndex)}
+                        className="h-4 w-4 text-primary"
+                      />
+                      <span className="text-sm text-slate-700">{option}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-        <div className="mt-10 flex justify-end">
-          <button onClick={submitQuiz} disabled={Object.keys(quizAnswers).length < quizQuestions.length} className="px-8 py-4 bg-primary text-white rounded-xl font-bold shadow-lg hover:bg-blue-700 transition-all disabled:opacity-50">
-            ส่งคำตอบ <CheckCircle size={20} />
-          </button>
+            ))}
+          </div>
+
+          <div className="mt-6 flex justify-end">
+            <button
+              type="button"
+              onClick={submitQuiz}
+              disabled={Object.keys(quizAnswers).length < quizQuestions.length}
+              className="brand-button-primary disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <CheckSquare size={16} />
+              Submit answers
+            </button>
+          </div>
         </div>
       </div>
     );
   };
 
-  // ✅ 4. ปรับปรุง Render Certificate (เพิ่มเงื่อนไข)
   const renderCertificate = () => {
-    // เงื่อนไข: ต้องผ่าน Post-test (posttest-exam) และทำ Survey (final-survey) แล้ว
-    const isPostTestPassed = progressData.completedLessons.includes("posttest-exam");
-    const isSurveyDone = progressData.completedLessons.includes("final-survey");
+    const isPostTestPassed = completedSet.has("posttest-exam");
+    const isSurveyDone = completedSet.has("final-survey");
 
-    if (!isPostTestPassed) {
-        return (
-            <div className="animate-fade-in-up text-center py-20">
-                <Lock size={64} className="mx-auto text-gray-300 mb-6" />
-                <h2 className="text-2xl font-bold text-gray-700 mb-2">ยังไม่ผ่านเกณฑ์</h2>
-                <p className="text-gray-500">กรุณาทำแบบทดสอบ Post-test ให้ผ่านเกณฑ์ก่อนครับ</p>
-            </div>
-        );
-    }
-
-    if (!isSurveyDone) {
-        return (
-            <div className="animate-fade-in-up text-center py-20">
-                <div className="w-20 h-20 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse">
-                    <FileText size={40} />
-                </div>
-                <h2 className="text-2xl font-bold text-gray-800 mb-2">เหลืออีกเพียงขั้นตอนเดียว!</h2>
-                <p className="text-gray-500 mb-8">กรุณาทำแบบประเมินความพึงพอใจให้เสร็จสมบูรณ์ เพื่อปลดล็อกเกียรติบัตร</p>
-                <button 
-                    // หา index ของ final-survey แล้วเปลี่ยนหน้าไปหา
-                    onClick={() => {
-                        const finalModIdx = teacherCourseData.modules.length - 1; // โมดูลสุดท้าย
-                        const surveyLessonIdx = teacherCourseData.modules[finalModIdx].lessons.findIndex(l => l.id === 'final-survey');
-                        if (surveyLessonIdx !== -1) handleLessonChange(finalModIdx, surveyLessonIdx);
-                    }}
-                    className="px-8 py-3 bg-primary text-white rounded-xl font-bold shadow-lg hover:bg-blue-700 transition flex items-center gap-2 mx-auto"
-                >
-                    ไปที่แบบประเมิน <ArrowRight size={20} />
-                </button>
-            </div>
-        );
-    }
-
-    // ถ้าครบทุกเงื่อนไข -> แสดงปุ่มโหลด
     return (
-        <div className="animate-fade-in-up text-center py-12">
-            <Award size={80} className="mx-auto text-yellow-500 mb-6" />
-            <h2 className="text-3xl font-black text-gray-900 mb-4">ยินดีด้วย! คุณผ่านหลักสูตรแล้ว</h2>
-            <p className="text-gray-500 mb-8 max-w-lg mx-auto">
-                คุณได้ผ่านการทดสอบและกิจกรรมครบถ้วนตามหลักสูตร InSPIRE for Teacher
-            </p>
-            <a
-                href={currentLesson.content?.certificateUrl || '#'}
+      <div className="space-y-6">
+        {renderQuestBrief()}
+        <div className="brand-panel p-8 text-center">
+          {!isPostTestPassed ? (
+            <>
+              <Lock className="mx-auto text-slate-300" size={58} />
+              <h2 className="mt-6 font-display text-3xl font-bold text-ink">Post-test required</h2>
+              <p className="mt-3 text-sm leading-7 text-slate-500">
+                ผ่าน post-test ก่อนจึงจะเปิด certificate vault ได้
+              </p>
+            </>
+          ) : !isSurveyDone ? (
+            <>
+              <Trophy className="mx-auto text-warm" size={58} />
+              <h2 className="mt-6 font-display text-3xl font-bold text-ink">Almost there</h2>
+              <p className="mt-3 text-sm leading-7 text-slate-500">
+                ทำ reflection survey ให้เสร็จก่อน เพื่อปลดล็อก certificate
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  const finalModuleIndex = currentCourse.modules.length - 1;
+                  const surveyIndex = currentCourse.modules[finalModuleIndex].lessons.findIndex(
+                    (lesson) => lesson.id === "final-survey",
+                  );
+                  handleLessonChange(finalModuleIndex, surveyIndex);
+                }}
+                className="brand-button-secondary mt-6"
+              >
+                ไปที่ survey
+                <ArrowRight size={16} />
+              </button>
+            </>
+          ) : (
+            <>
+              <Award className="mx-auto text-primary" size={58} />
+              <h2 className="mt-6 font-display text-3xl font-bold text-ink">Certificate unlocked</h2>
+              <p className="mt-3 text-sm leading-7 text-slate-500">
+                คุณผ่านทุก checkpoint และพร้อมดาวน์โหลดใบรับรองแล้ว
+              </p>
+              <a
+                href={currentLesson.content?.certificateUrl || "#"}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-8 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-2xl font-bold shadow-xl hover:shadow-2xl hover:-translate-y-1 transition flex items-center gap-2 mx-auto w-fit"
-            >
-                <FileText size={24} /> {currentLesson.content?.certificateLabel || 'ดาวน์โหลดเกียรติบัตร (PDF)'}
-            </a>
+                className="brand-button-primary mt-6"
+              >
+                <Award size={16} />
+                {currentLesson.content?.certificateLabel || "Download certificate"}
+              </a>
+            </>
+          )}
         </div>
+      </div>
     );
   };
 
-  if (loading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary" size={40} /></div>;
-  if (!currentModule || !currentLesson) return <div className="p-8 text-center">Data Error: Module Not Found</div>;
+  if (loading) {
+    return (
+      <div className="flex min-h-[70vh] items-center justify-center">
+        <Loader2 className="animate-spin text-primary" size={38} />
+      </div>
+    );
+  }
+
+  if (!currentModule || !currentLesson) {
+    return <div className="p-8 text-center">Data error: lesson not found</div>;
+  }
 
   return (
-    <div className="flex h-screen bg-gray-50 font-sans overflow-hidden">
-      <aside className={`fixed inset-y-0 left-0 z-30 w-80 bg-white border-r border-gray-200 transform transition-transform duration-300 flex flex-col ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0`}>
-        <div className="p-5 border-b border-gray-100 bg-white flex items-center justify-between">
-          <h2 className="font-bold text-gray-800 truncate pr-2 text-lg">InSPIRE 360°</h2>
-          <button onClick={() => navigate('/dashboard')} className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition"><ChevronLeft size={20} /></button>
-        </div>
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
-          {currentCourse.modules.map((module, mIndex) => {
-            const isLocked = mIndex > progressData.currentModuleIndex;
-            
-            let moduleLabel = "";
-            if (module.id.includes('pretest')) moduleLabel = "Pre-test";
-            else if (module.id.includes('posttest')) moduleLabel = "Post-test";
-            else if (module.id.includes('final')) moduleLabel = "Certificate";
-            else moduleLabel = `Module ${mIndex}`; 
-
-            return (
-                <div key={module.id} className={`rounded-xl overflow-hidden border border-transparent ${isLocked ? 'opacity-60 grayscale' : ''}`}>
-                <button onClick={() => !isLocked && toggleModule(mIndex)} disabled={isLocked} className={`w-full px-4 py-3 flex items-center justify-between transition-colors rounded-lg ${expandedModules[mIndex] ? 'bg-gray-50' : 'hover:bg-gray-50'}`}>
-                    <div className="text-left flex items-center gap-2">
-                        {isLocked && <Lock size={14} className="text-gray-400" />}
-                        <div>
-                            <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-widest mb-0.5">{moduleLabel}</p>
-                            <h3 className="text-sm font-bold text-gray-700 truncate w-48">{module.title.split(':')[1] || module.title}</h3>
-                        </div>
-                    </div>
-                    {!isLocked && (expandedModules[mIndex] ? <ChevronDown size={16} className="text-gray-400" /> : <ChevronRight size={16} className="text-gray-400" />)}
-                </button>
-                {!isLocked && expandedModules[mIndex] && (
-                    <div className="mt-1 ml-2 pl-2 border-l-2 border-gray-100 space-y-1 mb-2">
-                    {module.lessons.map((lesson, lIndex) => {
-                        const isActive = mIndex === activeModuleIndex && lIndex === activeLessonIndex;
-                        const isCompleted = progressData.completedLessons.includes(lesson.id);
-                        return (
-                        <button key={lesson.id} onClick={() => handleLessonChange(mIndex, lIndex)} className={`w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg transition-all ${isActive ? 'bg-primary text-white shadow-md shadow-primary/30' : 'text-gray-600 hover:bg-gray-50'}`}>
-                            {isCompleted ? <CheckCircle size={16} className={isActive ? 'text-white' : 'text-green-500'} /> : isActive ? <PlayCircle size={16} className="flex-shrink-0" /> : getIcon(lesson.iconName, "w-4 h-4 opacity-70")}
-                            <span className="text-sm font-medium truncate">{lesson.title}</span>
-                        </button>
-                        );
-                    })}
-                    </div>
-                )}
-                </div>
-            );
-          })}
-        </div>
-      </aside>
-      <main className="flex-1 flex flex-col min-w-0 bg-white relative">
-        <header className="h-16 border-b border-gray-100 flex items-center justify-between px-4 md:px-8 bg-white/80 backdrop-blur-md sticky top-0 z-20">
-          <div className="flex items-center gap-4">
-            <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 md:hidden"><Menu size={24} /></button>
-            <h1 className="text-lg font-bold text-gray-800 truncate hidden md:block">{currentLesson.title}</h1>
-          </div>
-          {progressData.completedLessons.includes(currentLesson.id) ? (
-             <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full flex items-center gap-1"><CheckCircle size={14} /> Completed</span>
-          ) : (<span className="px-3 py-1 bg-gray-100 text-gray-500 text-xs font-bold rounded-full">In Progress</span>)}
-        </header>
-        <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-gray-50/50">
-            <div className="max-w-5xl mx-auto">
-                {currentLesson.type === 'video' && renderVideo()}
-                {currentLesson.type === 'quiz' && renderQuizUI()}
-                {currentLesson.type === 'activity' && renderActivity()}
-                {currentLesson.type === 'article' && renderArticle()} 
-                {currentLesson.type === 'certificate' && renderCertificate()}
+    <div className="overflow-hidden rounded-[36px] border border-white/70 bg-white shadow-[0_30px_120px_rgba(13,17,100,0.12)]">
+      <div className="flex min-h-[calc(100vh-4rem)]">
+        <aside className={`fixed inset-y-0 left-0 z-30 w-80 bg-ink px-4 py-4 text-white transition-transform duration-300 md:relative md:translate-x-0 ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+          <div className="flex h-full flex-col rounded-[30px] border border-white/[0.12] bg-gradient-to-b from-primary via-secondary to-[#220f3f] p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-white/[0.45]">Quest room</p>
+                <h2 className="mt-1 font-display text-2xl font-bold">InSPIRE 360°</h2>
+              </div>
+              <button type="button" onClick={() => navigate("/dashboard")} className="rounded-2xl border border-white/[0.12] bg-white/[0.10] p-2 text-white/[0.72]">
+                <ChevronLeft size={18} />
+              </button>
             </div>
-        </div>
-      </main>
+
+            <div className="mt-5 rounded-[28px] border border-white/[0.12] bg-white/[0.10] p-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-white/[0.45]">Course progress</p>
+              <p className="mt-3 text-3xl font-bold">{courseProgressPercent}%</p>
+              <div className="mt-4 h-2 rounded-full bg-white/[0.12]">
+                <div className="h-full rounded-full bg-gradient-to-r from-warm via-accent to-white" style={{ width: `${courseProgressPercent}%` }} />
+              </div>
+              <div className="mt-4 flex items-center justify-between text-sm text-white/[0.72]">
+                <span>{earnedXp} XP</span>
+                <span>{getRankLabel(earnedXp)}</span>
+              </div>
+            </div>
+
+            <div className="mt-5 flex-1 space-y-2 overflow-y-auto pr-1">
+              {currentCourse.modules.map((module, moduleIndex) => {
+                const isLocked = moduleIndex > progressData.currentModuleIndex;
+                const completedInModule = module.lessons.filter((lesson) => completedSet.has(lesson.id)).length;
+                const moduleProgress = Math.round((completedInModule / module.lessons.length) * 100);
+
+                return (
+                  <div key={module.id} className={`rounded-[26px] border border-white/10 bg-white/[0.06] ${isLocked ? "opacity-55" : ""}`}>
+                    <button
+                      type="button"
+                      onClick={() => !isLocked && toggleModule(moduleIndex)}
+                      className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left"
+                    >
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-white/[0.45]">{module.campaignName}</p>
+                        <p className="mt-1 text-sm font-semibold text-white">{module.title}</p>
+                        <p className="mt-2 text-xs text-white/[0.55]">{moduleProgress}% complete</p>
+                      </div>
+                      {isLocked ? <Lock size={16} className="text-white/[0.45]" /> : expandedModules[moduleIndex] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                    </button>
+
+                    {!isLocked && expandedModules[moduleIndex] ? (
+                      <div className="space-y-2 px-3 pb-3">
+                        {module.lessons.map((lesson, lessonIndex) => {
+                          const isActive = moduleIndex === activeModuleIndex && lessonIndex === activeLessonIndex;
+                          const isCompleted = completedSet.has(lesson.id);
+                          const xp = getLessonXp(lesson);
+
+                          return (
+                            <button
+                              key={lesson.id}
+                              type="button"
+                              onClick={() => handleLessonChange(moduleIndex, lessonIndex)}
+                              className={`flex w-full items-center gap-3 rounded-[20px] px-3 py-3 text-left transition ${isActive ? "bg-white text-ink shadow-[0_16px_40px_rgba(13,17,100,0.18)]" : "text-white/[0.78] hover:bg-white/[0.10]"}`}
+                            >
+                              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/[0.10]">
+                                {isCompleted ? <CheckCircle2 size={16} className={isActive ? "text-primary" : "text-warm"} /> : getIcon(lesson.iconName, isActive ? "text-primary" : "text-white/[0.70]")}
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-sm font-medium">{lesson.title}</span>
+                                <span className={`mt-1 block text-xs ${isActive ? "text-slate-500" : "text-white/[0.45]"}`}>{xp} XP</span>
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </aside>
+
+        <main className="flex min-w-0 flex-1 flex-col bg-surface/[0.35]">
+          <header className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200/70 bg-white/75 px-4 py-4 backdrop-blur-xl md:px-8">
+            <div className="flex items-center gap-4">
+              <button type="button" onClick={() => setSidebarOpen(!isSidebarOpen)} className="rounded-2xl border border-slate-200 bg-white p-2 text-slate-600 md:hidden">
+                <Menu size={18} />
+              </button>
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-400">{currentModule.campaignName}</p>
+                <h1 className="font-display text-xl font-bold text-ink md:text-2xl">{currentLesson.title}</h1>
+              </div>
+            </div>
+
+            <div className="hidden items-center gap-3 md:flex">
+              <span className="brand-chip border-accent/10 bg-accent/5 text-accent">
+                <Flame size={14} />
+                {earnedXp}/{totalXp} XP
+              </span>
+              <span className="brand-chip border-primary/10 bg-primary/5 text-primary">
+                <Trophy size={14} />
+                {completedMissionCount}/{totalMissionCount} missions
+              </span>
+            </div>
+          </header>
+
+          <div className="flex-1 overflow-y-auto p-4 md:p-8">
+            <div className="mx-auto max-w-6xl space-y-6">
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="brand-panel p-5">
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Current rank</p>
+                  <p className="mt-3 text-2xl font-bold text-ink">{getRankLabel(earnedXp)}</p>
+                </div>
+                <div className="brand-panel p-5">
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Mission XP</p>
+                  <p className="mt-3 text-2xl font-bold text-ink">{getLessonXp(currentLesson)}</p>
+                </div>
+                <div className="brand-panel p-5">
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Status</p>
+                  <p className="mt-3 text-2xl font-bold text-ink">
+                    {completedSet.has(currentLesson.id) ? "Completed" : "In progress"}
+                  </p>
+                </div>
+              </div>
+
+              {currentLesson.type === "video" ? renderVideo() : null}
+              {currentLesson.type === "article" ? renderArticle() : null}
+              {currentLesson.type === "activity" ? renderActivity() : null}
+              {currentLesson.type === "quiz" ? renderQuizUI() : null}
+              {currentLesson.type === "certificate" ? renderCertificate() : null}
+            </div>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
+

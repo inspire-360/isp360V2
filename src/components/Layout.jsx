@@ -1,147 +1,211 @@
-import React, { useEffect, useState } from 'react';
-import { Outlet, NavLink } from 'react-router-dom';
-import { Home, BookOpen, LogOut, AlertTriangle, Menu, X, User, Settings, ChevronRight } from 'lucide-react';
-import { auth, db } from '../lib/firebase';
-import { doc, onSnapshot } from 'firebase/firestore'; 
-import { useAuth } from '../contexts/AuthContext';
-import { useLine } from '../contexts/LineContext';
-import { usePresence } from '../hooks/usePresence'; // ✅ 1. Import Hook
+import React, { useEffect, useState } from "react";
+import { NavLink, Outlet } from "react-router-dom";
+import {
+  Activity,
+  AlertTriangle,
+  BookOpen,
+  ChevronRight,
+  LayoutDashboard,
+  LifeBuoy,
+  LogOut,
+  Menu,
+  User,
+  X,
+} from "lucide-react";
+import { auth, db } from "../lib/firebase";
+import { doc, onSnapshot } from "firebase/firestore";
+import { useAuth } from "../contexts/AuthContext";
+import { useLine } from "../contexts/LineContext";
+import { usePresence } from "../hooks/usePresence";
 
 export default function Layout() {
   const { currentUser } = useAuth();
   const { logoutLine } = useLine();
-  
-  // ✅ 2. เรียกใช้ Hook เพื่อส่งสัญญาณ Online
+
   usePresence();
-  
+
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [showWarning, setShowWarning] = useState(false);
-  
   const [userData, setUserData] = useState({
-    name: 'User',
-    role: 'Learner', 
-    photoURL: ''
+    name: "User",
+    role: "Learner",
+    photoURL: "",
   });
 
   useEffect(() => {
-    if (currentUser) {
-      const unsub = onSnapshot(doc(db, "users", currentUser.uid), (doc) => {
-        if (doc.exists()) {
-          const data = doc.data();
-          setUserData({
-            name: data.name || currentUser.displayName || currentUser.email?.split('@')[0],
-            role: data.role || 'Learner',
-            photoURL: data.photoURL || currentUser.photoURL
-          });
-        }
+    if (!currentUser) return undefined;
+
+    const unsubscribe = onSnapshot(doc(db, "users", currentUser.uid), (userDocument) => {
+      if (!userDocument.exists()) return;
+
+      const data = userDocument.data();
+      setUserData({
+        name: data.name || currentUser.displayName || currentUser.email?.split("@")[0],
+        role: data.role || "Learner",
+        photoURL: data.photoURL || currentUser.photoURL || "",
       });
-      return () => unsub(); 
-    }
+    });
+
+    return unsubscribe;
   }, [currentUser]);
 
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.hidden) {
-        console.log(`User left screen`);
-      } else {
-        setShowWarning(true);
-        setTimeout(() => setShowWarning(false), 4000);
-      }
+      if (document.hidden) return;
+      setShowWarning(true);
+      setTimeout(() => setShowWarning(false), 4000);
     };
+
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, []);
 
   const handleLogout = async () => {
     try {
-      sessionStorage.setItem('manualLogout', 'true');
-      logoutLine(); 
+      sessionStorage.setItem("manualLogout", "true");
+      logoutLine();
       await auth.signOut();
-      window.location.href = '/'; 
+      window.location.href = "/";
     } catch (error) {
       console.error("Failed to log out", error);
     }
   };
 
   const menuItems = [
-    { icon: <Home size={20} />, label: 'Dashboard', path: '/dashboard' },
-    { icon: <BookOpen size={20} />, label: 'My Courses', path: '/courses' },
-    { icon: <Settings size={20} />, label: 'Profile Settings', path: '/profile' }, 
+    { icon: <LayoutDashboard size={18} />, label: "Dashboard", path: "/dashboard" },
+    { icon: <BookOpen size={18} />, label: "My Courses", path: "/courses" },
+    { icon: <LifeBuoy size={18} />, label: "SOS to DU", path: "/du/sos" },
+    { icon: <Activity size={18} />, label: "DU Console", path: "/du/admin" },
+    { icon: <User size={18} />, label: "Profile", path: "/profile" },
   ];
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden font-sans">
-      {showWarning && (
-        <div className="fixed top-4 right-4 bg-orange-500 text-white px-4 py-3 rounded-lg shadow-xl z-50 flex items-center gap-3 animate-bounce">
-          <AlertTriangle size={24} />
+    <div className="brand-shell flex min-h-screen bg-transparent">
+      {showWarning ? (
+        <div className="fixed right-4 top-4 z-50 flex items-center gap-3 rounded-3xl border border-warm/15 bg-white/90 px-4 py-3 text-sm shadow-[0_18px_45px_rgba(247,141,96,0.2)] backdrop-blur-xl">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-warm/15 text-[#a24619]">
+            <AlertTriangle size={18} />
+          </div>
           <div>
-            <p className="font-bold">Focus Mode Active!</p>
-            <p className="text-sm">ยินดีต้อนรับกลับ ระบบได้บันทึกการออกจากหน้าจอไว้แล้ว</p>
+            <p className="font-semibold text-ink">Focus mode is back on</p>
+            <p className="text-slate-500">ระบบบันทึกการกลับมาใช้งานของคุณแล้ว</p>
           </div>
         </div>
-      )}
+      ) : null}
 
-      {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-40 w-72 bg-white shadow-xl transform transition-transform duration-300 md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}>
-        <div className="flex items-center justify-between p-6 border-b border-gray-100">
-          <span className="text-2xl font-black text-gray-800 tracking-tight">InSPIRE <span className="text-primary">360°</span></span>
-          <button onClick={() => setSidebarOpen(false)} className="md:hidden text-gray-500">
-            <X size={24} />
-          </button>
-        </div>
+      {isSidebarOpen ? (
+        <button
+          type="button"
+          className="fixed inset-0 z-30 bg-ink/[0.35] md:hidden"
+          onClick={() => setSidebarOpen(false)}
+          aria-label="Close sidebar overlay"
+        />
+      ) : null}
 
-        <nav className="p-4 space-y-2 flex-1 overflow-y-auto">
-          {menuItems.map((item) => (
-            <NavLink 
-              key={item.path} 
-              to={item.path}
-              onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) => 
-                `flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 font-medium ${isActive ? 'bg-primary/10 text-primary shadow-sm' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}`
-              }
-            >
-              {item.icon}
-              <span>{item.label}</span>
-              {item.path === '/courses' && <ChevronRight size={16} className="ml-auto opacity-50" />}
-            </NavLink>
-          ))}
-        </nav>
-
-        {/* User Profile Section (Bottom) */}
-        <div className="p-4 border-t border-gray-100 bg-gray-50/50">
-            <div className="flex items-center gap-3 mb-4 bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
-                <img 
-                    src={userData.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.name)}&background=random`} 
-                    alt="Profile"
-                    referrerPolicy="no-referrer"
-                    className="w-10 h-10 rounded-full object-cover border border-gray-200"
-                />
-                <div className="overflow-hidden flex-1">
-                    <p className="text-sm font-bold text-gray-900 truncate">{userData.name}</p>
-                    <p className="text-[10px] text-primary font-bold uppercase tracking-wider bg-primary/10 inline-block px-2 py-0.5 rounded-md mt-0.5">
-                        {userData.role}
-                    </p>
-                </div>
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 w-[310px] px-4 py-4 transition-transform duration-300 md:translate-x-0 ${
+          isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <div className="brand-panel-strong flex h-full flex-col overflow-hidden p-4">
+          <div className="flex items-center justify-between rounded-[28px] border border-white/[0.12] bg-white/[0.06] px-4 py-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-white/[0.45]">Mission Control</p>
+              <h1 className="mt-1 font-display text-2xl font-bold">
+                InSPIRE <span className="text-warm">360°</span>
+              </h1>
             </div>
-            <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 rounded-xl transition-colors border border-transparent hover:border-red-100">
-                <LogOut size={18} /> ออกจากระบบ
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(false)}
+              className="rounded-2xl border border-white/10 bg-white/[0.10] p-2 text-white/[0.70] md:hidden"
+            >
+              <X size={18} />
             </button>
+          </div>
+
+          <div className="mt-4 rounded-[28px] border border-white/[0.12] bg-white/[0.08] p-4">
+            <div className="flex items-center gap-3">
+              <img
+                src={
+                  userData.photoURL ||
+                  `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.name)}&background=0D1164&color=ffffff`
+                }
+                alt="Profile"
+                referrerPolicy="no-referrer"
+                className="h-12 w-12 rounded-2xl object-cover"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold text-white">{userData.name}</p>
+                <p className="mt-1 inline-flex rounded-full border border-white/[0.12] bg-white/[0.10] px-2.5 py-1 text-[11px] uppercase tracking-[0.18em] text-white/[0.70]">
+                  {userData.role}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <nav className="mt-5 flex-1 space-y-2 overflow-y-auto pr-1">
+            {menuItems.map((item) => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                onClick={() => setSidebarOpen(false)}
+                className={({ isActive }) =>
+                  `group flex items-center gap-3 rounded-[24px] px-4 py-3.5 transition-all ${
+                    isActive
+                      ? "bg-white text-ink shadow-[0_18px_45px_rgba(13,17,100,0.18)]"
+                      : "text-white/[0.70] hover:bg-white/[0.10] hover:text-white"
+                  }`
+                }
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/[0.08] transition group-hover:bg-white/15">
+                  {item.icon}
+                </span>
+                <span className="font-medium">{item.label}</span>
+                <ChevronRight size={16} className="ml-auto opacity-40" />
+              </NavLink>
+            ))}
+          </nav>
+
+          <div className="mt-4 rounded-[28px] border border-white/[0.12] bg-white/[0.08] p-4">
+            <p className="text-xs uppercase tracking-[0.18em] text-white/[0.45]">Live use</p>
+            <p className="mt-2 text-sm leading-7 text-white/[0.72]">
+              ใช้เมนู SOS เพื่อส่งเคสถึง DU และใช้ DU Console เพื่อติดตามคิวงานแบบรวมศูนย์
+            </p>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-full border border-white/[0.12] bg-white/[0.10] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.16]"
+            >
+              <LogOut size={16} />
+              ออกจากระบบ
+            </button>
+          </div>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col md:ml-72 transition-all duration-300">
-        <header className="bg-white/80 backdrop-blur-md shadow-sm p-4 md:hidden flex justify-between items-center z-30 sticky top-0">
-          <span className="font-bold text-primary text-lg">InSPIRE 360°</span>
-          <button onClick={() => setSidebarOpen(true)} className="text-gray-600 p-2 rounded-lg hover:bg-gray-100">
-            <Menu size={24} />
-          </button>
+      <div className="flex min-h-screen flex-1 flex-col md:ml-[310px]">
+        <header className="sticky top-0 z-20 border-b border-white/40 bg-white/70 px-4 py-4 backdrop-blur-xl md:hidden">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Mission Control</p>
+              <p className="font-display text-lg font-bold text-ink">InSPIRE 360°</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="rounded-2xl border border-slate-200 bg-white p-2 text-slate-600"
+            >
+              <Menu size={20} />
+            </button>
+          </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-8 relative scroll-smooth">
+        <main className="flex-1 px-4 py-4 md:px-6 md:py-6">
           <Outlet />
         </main>
       </div>
     </div>
   );
 }
+

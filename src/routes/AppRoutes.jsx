@@ -1,78 +1,127 @@
-import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
-import Layout from '../components/Layout';
-import Landing from '../pages/Landing';
-import Login from '../pages/Login';
-import Register from '../pages/Register';
-import Dashboard from '../pages/Dashboard';
-import MyCourses from '../pages/MyCourses';
-import Profile from '../pages/Profile';
-import Construction from '../pages/Construction';
-import CourseGuard from '../components/CourseGuard';
-import CourseRoom from '../pages/CourseRoom'; // ✅ อย่าลืม Import
-import { useAuth } from '../contexts/AuthContext';
+import React, { Suspense, lazy } from "react";
+import { Navigate, Route, Routes } from "react-router-dom";
+import { Loader2 } from "lucide-react";
+import CourseGuard from "../components/CourseGuard";
+import { useAuth } from "../contexts/AuthContext";
+
+const Layout = lazy(() => import("../components/Layout"));
+const AdminConsole = lazy(() => import("../pages/AdminConsole"));
+const Construction = lazy(() => import("../pages/Construction"));
+const CourseRoom = lazy(() => import("../pages/CourseRoom"));
+const Dashboard = lazy(() => import("../pages/Dashboard"));
+const Landing = lazy(() => import("../pages/Landing"));
+const Login = lazy(() => import("../pages/Login"));
+const MyCourses = lazy(() => import("../pages/MyCourses"));
+const Profile = lazy(() => import("../pages/Profile"));
+const Register = lazy(() => import("../pages/Register"));
+const SOSCenter = lazy(() => import("../pages/SOSCenter"));
+
+const RouteLoader = () => (
+  <div className="flex min-h-screen items-center justify-center bg-white">
+    <Loader2 className="animate-spin text-primary" size={34} />
+  </div>
+);
 
 const ProtectedRoute = ({ children }) => {
   const { currentUser, loading } = useAuth();
-  if (loading) return <div className="h-screen flex items-center justify-center">Loading...</div>;
-  if (!currentUser) return <Navigate to="/login" />;
+
+  if (loading) {
+    return <div className="flex h-screen items-center justify-center">Loading...</div>;
+  }
+
+  if (!currentUser) {
+    return <Navigate to="/login" />;
+  }
+
   return children;
 };
 
 const PublicRoute = ({ children }) => {
-    const { currentUser } = useAuth();
-    if (currentUser) return <Navigate to="/dashboard" />;
-    return children;
+  const { currentUser } = useAuth();
+  if (currentUser) return <Navigate to="/dashboard" />;
+  return children;
 };
 
 export default function AppRoutes() {
   return (
-    <Routes>
-      <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
-      <Route path="/landing" element={<Navigate to="/" />} />
-      <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
-      <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
-      
-      <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/courses" element={<MyCourses />} />
+    <Suspense fallback={<RouteLoader />}>
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <PublicRoute>
+              <Landing />
+            </PublicRoute>
+          }
+        />
+        <Route path="/landing" element={<Navigate to="/" />} />
+        <Route
+          path="/login"
+          element={
+            <PublicRoute>
+              <Login />
+            </PublicRoute>
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            <PublicRoute>
+              <Register />
+            </PublicRoute>
+          }
+        />
 
-        {/* -------------------------------------------------------
-            ✅ จุดที่ต้องเปลี่ยน (Course Routes)
-           ------------------------------------------------------- */}
-        
-        {/* 1. คอร์สครู: ยุบรวมเหลือบรรทัดเดียว ใช้ CourseRoom */}
-        <Route path="/course/teacher/*" element={
-            <CourseGuard courseId="course-teacher">
+        <Route
+          element={
+            <ProtectedRoute>
+              <Layout />
+            </ProtectedRoute>
+          }
+        >
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/courses" element={<MyCourses />} />
+          <Route path="/du/sos" element={<SOSCenter />} />
+          <Route path="/du/admin" element={<AdminConsole />} />
+
+          <Route
+            path="/course/teacher/*"
+            element={
+              <CourseGuard courseId="course-teacher">
                 <CourseRoom />
-            </CourseGuard>
-        } />
+              </CourseGuard>
+            }
+          />
 
-        {/* 2. คอร์สนักเรียน: (ยังใช้แบบเดิมได้ หรือจะเปลี่ยนเป็น CourseRoom ในอนาคตก็ได้) */}
-        <Route path="/course/student" element={
-            <CourseGuard courseId="course-student">
-                <div className="h-[calc(100vh-100px)] w-full rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-white">
-                    <iframe 
-                    src="https://chpspace.my.canva.site/the-learning-and-happiness-ecosystem-space" 
-                    className="w-full h-full border-0" 
-                    title="Student Space" 
+          <Route
+            path="/course/student"
+            element={
+              <CourseGuard courseId="course-student">
+                <div className="h-[calc(100vh-100px)] w-full overflow-hidden rounded-3xl border border-white/70 bg-white shadow-[0_20px_70px_rgba(13,17,100,0.08)]">
+                  <iframe
+                    src="https://chpspace.my.canva.site/the-learning-and-happiness-ecosystem-space"
+                    className="h-full w-full border-0"
+                    title="Student Space"
                     loading="lazy"
-                    />
+                  />
                 </div>
-            </CourseGuard>
-        } />
-        
-        {/* 3. คอร์ส AI */}
-        <Route path="/course/ai-era" element={
-            <CourseGuard courseId="course-ai">
-                <Construction message="InSPIRE 360 in AI Era is Coming Soon" />
-            </CourseGuard>
-        } />
+              </CourseGuard>
+            }
+          />
 
-      </Route>
-      
-      <Route path="*" element={<Navigate to="/" />} />
-    </Routes>
+          <Route
+            path="/course/ai-era"
+            element={
+              <CourseGuard courseId="course-ai">
+                <Construction message="InSPIRE 360 in AI Era is Coming Soon" />
+              </CourseGuard>
+            }
+          />
+        </Route>
+
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
+    </Suspense>
   );
 }
