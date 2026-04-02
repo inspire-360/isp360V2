@@ -12,6 +12,19 @@ if (!Array.isArray(program?.supportedLanguages) || !program.supportedLanguages.i
   errors.push('Supported languages must include Thai (th).');
 }
 
+
+const expectedPalette = {
+  primary: '#EF7722',
+  secondary: '#FAA533',
+  neutral: '#EBEBEB',
+  accent: '#0BA6DF'
+};
+for (const [key, value] of Object.entries(expectedPalette)) {
+  if (program?.branding?.colorPalette?.[key] !== value) {
+    errors.push(`Brand color ${key} must be ${value}.`);
+  }
+}
+
 if (!program?.interactionUX?.aiMentorPersona?.enabled) errors.push('AI Mentor persona must be enabled.');
 if (!program?.interactionUX?.aiMentorPersona?.showGuidanceEveryStep) {
   errors.push('AI Mentor guidance must be shown in every step.');
