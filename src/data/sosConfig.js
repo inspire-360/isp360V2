@@ -1,42 +1,177 @@
 export const SOS_COLLECTION = "duSosCases";
 
-export const sosUrgencyOptions = [
-  { value: "critical", label: "Critical", helper: "ต้องการการช่วยเหลือทันทีหรือมีความเสี่ยงสูง" },
-  { value: "high", label: "High", helper: "ต้องการการตอบกลับภายในวันนี้" },
-  { value: "medium", label: "Medium", helper: "ต้องการคำแนะนำและการติดตามตามปกติ" },
-  { value: "low", label: "Low", helper: "เป็นการขอคำปรึกษาเชิงป้องกันหรือข้อมูลเพิ่มเติม" },
+export const sosRiskOptions = [
+  {
+    value: "critical",
+    label: "ฉุกเฉินวิกฤต",
+    level: "Emergency",
+    helper: "เร่งด่วนมากที่สุด ต้องช่วยเหลือทันที",
+    sort: 5,
+    colors: ["#5E0006", "#9B0F06", "#D53E0F", "#EED9B9"],
+    tone: "border-transparent text-white",
+  },
+  {
+    value: "emergent",
+    label: "ฉุกเฉินหนัก",
+    level: "Emergent",
+    helper: "เร่งด่วนมาก ต้องรีบรับเรื่องและเริ่มช่วยเหลือ",
+    sort: 4,
+    colors: ["#F13E93", "#F891BB", "#F9D0CD"],
+    tone: "border-transparent text-white",
+  },
+  {
+    value: "urgent",
+    label: "ฉุกเฉิน",
+    level: "Urgent",
+    helper: "ต้องได้รับการติดตามแบบเร่งด่วน",
+    sort: 3,
+    colors: ["#FFD400", "#FFC300", "#FF8C00", "#FF5F00"],
+    tone: "border-transparent text-[#4B3200]",
+  },
+  {
+    value: "semi_urgent",
+    label: "ฉุกเฉินไม่เร่งด่วน",
+    level: "Semi-Urgent",
+    helper: "ระดับปานกลาง ควรจัดลำดับและติดตามต่อเนื่อง",
+    sort: 2,
+    colors: ["#059212", "#06D001", "#9BEC00", "#F3FF90"],
+    tone: "border-transparent text-[#0F3D12]",
+  },
+  {
+    value: "non_urgent",
+    label: "เรื่องทั่วไป",
+    level: "Non-Urgent",
+    helper: "ระดับน้อยที่สุด แต่ยังต้องการการดูแล",
+    sort: 1,
+    colors: ["#F7F7F7", "#EEEEEE", "#393E46", "#929AAB"],
+    tone: "border-slate-200 text-[#393E46]",
+  },
 ];
 
 export const sosCategoryOptions = [
-  { value: "wellbeing", label: "Wellbeing", helper: "ความเครียด สุขภาวะใจ หรือภาวะเสี่ยง" },
-  { value: "learning", label: "Learning Support", helper: "อุปสรรคด้านการเรียนหรือการสอน" },
-  { value: "safety", label: "Safety", helper: "ความปลอดภัย เหตุฉุกเฉิน หรือความรุนแรง" },
-  { value: "technology", label: "Technology", helper: "อุปกรณ์ ระบบ หรือการใช้งานแพลตฟอร์ม" },
-  { value: "coordination", label: "Coordination", helper: "ต้องการคนประสานงานหรือหน่วยงานช่วยต่อ" },
+  {
+    value: "workload",
+    label: "หมวดงาน",
+    helper: "ภาระงาน นโยบาย และเวลาเตรียมสอน",
+    tags: [
+      "#งานธุรการล้นมือ",
+      "#ประเมินซ้ำซ้อน",
+      "#นโยบายไม่ตรงหน้างาน",
+      "#ประชุมและอบรมเยอะ",
+      "#เวลาเตรียมสอนไม่พอ",
+      "#หลักสูตรอัดแน่น",
+    ],
+  },
+  {
+    value: "environment_resources",
+    label: "หมวดสถานที่และอุปกรณ์",
+    helper: "อาคาร พื้นที่ อุปกรณ์ และอินเทอร์เน็ต",
+    tags: [
+      "#สื่อและอุปกรณ์ไม่พอ",
+      "#อินเทอร์เน็ตมีปัญหา",
+      "#อาคารเรียนทรุดโทรม",
+      "#พื้นที่ไม่ปลอดภัย",
+      "#คอมพิวเตอร์ล้าสมัย",
+    ],
+  },
+  {
+    value: "relationships_support",
+    label: "หมวดความสัมพันธ์ระหว่างบุคคล",
+    helper: "ผู้บริหาร ผู้ปกครอง เพื่อนครู และการรับมือพฤติกรรม",
+    tags: [
+      "#โดดเดี่ยว/ขาดที่ปรึกษา",
+      "#กดดันจากผู้บริหาร",
+      "#ปัญหาการสื่อสารกับผู้ปกครอง",
+      "#รับมือเด็กพฤติกรรมรุนแรง",
+      "#ขาดเพื่อนร่วมคิด (PLC)",
+    ],
+  },
+  {
+    value: "physical_health",
+    label: "หมวดสุขภาพกาย",
+    helper: "อาการล้า ปวด เจ็บคอ และสุขภาพเรื้อรัง",
+    tags: [
+      "#ออฟฟิศซินโดรม/ปวดคอบ่าไหล่",
+      "#ปัญหาเส้นเสียง/เจ็บคอ",
+      "#พักผ่อนไม่เพียงพอ/อ่อนล้า",
+      "#ปัญหาสุขภาพเรื้อรัง",
+    ],
+  },
+  {
+    value: "mental_health",
+    label: "หมวดสุขภาพจิต",
+    helper: "ความเครียด หมดไฟ ภาวะกังวล และภาระหนี้",
+    tags: [
+      "#หมดไฟในการสอน (Burnout)",
+      "#เครียดสะสม/วิตกกังวล",
+      "#รู้สึกท้อแท้/ซึมเศร้า",
+      "#เครียดจากปัญหาหนี้สิน",
+    ],
+  },
 ];
 
 export const sosStatusOptions = [
   { value: "new", label: "New" },
+  { value: "triaged", label: "Triaged" },
   { value: "in_progress", label: "In Progress" },
   { value: "waiting_user", label: "Waiting User" },
   { value: "resolved", label: "Resolved" },
 ];
 
+export const sosApprovalOptions = [
+  { value: "pending_review", label: "Pending Review" },
+  { value: "approved", label: "Approved" },
+  { value: "need_more_info", label: "Need More Info" },
+];
+
 export const sosStatusTone = {
   new: "bg-accent/10 text-accent border-accent/15",
-  in_progress: "bg-secondary/10 text-secondary border-secondary/15",
+  triaged: "bg-secondary/10 text-secondary border-secondary/15",
+  in_progress: "bg-primary/10 text-primary border-primary/15",
   waiting_user: "bg-warm/15 text-[#a24619] border-warm/20",
-  resolved: "bg-primary/10 text-primary border-primary/15",
+  resolved: "bg-slate-900/5 text-slate-700 border-slate-200",
 };
 
-export const sosUrgencyTone = {
-  critical: "bg-accent text-white border-transparent",
-  high: "bg-secondary text-white border-transparent",
-  medium: "bg-warm/15 text-[#a24619] border-warm/20",
-  low: "bg-primary/10 text-primary border-primary/15",
+export const sosApprovalTone = {
+  pending_review: "bg-slate-100 text-slate-600 border-slate-200",
+  approved: "bg-primary/10 text-primary border-primary/15",
+  need_more_info: "bg-warm/15 text-[#a24619] border-warm/20",
 };
+
+export const sosRiskTone = Object.fromEntries(
+  sosRiskOptions.map((option) => [option.value, option.tone]),
+);
+
+export const sosUrgencyOptions = sosRiskOptions;
+export const sosUrgencyTone = sosRiskTone;
+
+export const getRiskMeta = (value) =>
+  sosRiskOptions.find((option) => option.value === value) ||
+  sosRiskOptions.find((option) => option.value === "urgent");
+
+export const getCategoryMeta = (value) =>
+  sosCategoryOptions.find((option) => option.value === value) || sosCategoryOptions[0];
+
+export const getApprovalMeta = (value) =>
+  sosApprovalOptions.find((option) => option.value === value) || sosApprovalOptions[0];
+
+export const getStatusMeta = (value) =>
+  sosStatusOptions.find((option) => option.value === value) || sosStatusOptions[0];
+
+export const normalizeRiskLevel = (value) => {
+  if (["critical", "high"].includes(value)) return "critical";
+  if (value === "medium") return "urgent";
+  if (value === "low") return "non_urgent";
+  return getRiskMeta(value).value;
+};
+
+export const normalizeTags = (tags = []) =>
+  [...new Set((tags || []).map((tag) => String(tag || "").trim()).filter(Boolean))];
 
 export const formatCaseNumber = (id = "") => `DU-${id.slice(0, 6).toUpperCase()}`;
+
+export const riskSortValue = (caseItem = {}) =>
+  getRiskMeta(normalizeRiskLevel(caseItem.riskLevel || caseItem.urgency)).sort;
 
 export const toUnixTime = (value) => {
   if (!value) return 0;
@@ -54,11 +189,12 @@ export const formatDateTime = (value) => {
   }).format(unix);
 };
 
-export const createTimelineEntry = ({ type, by, message, status }) => ({
+export const createTimelineEntry = ({ type, by, message, status, approvalState }) => ({
   id: `${type}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
   type,
   by,
   message,
   status,
+  approvalState,
   at: new Date().toISOString(),
 });

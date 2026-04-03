@@ -21,8 +21,16 @@ import {
 } from "lucide-react";
 import { arrayUnion, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import SWOTBoard from "../components/activities/SWOTBoard";
+import ModuleOneMission from "../components/course/ModuleOneMission";
+import ModuleOneReportCard from "../components/course/ModuleOneReportCard";
 import { useAuth } from "../contexts/AuthContext";
 import { getPostTestQuestions, getPreTestQuestions } from "../data/standardizedTests";
+import {
+  MODULE_ONE_BADGE,
+  MODULE_ONE_REPORT_KEY,
+  buildModuleOneReportCard,
+  moduleOneStages,
+} from "../data/moduleOneCampaign";
 import { teacherCourseData } from "../data/teacherCourse";
 import { db } from "../lib/firebase";
 import { getIcon } from "../utils/iconHelper";
@@ -66,6 +74,9 @@ export default function CourseRoom() {
     currentModuleIndex: 0,
     postTestAttempts: 0,
     score: 0,
+    missionResponses: {},
+    moduleReports: {},
+    earnedBadges: [],
   });
   const [quizQuestions, setQuizQuestions] = useState([]);
   const [quizAnswers, setQuizAnswers] = useState({});
@@ -96,6 +107,9 @@ export default function CourseRoom() {
   const currentModule = currentCourse.modules?.[activeModuleIndex];
   const currentLesson = currentModule?.lessons?.[activeLessonIndex];
   const currentGamification = currentLesson?.content?.gamification;
+  const currentMissionResponse = currentLesson ? progressData.missionResponses?.[currentLesson.id] : null;
+  const moduleOneReport = progressData.moduleReports?.[MODULE_ONE_REPORT_KEY];
+  const isCurrentModuleOneLesson = currentLesson?.id?.startsWith("m1-");
   const completedSet = useMemo(
     () => new Set(progressData.completedLessons),
     [progressData.completedLessons],
@@ -148,6 +162,9 @@ export default function CourseRoom() {
             currentModuleIndex,
             postTestAttempts: data.postTestAttempts || 0,
             score: data.score || 0,
+            missionResponses: data.missionResponses || {},
+            moduleReports: data.moduleReports || {},
+            earnedBadges: data.earnedBadges || [],
           });
 
           setExpandedModules({ [currentModuleIndex]: true });
@@ -159,6 +176,9 @@ export default function CourseRoom() {
             completedLessons: [],
             currentModuleIndex: 0,
             postTestAttempts: 0,
+            missionResponses: {},
+            moduleReports: {},
+            earnedBadges: [],
             status: "active",
           });
         }
@@ -176,12 +196,12 @@ export default function CourseRoom() {
     if (!currentLesson || currentLesson.type !== "quiz") return;
 
     let questions = [];
-    if (currentLesson.content?.isPretest) {
+    if (Array.isArray(currentLesson.content?.questions) && currentLesson.content.questions.length > 0) {
+      questions = currentLesson.content.questions;
+    } else if (currentLesson.content?.isPretest) {
       questions = getPreTestQuestions();
     } else if (currentLesson.content?.isPosttest) {
       questions = getPostTestQuestions(currentLesson.content.questionsCount || 10);
-    } else {
-      questions = currentLesson.content?.questions || [];
     }
 
     setQuizQuestions(questions);
@@ -205,7 +225,7 @@ export default function CourseRoom() {
     setExpandedModules((previous) => ({ ...previous, [index]: !previous[index] }));
   };
 
-  const markLessonComplete = async () => {
+  const markLessonComplete = async ({ stayOnLesson = false } = {}) => {
     if (!currentUser || !currentLesson || completedSet.has(currentLesson.id)) return;
 
     try {
@@ -239,11 +259,13 @@ export default function CourseRoom() {
         const unlockedModule = activeModuleIndex + 1;
         if (unlockedModule < currentCourse.modules.length) {
           setExpandedModules((previous) => ({ ...previous, [unlockedModule]: true }));
-          setActiveModuleIndex(unlockedModule);
-          setActiveLessonIndex(getFirstPendingLessonIndex(unlockedModule, newCompleted));
+          if (!stayOnLesson) {
+            setActiveModuleIndex(unlockedModule);
+            setActiveLessonIndex(getFirstPendingLessonIndex(unlockedModule, newCompleted));
+          }
           alert(`ปลดล็อก ${currentCourse.modules[unlockedModule].title} แล้ว`);
         }
-      } else {
+      } else if (!stayOnLesson) {
         const nextLessonIndex = currentModule.lessons.findIndex(
           (lesson) => !newCompleted.includes(lesson.id),
         );
@@ -254,6 +276,73 @@ export default function CourseRoom() {
     } catch (error) {
       console.error("Error marking lesson complete:", error);
     }
+  };
+
+  const mergeEnrollmentData = async (payload) => {
+    if (!currentUser) return;
+    const enrollRef = doc(db, "users", currentUser.uid, "enrollments", courseId);
+    await setDoc(
+      enrollRef,
+      {
+        ...payload,
+        lastAccess: new Date(),
+      },
+      { merge: true },
+    );
+  };
+
+  const saveModuleOneMission = async (payload) => {
+    if (!currentUser || !currentLesson) return;
+
+    const record = {
+      ...payload,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await mergeEnrollmentData({
+      missionResponses: {
+        [currentLesson.id]: record,
+      },
+    });
+
+    setProgressData((previous) => ({
+      ...previous,
+      missionResponses: {
+        ...previous.missionResponses,
+        [currentLesson.id]: record,
+      },
+    }));
+
+    if (!completedSet.has(currentLesson.id)) {
+      await markLessonComplete();
+    }
+  };
+
+  const saveModuleOneReport = async (score, totalQuestions) => {
+    const report = buildModuleOneReportCard(progressData.missionResponses, {
+      score,
+      totalQuestions,
+    });
+
+    await mergeEnrollmentData({
+      moduleReports: {
+        [MODULE_ONE_REPORT_KEY]: report,
+      },
+      earnedBadges: arrayUnion(MODULE_ONE_BADGE),
+    });
+
+    setProgressData((previous) => ({
+      ...previous,
+      moduleReports: {
+        ...previous.moduleReports,
+        [MODULE_ONE_REPORT_KEY]: report,
+      },
+      earnedBadges: previous.earnedBadges.includes(MODULE_ONE_BADGE)
+        ? previous.earnedBadges
+        : [...previous.earnedBadges, MODULE_ONE_BADGE],
+    }));
+
+    return report;
   };
 
   const handleQuizSelect = (questionId, optionIndex) => {
@@ -271,6 +360,9 @@ export default function CourseRoom() {
         completedLessons: ["pretest-exam"],
         postTestAttempts: 0,
         score: 0,
+        missionResponses: {},
+        moduleReports: {},
+        earnedBadges: [],
       });
       window.location.reload();
     } catch (error) {
@@ -308,7 +400,12 @@ export default function CourseRoom() {
       setProgressData((previous) => ({ ...previous, postTestAttempts: newAttempts, score }));
 
       if (isPassed) {
-        await markLessonComplete();
+        if (currentLesson.id === "m1-posttest") {
+          await saveModuleOneReport(score, quizQuestions.length);
+          await markLessonComplete({ stayOnLesson: true });
+        } else {
+          await markLessonComplete();
+        }
         alert("ยินดีด้วย คุณผ่าน post-test แล้ว");
       } else if (newAttempts >= (currentLesson.content?.maxAttempts || 5)) {
         alert("คุณไม่ผ่านครบตามจำนวนครั้ง ระบบจะเริ่มต้นใหม่จาก Module 1");
@@ -322,7 +419,11 @@ export default function CourseRoom() {
 
   const retryQuiz = () => {
     if (currentLesson.content?.isPosttest) {
-      setQuizQuestions(getPostTestQuestions(10));
+      setQuizQuestions(
+        Array.isArray(currentLesson.content?.questions) && currentLesson.content.questions.length > 0
+          ? currentLesson.content.questions
+          : getPostTestQuestions(currentLesson.content?.questionsCount || 10),
+      );
     }
     setQuizAnswers({});
     setQuizSubmitted(false);
@@ -331,6 +432,9 @@ export default function CourseRoom() {
 
   const renderQuestBrief = () => {
     if (!currentGamification) return null;
+
+    const campaignStep = currentLesson.content?.campaignStep || 0;
+    const mentor = currentLesson.content?.aiMentor;
 
     return (
       <div className="brand-panel-strong overflow-hidden p-6">
@@ -350,6 +454,42 @@ export default function CourseRoom() {
             <p className="mt-2 text-lg font-semibold">{currentGamification.reward}</p>
           </div>
         </div>
+
+        {campaignStep ? (
+          <div className="mt-6 grid gap-3 md:grid-cols-4">
+            {moduleOneStages.map((stage) => {
+              const isActive = stage.step === campaignStep;
+              const isDone = stage.step < campaignStep;
+              return (
+                <div
+                  key={stage.step}
+                  className={`rounded-[22px] border px-4 py-4 text-sm ${
+                    isActive
+                      ? "border-white/25 bg-white/14 text-white"
+                      : isDone
+                        ? "border-white/16 bg-white/10 text-white/90"
+                        : "border-white/10 bg-white/[0.06] text-white/55"
+                  }`}
+                >
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-white/55">
+                    {stage.label}
+                  </p>
+                  <p className="mt-2 font-semibold">{stage.title}</p>
+                  <p className="mt-2 leading-6">{stage.helper}</p>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+
+        {mentor?.intro ? (
+          <div className="mt-5 rounded-[24px] border border-white/[0.12] bg-white/[0.10] px-4 py-4 text-sm leading-7 text-white/[0.82]">
+            <div className="flex items-start gap-3">
+              <Sparkles size={18} className="mt-0.5 flex-shrink-0" />
+              <span>{mentor.intro}</span>
+            </div>
+          </div>
+        ) : null}
 
         <div className="mt-6 grid gap-4 lg:grid-cols-3">
           <div className="rounded-[24px] border border-white/[0.12] bg-white/[0.10] p-4">
@@ -416,13 +556,24 @@ export default function CourseRoom() {
           {currentLesson.content?.videoUrl ? (
             <iframe
               src={currentLesson.content.videoUrl}
-              title="Video Player"
+              title={currentLesson.content?.frameLabel || currentLesson.title}
               className="h-full w-full border-0"
               allowFullScreen
             />
           ) : null}
         </div>
         <p className="mt-6 text-base leading-8 text-slate-600">{currentLesson.content?.description}</p>
+        {currentLesson.content?.externalUrl ? (
+          <a
+            href={currentLesson.content.externalUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="brand-button-secondary mt-4"
+          >
+            Open lesson in new tab
+            <ArrowRight size={16} />
+          </a>
+        ) : null}
         {renderActionFooter("Mark as completed", <PlayCircle size={16} />)}
       </div>
     </div>
@@ -471,8 +622,19 @@ export default function CourseRoom() {
     <div className="space-y-6">
       {renderQuestBrief()}
       <div className="brand-panel p-6">
+        {currentLesson.activityType?.startsWith("module1_") ? (
+          <ModuleOneMission
+            lesson={currentLesson}
+            savedResponse={currentMissionResponse}
+            allResponses={progressData.missionResponses}
+            isCompleted={completedSet.has(currentLesson.id)}
+            onSave={saveModuleOneMission}
+          />
+        ) : null}
         {currentLesson.activityType === "swot_board" ? <SWOTBoard /> : null}
-        {renderActionFooter("Submit mission", <PenTool size={16} />)}
+        {!currentLesson.activityType?.startsWith("module1_")
+          ? renderActionFooter("Submit mission", <PenTool size={16} />)
+          : null}
       </div>
     </div>
   );
@@ -481,6 +643,10 @@ export default function CourseRoom() {
     const isPosttest = currentLesson.content?.isPosttest;
     const isPassed = quizScore >= (currentLesson.content?.passScore || 0);
     const isCompleted = completedSet.has(currentLesson.id);
+    const isModuleOnePosttest = currentLesson.id === "m1-posttest";
+    const scoreValue =
+      quizSubmitted || !isModuleOnePosttest ? quizScore : moduleOneReport?.score || quizScore;
+    const scoreMax = quizQuestions.length || moduleOneReport?.totalQuestions || 0;
 
     if (quizSubmitted || isCompleted) {
       return (
@@ -491,13 +657,21 @@ export default function CourseRoom() {
               {isPassed || isCompleted ? <Award size={44} /> : <RotateCcw size={44} />}
             </div>
             <h2 className="mt-6 font-display text-3xl font-bold text-ink">
-              {isCompleted ? "Checkpoint cleared" : `${quizScore} / ${quizQuestions.length}`}
+              {isCompleted && !isModuleOnePosttest ? "Checkpoint cleared" : `${scoreValue} / ${scoreMax}`}
             </h2>
             <p className="mt-3 text-sm leading-7 text-slate-500">
               {isPassed || isCompleted
                 ? "คุณผ่าน checkpoint นี้แล้ว"
                 : "ยังไม่ผ่านเกณฑ์ ลองทำใหม่ได้จากปุ่มด้านล่าง"}
             </p>
+            {isModuleOnePosttest && moduleOneReport && (isPassed || isCompleted) ? (
+              <div className="mt-6 rounded-[28px] border border-primary/10 bg-primary/5 p-5 text-left">
+                <p className="text-sm font-semibold text-primary">{MODULE_ONE_BADGE}</p>
+                <p className="mt-2 text-base font-semibold text-ink">
+                  Report card พร้อมแล้ว และ Module 2 ถูกปลดล็อกให้เรียบร้อย
+                </p>
+              </div>
+            ) : null}
             {!isPassed && !isCompleted ? (
               <button type="button" onClick={retryQuiz} className="brand-button-secondary mt-6">
                 <RotateCcw size={16} />
@@ -505,6 +679,9 @@ export default function CourseRoom() {
               </button>
             ) : null}
           </div>
+          {isModuleOnePosttest && moduleOneReport && (isPassed || isCompleted) ? (
+            <ModuleOneReportCard report={moduleOneReport} />
+          ) : null}
         </div>
       );
     }
