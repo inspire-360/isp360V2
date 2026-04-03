@@ -15,7 +15,9 @@ export function usePresence() {
 
     const userRef = doc(db, "users", currentUser.uid);
 
-    const syncPresence = async (isOnline, presenceState) => {
+    let interval = 0;
+
+    const syncPresence = async (presenceState) => {
       try {
         await setDoc(
           userRef,
@@ -23,7 +25,7 @@ export function usePresence() {
             uid: currentUser.uid,
             name: currentUser.displayName || currentUser.email?.split("@")[0] || "InSPIRE user",
             email: currentUser.email || "",
-            isOnline,
+            isOnline: true,
             presenceState,
             activePath: location.pathname,
             lastSeen: serverTimestamp(),
@@ -35,34 +37,59 @@ export function usePresence() {
       }
     };
 
-    void syncPresence(!document.hidden, document.hidden ? "background" : "active");
+    const stopHeartbeat = () => {
+      if (interval) {
+        window.clearInterval(interval);
+        interval = 0;
+      }
+    };
 
-    const interval = window.setInterval(() => {
-      void syncPresence(!document.hidden, document.hidden ? "background" : "active");
-    }, HEARTBEAT_MS);
+    const startHeartbeat = () => {
+      stopHeartbeat();
+      if (document.hidden) return;
+
+      interval = window.setInterval(() => {
+        void syncPresence("active");
+      }, HEARTBEAT_MS);
+    };
 
     const handleVisibilityChange = () => {
-      void syncPresence(!document.hidden, document.hidden ? "background" : "active");
+      if (document.hidden) {
+        stopHeartbeat();
+        void syncPresence("away");
+        return;
+      }
+
+      void syncPresence("active");
+      startHeartbeat();
     };
 
     const handlePageHide = () => {
-      void syncPresence(false, "offline");
+      stopHeartbeat();
+      void syncPresence("away");
     };
 
     const handleBeforeUnload = () => {
-      void syncPresence(false, "offline");
+      stopHeartbeat();
+      void syncPresence("away");
     };
+
+    if (document.hidden) {
+      void syncPresence("away");
+    } else {
+      void syncPresence("active");
+      startHeartbeat();
+    }
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("pagehide", handlePageHide);
     window.addEventListener("beforeunload", handleBeforeUnload);
 
     return () => {
-      window.clearInterval(interval);
+      stopHeartbeat();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("pagehide", handlePageHide);
       window.removeEventListener("beforeunload", handleBeforeUnload);
-      void syncPresence(false, "offline");
     };
   }, [currentUser, location.pathname]);
 }

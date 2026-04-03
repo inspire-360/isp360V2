@@ -62,3 +62,20 @@ Original prompt:
 - Ran a production-browser render pass with the built app served locally and captured:
   - `output/web-game-hero-top/shot-0.png`
 - Browser verification succeeded for the public production bundle. Authenticated Module 1, SOS-to-DU, and DU Admin flows still need a signed-in session for full end-to-end browser validation.
+
+Original prompt:
+1. To update DU Console ให้ DU Admin สามารถกำหนดบทบาทของผู้ใช้ reset ข้อมูลการเรียนรู้ แก้ไขข้อมูลของผู้ใช้ได้
+2. To update DU Console ให้ติดตามความก้าวหน้าของผู้ใช้แบบ real-time ได้ทุกคนที่ Enroll crouse เข้ามา และมีแบบสรุปในภาพรวม โดยแสดงผลเป็นกราฟหรือแผนภาพ
+3. To update การดูสมาชิกที่กำลังออนไลน์อยู่ ให้ดึงข้อมูลจาก Firebase มาด้วย เพื่อความ Real-time
+4. ให้เปลี่ยนสถานะการใช้งาน จาก Online เป็น Offline ได้หลังจากผู้ใช้ออกหน้าจอเกิน 2 นาที
+5. ทำให้ระบบ SOS สามารถรันผ่านได้เลยทันที
+
+- Added shared `presenceStatus` and `userRoles` utilities so DU Console, route guards, auth state, and the online member widget all use the same role normalization and real-time presence interpretation.
+- Changed auth role loading from a one-time Firestore read to a live user document subscription, then added an admin-only route guard for `/du/admin` plus sidebar gating for the DU Console entry point.
+- Updated presence syncing so hidden tabs move into an `away` state and naturally age into `offline` after two minutes without a heartbeat, matching the requested online/offline behavior more closely.
+- Rebuilt the dashboard online member widget to read Firebase presence in real time and show separate `online` and `away` counts.
+- Reworked SOS data flow to read from both the per-user `sosCases` subcollection and the shared `duSosCases` mirror, then treat submission and follow-up as successful when at least one Firebase write path succeeds.
+- Upgraded `AdminConsole.jsx` with merged SOS queues, Firebase-backed live member tracking, presence-aware progress rows, progress distribution summary bars, presence mix visualization, and updated enrollment aggregation.
+- Added DU member management controls inside the admin console so admins can edit prefix/name/position/school, assign roles, and reset learning data for either all enrollments or a selected course enrollment.
+- Verified with `npm run build`; the updated DU Console, presence helpers, route guard, and SOS sync changes all compiled successfully.
+- This round was verified at build level only. Authenticated DU Console and SOS flows still need an actual signed-in admin session for full browser-based end-to-end validation.

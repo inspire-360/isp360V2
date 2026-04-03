@@ -1,58 +1,68 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { auth, db } from '../lib/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { onAuthStateChanged } from "firebase/auth";
+import { doc, onSnapshot } from "firebase/firestore";
+import { auth, db } from "../lib/firebase";
+import { normalizeUserRole } from "../utils/userRoles";
 
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
-  const [userRole, setUserRole] = useState(null); // 'admin', 'teacher', 'student'
+  const [userRole, setUserRole] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        // ถ้า Login แล้ว ให้ไปดึง Role จาก Firestore
-        try {
-          const docRef = doc(db, "users", user.uid);
-          const docSnap = await getDoc(docRef);
-          
-          if (docSnap.exists()) {
-            setUserRole(docSnap.data().role);
-          } else {
-            // กรณี User เก่าที่ไม่มี Role ให้ default เป็น Student
-            setUserRole('student'); 
-          }
-        } catch (error) {
-          console.error("Error fetching user role:", error);
-          setUserRole('student');
-        }
-        setCurrentUser(user);
-      } else {
+    let unsubscribeUserDoc;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (unsubscribeUserDoc) {
+        unsubscribeUserDoc();
+        unsubscribeUserDoc = undefined;
+      }
+
+      if (!user) {
         setCurrentUser(null);
         setUserRole(null);
+        setLoading(false);
+        return;
       }
-      setLoading(false);
+
+      setCurrentUser(user);
+      unsubscribeUserDoc = onSnapshot(
+        doc(db, "users", user.uid),
+        (docSnap) => {
+          if (docSnap.exists()) {
+            setUserRole(normalizeUserRole(docSnap.data().role));
+          } else {
+            setUserRole("learner");
+          }
+          setLoading(false);
+        },
+        (error) => {
+          console.error("Error subscribing user role:", error);
+          setUserRole("learner");
+          setLoading(false);
+        },
+      );
     });
 
-    return unsubscribe;
+    return () => {
+      if (unsubscribeUserDoc) {
+        unsubscribeUserDoc();
+      }
+      unsubscribeAuth();
+    };
   }, []);
 
   const value = {
     currentUser,
     userRole,
-    loading
+    loading,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {!loading && children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{!loading && children}</AuthContext.Provider>;
 }
 
-// บรรทัดนี้ใส่ไว้เพื่อแก้ Error: Fast refresh only works when a file only exports components
 // eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   return useContext(AuthContext);

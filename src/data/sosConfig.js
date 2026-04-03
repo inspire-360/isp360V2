@@ -199,3 +199,44 @@ export const createTimelineEntry = ({ type, by, message, status, approvalState }
   approvalState,
   at: new Date().toISOString(),
 });
+
+export const mergeSosCases = (...collections) => {
+  const merged = new Map();
+
+  collections.flat().forEach((caseItem) => {
+    if (!caseItem?.id) return;
+
+    const existing = merged.get(caseItem.id) || {};
+    const previousTime = toUnixTime(existing.updatedAt || existing.createdAt);
+    const nextTime = toUnixTime(caseItem.updatedAt || caseItem.createdAt);
+
+    const normalizeUpdates = (updates = []) =>
+      updates.reduce((items, entry) => {
+        if (!entry?.id || items.some((item) => item.id === entry.id)) return items;
+        return [...items, entry];
+      }, []);
+
+    merged.set(
+      caseItem.id,
+      nextTime >= previousTime
+        ? {
+            ...existing,
+            ...caseItem,
+            tags: normalizeTags([...(existing.tags || []), ...(caseItem.tags || [])]),
+            updates: normalizeUpdates([...(existing.updates || []), ...(caseItem.updates || [])]),
+          }
+        : {
+            ...caseItem,
+            ...existing,
+            tags: normalizeTags([...(caseItem.tags || []), ...(existing.tags || [])]),
+            updates: normalizeUpdates([...(caseItem.updates || []), ...(existing.updates || [])]),
+          },
+    );
+  });
+
+  return [...merged.values()].sort((left, right) => {
+    const riskGap = riskSortValue(right) - riskSortValue(left);
+    if (riskGap !== 0) return riskGap;
+    return toUnixTime(right.updatedAt || right.createdAt) - toUnixTime(left.updatedAt || left.createdAt);
+  });
+};

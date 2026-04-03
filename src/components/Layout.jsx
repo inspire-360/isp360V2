@@ -17,9 +17,10 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { useAuth } from "../contexts/AuthContext";
 import { useLine } from "../contexts/LineContext";
 import { usePresence } from "../hooks/usePresence";
+import { isAdminRole } from "../utils/userRoles";
 
 export default function Layout() {
-  const { currentUser } = useAuth();
+  const { currentUser, userRole } = useAuth();
   const { logoutLine } = useLine();
 
   usePresence();
@@ -75,9 +76,16 @@ export default function Layout() {
     { icon: <LayoutDashboard size={18} />, label: "Dashboard", path: "/dashboard" },
     { icon: <BookOpen size={18} />, label: "My Courses", path: "/courses" },
     { icon: <LifeBuoy size={18} />, label: "SOS to DU", path: "/du/sos" },
-    { icon: <Activity size={18} />, label: "DU Console", path: "/du/admin" },
     { icon: <User size={18} />, label: "Profile", path: "/profile" },
   ];
+
+  if (isAdminRole(userRole)) {
+    menuItems.splice(3, 0, {
+      icon: <Activity size={18} />,
+      label: "DU Console",
+      path: "/du/admin",
+    });
+  }
 
   return (
     <div className="brand-shell flex min-h-screen bg-transparent">

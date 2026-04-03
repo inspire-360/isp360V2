@@ -17,8 +17,10 @@ import {
   collection,
   doc,
   onSnapshot,
+  query,
   serverTimestamp,
   setDoc,
+  where,
 } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useAuth } from "../contexts/AuthContext";
@@ -32,6 +34,7 @@ import {
   getCategoryMeta,
   getRiskMeta,
   getStatusMeta,
+  mergeSosCases,
   normalizeRiskLevel,
   normalizeTags,
   riskSortValue,
@@ -57,8 +60,9 @@ const defaultForm = {
 export default function SOSCenter() {
   const { currentUser, userRole } = useAuth();
   const [form, setForm] = useState(defaultForm);
-  const [cases, setCases] = useState([]);
-  const [loadingCases, setLoadingCases] = useState(true);
+  const [userCases, setUserCases] = useState([]);
+  const [rootCases, setRootCases] = useState([]);
+  const [sourceReady, setSourceReady] = useState({ user: false, root: false });
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [followUpDrafts, setFollowUpDrafts] = useState({});
@@ -71,27 +75,40 @@ export default function SOSCenter() {
   useEffect(() => {
     if (!currentUser) return undefined;
 
-    const casesQuery = collection(db, "users", currentUser.uid, SOS_USER_SUBCOLLECTION);
+    setSourceReady({ user: false, root: false });
 
-    const unsubscribe = onSnapshot(
-      casesQuery,
-      (snapshot) => {
-        const nextCases = snapshot.docs
-          .map((item) => ({ id: item.id, ...item.data() }))
-          .sort((left, right) => {
-            const riskGap = riskSortValue(right) - riskSortValue(left);
-            if (riskGap !== 0) return riskGap;
-            return toUnixTime(right.updatedAt || right.createdAt) - toUnixTime(left.updatedAt || left.createdAt);
-          });
-        setCases(nextCases);
-        setLoadingCases(false);
-      },
-      () => setLoadingCases(false),
+    const userCasesQuery = collection(db, "users", currentUser.uid, SOS_USER_SUBCOLLECTION);
+    const rootCasesQuery = query(
+      collection(db, SOS_COLLECTION),
+      where("requesterId", "==", currentUser.uid),
     );
 
-    return unsubscribe;
+    const unsubscribeUserCases = onSnapshot(
+      userCasesQuery,
+      (snapshot) => {
+        setUserCases(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
+        setSourceReady((previous) => ({ ...previous, user: true }));
+      },
+      () => setSourceReady((previous) => ({ ...previous, user: true })),
+    );
+
+    const unsubscribeRootCases = onSnapshot(
+      rootCasesQuery,
+      (snapshot) => {
+        setRootCases(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
+        setSourceReady((previous) => ({ ...previous, root: true }));
+      },
+      () => setSourceReady((previous) => ({ ...previous, root: true })),
+    );
+
+    return () => {
+      unsubscribeUserCases();
+      unsubscribeRootCases();
+    };
   }, [currentUser]);
 
+  const cases = useMemo(() => mergeSosCases(userCases, rootCases), [rootCases, userCases]);
+  const loadingCases = !sourceReady.user || !sourceReady.root;
   const activeCases = useMemo(() => cases.filter((item) => item.status !== "resolved"), [cases]);
   const resolvedCases = useMemo(() => cases.filter((item) => item.status === "resolved"), [cases]);
 
@@ -159,8 +176,8 @@ export default function SOSCenter() {
         setDoc(rootCaseRef, baseCase, { merge: true }),
       ]);
 
-      if (userWrite.status !== "fulfilled") {
-        throw userWrite.reason;
+      if (userWrite.status !== "fulfilled" && rootWrite.status !== "fulfilled") {
+        throw userWrite.reason || rootWrite.reason;
       }
 
       if (rootWrite.status !== "fulfilled") {
@@ -197,10 +214,15 @@ export default function SOSCenter() {
         ),
       };
 
-      await Promise.allSettled([
+      const results = await Promise.allSettled([
         setDoc(doc(db, "users", currentUser.uid, SOS_USER_SUBCOLLECTION, caseId), payload, { merge: true }),
         setDoc(doc(db, SOS_COLLECTION, caseId), payload, { merge: true }),
       ]);
+
+      if (results.every((result) => result.status !== "fulfilled")) {
+        throw new Error("Unable to sync follow-up to Firebase.");
+      }
+
       setFollowUpDrafts((previous) => ({ ...previous, [caseId]: "" }));
     } catch (error) {
       console.error("Failed to add follow-up:", error);

@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import CourseGuard from "../components/CourseGuard";
 import { useAuth } from "../contexts/AuthContext";
+import { isAdminRole } from "../utils/userRoles";
 
 const Layout = lazy(() => import("../components/Layout"));
 const AdminConsole = lazy(() => import("../pages/AdminConsole"));
@@ -39,6 +40,24 @@ const ProtectedRoute = ({ children }) => {
 const PublicRoute = ({ children }) => {
   const { currentUser } = useAuth();
   if (currentUser) return <Navigate to="/dashboard" />;
+  return children;
+};
+
+const AdminRoute = ({ children }) => {
+  const { currentUser, loading, userRole } = useAuth();
+
+  if (loading) {
+    return <div className="flex h-screen items-center justify-center">Loading...</div>;
+  }
+
+  if (!currentUser) {
+    return <Navigate to="/login" />;
+  }
+
+  if (!isAdminRole(userRole)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   return children;
 };
 
@@ -83,7 +102,14 @@ export default function AppRoutes() {
           <Route path="/profile" element={<Profile />} />
           <Route path="/courses" element={<MyCourses />} />
           <Route path="/du/sos" element={<SOSCenter />} />
-          <Route path="/du/admin" element={<AdminConsole />} />
+          <Route
+            path="/du/admin"
+            element={
+              <AdminRoute>
+                <AdminConsole />
+              </AdminRoute>
+            }
+          />
 
           <Route
             path="/course/teacher/*"
