@@ -39,3 +39,26 @@ Original prompt: [$cloudflare-deploy](C:\\Users\\401ms\\.codex\\skills\\cloudfla
 - Verified a browser render pass against the built app served locally and captured:
   - `output/web-game-hero-top/shot-0.png`
 - Browser validation still only covers the unauthenticated surface because the updated Module 1, SOS, and DU Admin flows require authenticated app state.
+
+Original prompt: 
+1. การฝังบทเรียนจาก Canva link แบบ iframe ยังไม่สามารถแสดงผลในหน้านั้นได้ แก้ไขให้หน่อยนะครับ ขอย้ำ link อีกที คือ [https://www.canva.com/design/DAHFgpFnz8E/VXANS3zHrTRdvU7XGSIG8Q/watch?embed]
+2. To update Module 1 : Mission 3: Strategy Fusion (TOW Matrix) โดยให้นำคำตอบจาก Mission 2 มาสร้างเป็น Cloud words เพื่อให้ผู้เข้ารับการอบรมได้ทำการจับคู่ในการทำ TOW Matrix และสร้างกลยุทธ์
+3. ให้เพิ่ม feature Dowload to PDF หรือ ไฟล์รูปภาพ ลงไปด้วยนะครับ โดยกำหนดให้มี ชื่อของผู้อบรม และหมายเลข serials ของ card ด้วย
+4. กำหนดให้มีการบันทึกคำตอบ และสามารถกลับมาทำต่อภายหลังได้ ซึ่งตอนนี้ที่พบว่า ถ้าออกจากระบบแล้ว คำตอบทั้งหมดหายไปและต้องเริ่มใหม่ทั้งหมด
+5. ระบบ SOS ยังส่งไปหา DU Admin ไม่ได้
+6. เพิ่มการติดตาม และแสดงผลความก้าวหน้าของผู้ใช้ที่ลงทะเบียบแต่ละคนด้วย
+7. To upfate status online user แบบ real-time
+
+- Updated Module 1 lesson embed to use the exact requested Canva URL `watch?embed` and adjusted the lesson frame so Canva content gets a taller dedicated viewport instead of being forced into a 16:9 video box.
+- Reworked `CourseRoom.jsx` persistence from one-time reads to a live enrollment snapshot so active lesson position, module progress, badge/report state, and Module 1 mission answers survive logout and resume correctly on the next login.
+- Added draft autosave for every Module 1 mission response and wired it into Firestore-backed enrollment data, so learners can leave mid-mission and continue later without restarting the whole module.
+- Restored and upgraded Mission 3 `Strategy Fusion` so Mission 2 answers become clickable opportunity/threat word clouds, while Mission 1 answers remain available as internal signals for TOW Matrix pairing and 3 strategy-card creation.
+- Added Module 1 report export as both PNG and PDF, including trainee name, trainee email, generated timestamp, and a stable `INSIGHT-YYYYMMDD-XXXXXX` card serial on the report card itself.
+- Installed `html2canvas` and `jspdf` to support the new report export workflow and confirmed the lazy-loaded export path builds successfully in production.
+- Shifted SOS storage to a per-user subcollection plus shared DU mirror write so teacher-submitted SOS requests and follow-up notes persist in Firebase and become visible to DU Admin from the same dataset.
+- Upgraded `AdminConsole.jsx` to subscribe live to users, enrollments, and SOS cases, then derive learner progress rows, active module/lesson, current route, average progress, and queue stats in real time.
+- Reworked presence tracking so every logged-in user now syncs `isOnline`, `presenceState`, `activePath`, and `lastSeen` on a faster heartbeat with visibility/offline handling; refreshed the `OnlineUsers` widget to use the same logic.
+- Verified with `npm run build`; final build passed after the new export dependencies and Module 1/SOS/progress updates.
+- Ran a production-browser render pass with the built app served locally and captured:
+  - `output/web-game-hero-top/shot-0.png`
+- Browser verification succeeded for the public production bundle. Authenticated Module 1, SOS-to-DU, and DU Admin flows still need a signed-in session for full end-to-end browser validation.

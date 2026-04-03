@@ -19,7 +19,7 @@ import {
   Sparkles,
   Trophy,
 } from "lucide-react";
-import { arrayUnion, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { arrayUnion, doc, onSnapshot, setDoc, updateDoc } from "firebase/firestore";
 import SWOTBoard from "../components/activities/SWOTBoard";
 import ModuleOneMission from "../components/course/ModuleOneMission";
 import ModuleOneReportCard from "../components/course/ModuleOneReportCard";
@@ -29,6 +29,7 @@ import {
   MODULE_ONE_BADGE,
   MODULE_ONE_REPORT_KEY,
   buildModuleOneReportCard,
+  generateModuleOneCardSerial,
   moduleOneStages,
 } from "../data/moduleOneCampaign";
 import { teacherCourseData } from "../data/teacherCourse";
@@ -60,6 +61,16 @@ const getRankLabel = (xp) =>
 const isMissionLesson = (lesson) =>
   lesson?.content?.gamification?.difficulty === "Heroic" || lesson?.id?.includes("mission");
 
+const defaultProgressData = {
+  completedLessons: [],
+  currentModuleIndex: 0,
+  postTestAttempts: 0,
+  score: 0,
+  missionResponses: {},
+  moduleReports: {},
+  earnedBadges: [],
+};
+
 export default function CourseRoom() {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
@@ -69,15 +80,7 @@ export default function CourseRoom() {
   const [loading, setLoading] = useState(true);
   const [activeModuleIndex, setActiveModuleIndex] = useState(0);
   const [activeLessonIndex, setActiveLessonIndex] = useState(0);
-  const [progressData, setProgressData] = useState({
-    completedLessons: [],
-    currentModuleIndex: 0,
-    postTestAttempts: 0,
-    score: 0,
-    missionResponses: {},
-    moduleReports: {},
-    earnedBadges: [],
-  });
+  const [progressData, setProgressData] = useState(defaultProgressData);
   const [quizQuestions, setQuizQuestions] = useState([]);
   const [quizAnswers, setQuizAnswers] = useState({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
@@ -144,52 +147,119 @@ export default function CourseRoom() {
     return lessonIndex === -1 ? 0 : lessonIndex;
   };
 
+  const getSafeModuleIndex = (index) =>
+    Math.min(Math.max(index ?? 0, 0), Math.max(currentCourse.modules.length - 1, 0));
+
+  const getSafeLessonIndex = (moduleIndex, lessonIndex) => {
+    const safeModuleIndex = getSafeModuleIndex(moduleIndex);
+    const lessons = currentCourse.modules[safeModuleIndex]?.lessons || [];
+    if (lessons.length === 0) return 0;
+    return Math.min(Math.max(lessonIndex ?? 0, 0), lessons.length - 1);
+  };
+
+  const buildEnrollmentMeta = ({
+    completedLessons = progressData.completedLessons,
+    unlockedModuleIndex = progressData.currentModuleIndex,
+    activeModule = activeModuleIndex,
+    activeLesson = activeLessonIndex,
+  } = {}) => {
+    const safeModuleIndex = getSafeModuleIndex(activeModule);
+    const safeLessonIndex = getSafeLessonIndex(safeModuleIndex, activeLesson);
+    const activeModuleData = currentCourse.modules[safeModuleIndex];
+    const activeLessonData = activeModuleData?.lessons?.[safeLessonIndex];
+    const completedCount = completedLessons.length;
+    const progressPercent = allLessons.length
+      ? Math.min(100, Math.round((completedCount / allLessons.length) * 100))
+      : 0;
+
+    return {
+      courseId,
+      courseTitle: currentCourse.title,
+      completedLessonsCount: completedCount,
+      lessonCount: allLessons.length,
+      moduleCount: currentCourse.modules.length,
+      progressPercent,
+      currentModuleIndex: getSafeModuleIndex(unlockedModuleIndex),
+      activeModuleIndex: safeModuleIndex,
+      activeLessonIndex: safeLessonIndex,
+      activeModuleTitle: activeModuleData?.title || "",
+      activeLessonId: activeLessonData?.id || "",
+      activeLessonTitle: activeLessonData?.title || "",
+      status: completedCount >= allLessons.length ? "completed" : "active",
+    };
+  };
+
   useEffect(() => {
-    const loadProgress = async () => {
-      if (!currentUser) return;
+    if (!currentUser) return undefined;
 
-      try {
-        const enrollRef = doc(db, "users", currentUser.uid, "enrollments", courseId);
-        const snapshot = await getDoc(enrollRef);
+    const enrollRef = doc(db, "users", currentUser.uid, "enrollments", courseId);
 
-        if (snapshot.exists()) {
+    const unsubscribe = onSnapshot(
+      enrollRef,
+      async (snapshot) => {
+        try {
+          if (!snapshot.exists()) {
+            await setDoc(
+              enrollRef,
+              {
+                enrolledAt: new Date(),
+                lastAccess: new Date(),
+                ...defaultProgressData,
+                ...buildEnrollmentMeta({
+                  completedLessons: [],
+                  unlockedModuleIndex: 0,
+                  activeModule: 0,
+                  activeLesson: 0,
+                }),
+              },
+              { merge: true },
+            );
+            setLoading(false);
+            return;
+          }
+
           const data = snapshot.data();
-          const completedLessons = data.completedLessons || [];
-          const currentModuleIndex = data.currentModuleIndex || 0;
+          const completedLessons = Array.isArray(data.completedLessons) ? data.completedLessons : [];
+          const unlockedModuleIndex = getSafeModuleIndex(data.currentModuleIndex || 0);
+          const nextActiveModuleIndex = getSafeModuleIndex(
+            typeof data.activeModuleIndex === "number" ? data.activeModuleIndex : unlockedModuleIndex,
+          );
+          const nextActiveLessonIndex =
+            typeof data.activeLessonIndex === "number"
+              ? getSafeLessonIndex(nextActiveModuleIndex, data.activeLessonIndex)
+              : getFirstPendingLessonIndex(nextActiveModuleIndex, completedLessons);
 
           setProgressData({
+            ...defaultProgressData,
+            ...data,
             completedLessons,
-            currentModuleIndex,
+            currentModuleIndex: unlockedModuleIndex,
             postTestAttempts: data.postTestAttempts || 0,
             score: data.score || 0,
             missionResponses: data.missionResponses || {},
             moduleReports: data.moduleReports || {},
             earnedBadges: data.earnedBadges || [],
           });
-
-          setExpandedModules({ [currentModuleIndex]: true });
-          setActiveModuleIndex(currentModuleIndex);
-          setActiveLessonIndex(getFirstPendingLessonIndex(currentModuleIndex, completedLessons));
-        } else {
-          await setDoc(enrollRef, {
-            enrolledAt: new Date(),
-            completedLessons: [],
-            currentModuleIndex: 0,
-            postTestAttempts: 0,
-            missionResponses: {},
-            moduleReports: {},
-            earnedBadges: [],
-            status: "active",
-          });
+          setExpandedModules((previous) => ({
+            ...previous,
+            [unlockedModuleIndex]: true,
+            [nextActiveModuleIndex]: true,
+          }));
+          setActiveModuleIndex(nextActiveModuleIndex);
+          setActiveLessonIndex(nextActiveLessonIndex);
+        } catch (error) {
+          console.error("Error loading progress:", error);
+        } finally {
+          setLoading(false);
         }
-      } catch (error) {
-        console.error("Error loading progress:", error);
-      } finally {
+      },
+      (error) => {
+        console.error("Error subscribing progress:", error);
         setLoading(false);
-      }
-    };
+      },
+    );
 
-    loadProgress();
+    return unsubscribe;
   }, [currentUser]);
 
   useEffect(() => {
@@ -218,6 +288,19 @@ export default function CourseRoom() {
 
     setActiveModuleIndex(moduleIndex);
     setActiveLessonIndex(lessonIndex);
+    if (currentUser) {
+      void setDoc(
+        doc(db, "users", currentUser.uid, "enrollments", courseId),
+        {
+          ...buildEnrollmentMeta({
+            activeModule: moduleIndex,
+            activeLesson: lessonIndex,
+          }),
+          lastAccess: new Date(),
+        },
+        { merge: true },
+      );
+    }
     if (window.innerWidth < 768) setSidebarOpen(false);
   };
 
@@ -229,25 +312,17 @@ export default function CourseRoom() {
     if (!currentUser || !currentLesson || completedSet.has(currentLesson.id)) return;
 
     try {
-      const enrollRef = doc(db, "users", currentUser.uid, "enrollments", courseId);
       const newCompleted = [...progressData.completedLessons, currentLesson.id];
       const isModuleDone = currentModule.lessons.every((lesson) => newCompleted.includes(lesson.id));
-      const updates = {
-        completedLessons: arrayUnion(currentLesson.id),
-        lastAccess: new Date(),
-      };
-
-      if (isModuleDone) {
-        const nextModuleIndex = activeModuleIndex + 1;
-        if (nextModuleIndex < currentCourse.modules.length && nextModuleIndex > progressData.currentModuleIndex) {
-          updates.currentModuleIndex = nextModuleIndex;
-        }
-      }
-
-      await updateDoc(enrollRef, updates);
-
+      const unlockedModule = activeModuleIndex + 1;
       const nextModuleIndex =
-        typeof updates.currentModuleIndex === "number" ? updates.currentModuleIndex : progressData.currentModuleIndex;
+        isModuleDone &&
+        unlockedModule < currentCourse.modules.length &&
+        unlockedModule > progressData.currentModuleIndex
+          ? unlockedModule
+          : progressData.currentModuleIndex;
+      let nextActiveModuleIndex = activeModuleIndex;
+      let nextActiveLessonIndex = activeLessonIndex;
 
       setProgressData((previous) => ({
         ...previous,
@@ -260,8 +335,8 @@ export default function CourseRoom() {
         if (unlockedModule < currentCourse.modules.length) {
           setExpandedModules((previous) => ({ ...previous, [unlockedModule]: true }));
           if (!stayOnLesson) {
-            setActiveModuleIndex(unlockedModule);
-            setActiveLessonIndex(getFirstPendingLessonIndex(unlockedModule, newCompleted));
+            nextActiveModuleIndex = unlockedModule;
+            nextActiveLessonIndex = getFirstPendingLessonIndex(unlockedModule, newCompleted);
           }
           alert(`ปลดล็อก ${currentCourse.modules[unlockedModule].title} แล้ว`);
         }
@@ -270,22 +345,46 @@ export default function CourseRoom() {
           (lesson) => !newCompleted.includes(lesson.id),
         );
         if (nextLessonIndex !== -1) {
-          setActiveLessonIndex(nextLessonIndex);
+          nextActiveLessonIndex = nextLessonIndex;
         }
+      }
+
+      await mergeEnrollmentData(
+        {
+          completedLessons: arrayUnion(currentLesson.id),
+        },
+        {
+          completedLessons: newCompleted,
+          currentModuleIndex: nextModuleIndex,
+          activeModuleIndex: nextActiveModuleIndex,
+          activeLessonIndex: nextActiveLessonIndex,
+        },
+      );
+
+      if (!stayOnLesson) {
+        setActiveModuleIndex(nextActiveModuleIndex);
+        setActiveLessonIndex(nextActiveLessonIndex);
       }
     } catch (error) {
       console.error("Error marking lesson complete:", error);
     }
   };
 
-  const mergeEnrollmentData = async (payload) => {
+  const mergeEnrollmentData = async (payload, options = {}) => {
     if (!currentUser) return;
     const enrollRef = doc(db, "users", currentUser.uid, "enrollments", courseId);
     await setDoc(
       enrollRef,
       {
+        ...buildEnrollmentMeta({
+          completedLessons: options.completedLessons ?? progressData.completedLessons,
+          unlockedModuleIndex: options.currentModuleIndex ?? progressData.currentModuleIndex,
+          activeModule: options.activeModuleIndex ?? activeModuleIndex,
+          activeLesson: options.activeLessonIndex ?? activeLessonIndex,
+        }),
         ...payload,
         lastAccess: new Date(),
+        lastSavedAt: new Date(),
       },
       { merge: true },
     );
@@ -296,6 +395,8 @@ export default function CourseRoom() {
 
     const record = {
       ...payload,
+      saveState: "submitted",
+      submittedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
@@ -318,11 +419,45 @@ export default function CourseRoom() {
     }
   };
 
-  const saveModuleOneReport = async (score, totalQuestions) => {
-    const report = buildModuleOneReportCard(progressData.missionResponses, {
-      score,
-      totalQuestions,
+  const saveModuleOneDraft = async (payload) => {
+    if (!currentUser || !currentLesson) return;
+
+    const record = {
+      ...payload,
+      saveState: completedSet.has(currentLesson.id) ? "submitted" : "draft",
+      updatedAt: new Date().toISOString(),
+    };
+
+    await mergeEnrollmentData({
+      missionResponses: {
+        [currentLesson.id]: record,
+      },
     });
+
+    setProgressData((previous) => ({
+      ...previous,
+      missionResponses: {
+        ...previous.missionResponses,
+        [currentLesson.id]: record,
+      },
+    }));
+  };
+
+  const saveModuleOneReport = async (score, totalQuestions) => {
+    const existingSerial = progressData.moduleReports?.[MODULE_ONE_REPORT_KEY]?.cardSerial;
+    const report = buildModuleOneReportCard(
+      progressData.missionResponses,
+      {
+        score,
+        totalQuestions,
+      },
+      {
+        uid: currentUser?.uid,
+        email: currentUser?.email,
+        name: currentUser?.displayName || currentUser?.email?.split("@")[0],
+        cardSerial: existingSerial || generateModuleOneCardSerial(currentUser?.uid),
+      },
+    );
 
     await mergeEnrollmentData({
       moduleReports: {
@@ -355,16 +490,26 @@ export default function CourseRoom() {
     setLoading(true);
     try {
       const enrollRef = doc(db, "users", currentUser.uid, "enrollments", courseId);
-      await updateDoc(enrollRef, {
-        currentModuleIndex: 1,
-        completedLessons: ["pretest-exam"],
-        postTestAttempts: 0,
-        score: 0,
-        missionResponses: {},
-        moduleReports: {},
-        earnedBadges: [],
-      });
-      window.location.reload();
+      const resetCompletedLessons = ["pretest-exam"];
+      const resetModuleIndex = 1;
+      const resetLessonIndex = getFirstPendingLessonIndex(resetModuleIndex, resetCompletedLessons);
+      await setDoc(
+        enrollRef,
+        {
+          enrolledAt: new Date(),
+          ...defaultProgressData,
+          completedLessons: resetCompletedLessons,
+          currentModuleIndex: resetModuleIndex,
+          ...buildEnrollmentMeta({
+            completedLessons: resetCompletedLessons,
+            unlockedModuleIndex: resetModuleIndex,
+            activeModule: resetModuleIndex,
+            activeLesson: resetLessonIndex,
+          }),
+          lastAccess: new Date(),
+        },
+        { merge: true },
+      );
     } catch (error) {
       console.error("Reset failed:", error);
       setLoading(false);
@@ -552,16 +697,38 @@ export default function CourseRoom() {
     <div className="space-y-6">
       {renderQuestBrief()}
       <div className="brand-panel p-6">
-        <div className="aspect-video overflow-hidden rounded-[28px] bg-black">
-          {currentLesson.content?.videoUrl ? (
-            <iframe
-              src={currentLesson.content.videoUrl}
-              title={currentLesson.content?.frameLabel || currentLesson.title}
-              className="h-full w-full border-0"
-              allowFullScreen
-            />
-          ) : null}
-        </div>
+        {(() => {
+          const videoUrl = currentLesson.content?.videoUrl || "";
+          const isCanvaEmbed = videoUrl.includes("canva.com");
+
+          return (
+            <>
+              <div
+                className={`overflow-hidden rounded-[28px] border border-slate-100 bg-black/5 ${
+                  isCanvaEmbed ? "h-[560px] md:h-[760px]" : "aspect-video"
+                }`}
+              >
+                {videoUrl ? (
+                  <iframe
+                    key={`${currentLesson.id}-${videoUrl}`}
+                    src={videoUrl}
+                    title={currentLesson.content?.frameLabel || currentLesson.title}
+                    className="h-full w-full border-0"
+                    loading="lazy"
+                    referrerPolicy="strict-origin-when-cross-origin"
+                    allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                ) : null}
+              </div>
+              {isCanvaEmbed ? (
+                <div className="mt-4 rounded-[24px] border border-primary/10 bg-primary/5 px-4 py-4 text-sm leading-7 text-slate-600">
+                  Canva lesson is embedded with the requested `watch?embed` URL. ถ้ายังเจอข้อจำกัดจากเบราว์เซอร์หรือเครือข่ายของโรงเรียน สามารถเปิดแท็บใหม่จากปุ่มด้านล่างได้ทันที
+                </div>
+              ) : null}
+            </>
+          );
+        })()}
         <p className="mt-6 text-base leading-8 text-slate-600">{currentLesson.content?.description}</p>
         {currentLesson.content?.externalUrl ? (
           <a
@@ -628,6 +795,7 @@ export default function CourseRoom() {
             savedResponse={currentMissionResponse}
             allResponses={progressData.missionResponses}
             isCompleted={completedSet.has(currentLesson.id)}
+            onDraftSave={saveModuleOneDraft}
             onSave={saveModuleOneMission}
           />
         ) : null}

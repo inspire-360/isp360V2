@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Loader2, Sparkles } from "lucide-react";
 
 const filled = (value) => Boolean(String(value || "").trim());
@@ -9,8 +9,180 @@ const extractAnswerMap = (parts = []) =>
     return accumulator;
   }, {});
 
-const collectInsights = (response) =>
-  response?.parts?.flatMap((part) => part.items || []).filter((item) => filled(item.answer)) || [];
+const collectInsights = (response, lensCodes = []) =>
+  response?.parts
+    ?.flatMap((part) => part.items || [])
+    .filter((item) => filled(item.answer) && (lensCodes.length === 0 || lensCodes.includes(item.lensCode))) || [];
+
+const summarizePhrase = (text = "") => {
+  const normalized = String(text || "").replace(/\s+/g, " ").trim();
+  if (!normalized) return "";
+  if (normalized.length <= 48) return normalized;
+  return `${normalized.slice(0, 45).trim()}...`;
+};
+
+const splitCloudFragments = (text = "") =>
+  String(text || "")
+    .split(/[\n,;|]/g)
+    .map((item) => summarizePhrase(item))
+    .filter(Boolean);
+
+const buildCloudNodes = (insights = [], maxItems = 12) => {
+  const seen = new Set();
+  const nodes = [];
+
+  insights.forEach((item, itemIndex) => {
+    const fragments = splitCloudFragments(item.answer);
+    const segments = fragments.length > 0 ? fragments : [summarizePhrase(item.answer)];
+
+    segments.forEach((segment, segmentIndex) => {
+      const fingerprint = `${item.lensCode}-${segment.toLowerCase()}`;
+      if (!segment || seen.has(fingerprint)) return;
+      seen.add(fingerprint);
+      nodes.push({
+        id: `${item.id}-${segmentIndex}`,
+        text: segment,
+        lensCode: item.lensCode,
+        weight: Math.min(5, Math.max(1, Math.ceil(segment.length / 18) + ((itemIndex + segmentIndex) % 2))),
+        focus: item.focus,
+        lensTitle: item.lensTitle,
+      });
+    });
+  });
+
+  return nodes.slice(0, maxItems);
+};
+
+const getCloudTone = (lensCode, weight) => {
+  const tones = {
+    O: [
+      "border-secondary/20 bg-secondary/10 text-secondary",
+      "border-secondary/30 bg-secondary/15 text-secondary shadow-[0_10px_24px_rgba(100,13,95,0.10)]",
+      "border-secondary/40 bg-gradient-to-r from-secondary/20 to-accent/15 text-ink shadow-[0_16px_36px_rgba(100,13,95,0.14)]",
+    ],
+    T: [
+      "border-accent/20 bg-accent/10 text-accent",
+      "border-accent/30 bg-accent/15 text-accent shadow-[0_10px_24px_rgba(234,34,100,0.10)]",
+      "border-accent/40 bg-gradient-to-r from-accent/18 to-warm/18 text-ink shadow-[0_16px_36px_rgba(234,34,100,0.14)]",
+    ],
+    S: [
+      "border-primary/20 bg-primary/10 text-primary",
+      "border-primary/30 bg-primary/15 text-primary shadow-[0_10px_24px_rgba(13,17,100,0.10)]",
+      "border-primary/40 bg-gradient-to-r from-primary/18 to-secondary/15 text-ink shadow-[0_16px_36px_rgba(13,17,100,0.14)]",
+    ],
+    W: [
+      "border-warm/20 bg-warm/10 text-[#a24619]",
+      "border-warm/30 bg-warm/15 text-[#a24619] shadow-[0_10px_24px_rgba(247,141,96,0.10)]",
+      "border-warm/40 bg-gradient-to-r from-warm/18 to-accent/10 text-ink shadow-[0_16px_36px_rgba(247,141,96,0.14)]",
+    ],
+  };
+
+  const palette = tones[lensCode] || tones.O;
+  return palette[Math.min(palette.length - 1, Math.max(0, weight - 3))];
+};
+
+const buildDraftPayload = ({ lesson, draft, strategySource, selectedStrategy }) => {
+  if (lesson.activityType === "module1_reflection") {
+    return {
+      type: "reflection",
+      activePartIndex: draft.activePartIndex || 0,
+      summary: draft.summary?.trim() || "",
+      parts: lesson.content.parts.map((part) => ({
+        id: part.id,
+        title: part.title,
+        lensCode: part.lensCode,
+        items: part.questions.map((question) => ({
+          id: question.id,
+          lensTitle: question.lensTitle,
+          focus: question.focus,
+          prompt: question.prompt,
+          lensCode: question.lensCode,
+          answer: draft.answers?.[question.id]?.trim() || "",
+        })),
+      })),
+    };
+  }
+
+  if (lesson.activityType === "module1_strategy_fusion") {
+    return {
+      type: "strategies",
+      reflection: draft.reflection?.trim() || "",
+      strategies: (draft.strategies || []).map((strategy) => ({
+        ...strategy,
+        title: strategy.title?.trim() || "",
+        internalSignal: strategy.internalSignal?.trim() || "",
+        externalSignal: strategy.externalSignal?.trim() || "",
+        strategyText: strategy.strategyText?.trim() || "",
+        successSignal: strategy.successSignal?.trim() || "",
+      })),
+    };
+  }
+
+  if (lesson.activityType === "module1_needs_detective") {
+    return {
+      type: "needs-detective",
+      selectedStrategyId: draft.selectedStrategyId || "",
+      selectedStrategy:
+        strategySource.find((strategy) => strategy.id === draft.selectedStrategyId) || null,
+      selectionReason: draft.selectionReason?.trim() || "",
+      strategyScores: strategySource.map((strategy) => ({
+        strategyId: strategy.id,
+        title: strategy.title,
+        strategyType: strategy.strategyType,
+        ratings: draft.ratings?.[strategy.id] || {},
+        total: lesson.content.ratingCriteria.reduce(
+          (sum, criterion) => sum + Number(draft.ratings?.[strategy.id]?.[criterion.id] || 0),
+          0,
+        ),
+      })),
+    };
+  }
+
+  return {
+    type: "pdca",
+    strategyTitle: draft.strategyTitle?.trim() || selectedStrategy?.title || "",
+    startDate: draft.startDate || "",
+    reviewDate: draft.reviewDate || "",
+    supportNeeded: draft.supportNeeded?.trim() || "",
+    plan: draft.plan?.trim() || "",
+    do: draft.do?.trim() || "",
+    check: draft.check?.trim() || "",
+    act: draft.act?.trim() || "",
+  };
+};
+
+const hasPayloadContent = (payload) => {
+  if (!payload) return false;
+  if (payload.type === "reflection") {
+    return payload.parts?.some((part) => part.items?.some((item) => filled(item.answer))) || filled(payload.summary);
+  }
+  if (payload.type === "strategies") {
+    return (
+      payload.strategies?.some((strategy) =>
+        [strategy.title, strategy.internalSignal, strategy.externalSignal, strategy.strategyText, strategy.successSignal].some(filled),
+      ) || filled(payload.reflection)
+    );
+  }
+  if (payload.type === "needs-detective") {
+    return (
+      filled(payload.selectedStrategyId) ||
+      filled(payload.selectionReason) ||
+      payload.strategyScores?.some((score) =>
+        Object.values(score.ratings || {}).some((value) => Number(value || 0) > 0),
+      )
+    );
+  }
+  return [
+    payload.strategyTitle,
+    payload.startDate,
+    payload.reviewDate,
+    payload.supportNeeded,
+    payload.plan,
+    payload.do,
+    payload.check,
+    payload.act,
+  ].some(filled);
+};
 
 const RatingButtons = ({ value, onSelect }) => (
   <div className="mt-3 flex flex-wrap gap-2">
@@ -37,15 +209,16 @@ export default function ModuleOneMission({
   allResponses,
   isCompleted,
   onSave,
+  onDraftSave,
 }) {
   const [draft, setDraft] = useState({});
   const [saving, setSaving] = useState(false);
   const [reward, setReward] = useState("");
+  const [autosaveState, setAutosaveState] = useState("");
+  const [focusedField, setFocusedField] = useState(null);
+  const lastPersistedPayloadRef = useRef("");
 
-  const strategySource = useMemo(
-    () => allResponses["m1-mission-3"]?.strategies || [],
-    [allResponses],
-  );
+  const strategySource = useMemo(() => allResponses["m1-mission-3"]?.strategies || [], [allResponses]);
   const selectedStrategy = useMemo(() => {
     const selectedId = allResponses["m1-mission-4"]?.selectedStrategyId;
     return (
@@ -55,17 +228,22 @@ export default function ModuleOneMission({
       null
     );
   }, [allResponses, strategySource]);
-  const sourceInsights = useMemo(
-    () => [
-      ...collectInsights(allResponses["m1-mission-1"]).slice(0, 3),
-      ...collectInsights(allResponses["m1-mission-2"]).slice(0, 3),
-    ],
-    [allResponses],
+  const internalInsights = useMemo(() => collectInsights(allResponses["m1-mission-1"]), [allResponses]);
+  const externalInsights = useMemo(() => collectInsights(allResponses["m1-mission-2"]), [allResponses]);
+  const internalCloud = useMemo(() => buildCloudNodes(internalInsights, 10), [internalInsights]);
+  const opportunityCloud = useMemo(
+    () => buildCloudNodes(externalInsights.filter((item) => item.lensCode === "O"), 10),
+    [externalInsights],
+  );
+  const threatCloud = useMemo(
+    () => buildCloudNodes(externalInsights.filter((item) => item.lensCode === "T"), 10),
+    [externalInsights],
   );
 
   useEffect(() => {
+    setFocusedField(null);
     if (lesson.activityType === "module1_reflection") {
-      setDraft({
+      const nextDraft = {
         activePartIndex: savedResponse?.activePartIndex || 0,
         answers:
           Object.keys(extractAnswerMap(savedResponse?.parts || [])).length > 0
@@ -77,12 +255,16 @@ export default function ModuleOneMission({
                 return accumulator;
               }, {}),
         summary: savedResponse?.summary || "",
-      });
+      };
+      setDraft(nextDraft);
+      lastPersistedPayloadRef.current = JSON.stringify(
+        buildDraftPayload({ lesson, draft: nextDraft, strategySource, selectedStrategy }),
+      );
       return;
     }
 
     if (lesson.activityType === "module1_strategy_fusion") {
-      setDraft({
+      const nextDraft = {
         strategies:
           savedResponse?.strategies?.length > 0
             ? savedResponse.strategies
@@ -96,12 +278,16 @@ export default function ModuleOneMission({
                 successSignal: "",
               })),
         reflection: savedResponse?.reflection || "",
-      });
+      };
+      setDraft(nextDraft);
+      lastPersistedPayloadRef.current = JSON.stringify(
+        buildDraftPayload({ lesson, draft: nextDraft, strategySource, selectedStrategy }),
+      );
       return;
     }
 
     if (lesson.activityType === "module1_needs_detective") {
-      setDraft({
+      const nextDraft = {
         selectedStrategyId: savedResponse?.selectedStrategyId || "",
         selectionReason: savedResponse?.selectionReason || "",
         ratings:
@@ -116,11 +302,15 @@ export default function ModuleOneMission({
             }, {});
             return accumulator;
           }, {}),
-      });
+      };
+      setDraft(nextDraft);
+      lastPersistedPayloadRef.current = JSON.stringify(
+        buildDraftPayload({ lesson, draft: nextDraft, strategySource, selectedStrategy }),
+      );
       return;
     }
 
-    setDraft({
+    const nextDraft = {
       strategyTitle: savedResponse?.strategyTitle || selectedStrategy?.title || "",
       startDate: savedResponse?.startDate || "",
       reviewDate: savedResponse?.reviewDate || "",
@@ -129,19 +319,106 @@ export default function ModuleOneMission({
       do: savedResponse?.do || "",
       check: savedResponse?.check || "",
       act: savedResponse?.act || "",
-    });
+    };
+    setDraft(nextDraft);
+    lastPersistedPayloadRef.current = JSON.stringify(
+      buildDraftPayload({ lesson, draft: nextDraft, strategySource, selectedStrategy }),
+    );
   }, [lesson, savedResponse, strategySource, selectedStrategy]);
+
+  useEffect(() => {
+    if (!onDraftSave) return undefined;
+
+    const payload = buildDraftPayload({ lesson, draft, strategySource, selectedStrategy });
+    if (!hasPayloadContent(payload)) return undefined;
+
+    const serialized = JSON.stringify(payload);
+    if (serialized === lastPersistedPayloadRef.current) return undefined;
+
+    setAutosaveState("Saving draft...");
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        await onDraftSave(payload);
+        lastPersistedPayloadRef.current = serialized;
+        setAutosaveState("Draft autosaved");
+        window.setTimeout(() => setAutosaveState(""), 1800);
+      } catch (error) {
+        console.error("Failed to autosave mission draft:", error);
+        setAutosaveState("Autosave pending");
+      }
+    }, 900);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [draft, lesson, onDraftSave, selectedStrategy, strategySource]);
 
   const persist = async (payload) => {
     setSaving(true);
     try {
       await onSave(payload);
+      lastPersistedPayloadRef.current = JSON.stringify(payload);
+      setAutosaveState("Draft autosaved");
       setReward(lesson.content.aiMentor?.reward || "Mission saved");
       window.setTimeout(() => setReward(""), 2500);
     } finally {
       setSaving(false);
     }
   };
+
+  const injectCloudWord = (strategyId, field, value) => {
+    setDraft((previous) => ({
+      ...previous,
+      strategies: previous.strategies.map((strategy) =>
+        strategy.id === strategyId
+          ? {
+              ...strategy,
+              [field]: filled(strategy[field]) ? `${strategy[field]}\n${value}` : value,
+            }
+          : strategy,
+      ),
+    }));
+  };
+
+  const applyCloudToken = (token) => {
+    const defaultField =
+      focusedField?.field || (token.lensCode === "S" || token.lensCode === "W" ? "internalSignal" : "externalSignal");
+    const preferredStrategyId =
+      focusedField?.strategyId || draft.strategies?.find((item) => !filled(item[defaultField]))?.id;
+    const targetStrategyId = preferredStrategyId || draft.strategies?.[0]?.id;
+    if (!targetStrategyId) return;
+    injectCloudWord(targetStrategyId, defaultField, token.text);
+  };
+
+  const renderCloudGroup = ({ title, helper, tokens, emptyText }) => (
+    <div className="rounded-[26px] border border-slate-100 bg-white p-5">
+      <p className="text-xs uppercase tracking-[0.18em] text-slate-400">{title}</p>
+      <p className="mt-2 text-sm leading-7 text-slate-600">{helper}</p>
+      {tokens.length > 0 ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {tokens.map((token) => (
+            <button
+              key={token.id}
+              type="button"
+              onClick={() => applyCloudToken(token)}
+              className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-left text-sm transition hover:-translate-y-0.5 ${getCloudTone(
+                token.lensCode,
+                token.weight,
+              )}`}
+              title={`Use ${token.text}`}
+            >
+              <span className="rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                {token.lensCode}
+              </span>
+              <span>{token.text}</span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-4 rounded-[20px] border border-dashed border-slate-200 bg-slate-50/80 px-4 py-4 text-sm leading-7 text-slate-500">
+          {emptyText}
+        </p>
+      )}
+    </div>
+  );
 
   const renderReward = () =>
     reward ? (
@@ -155,6 +432,21 @@ export default function ModuleOneMission({
         </div>
       </div>
     ) : null;
+
+  const renderStateBar = () => (
+    <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-slate-100 bg-slate-50/80 px-4 py-3 text-sm">
+      <div className="text-slate-600">
+        {isCompleted
+          ? "Mission นี้ผ่านแล้ว แก้คำตอบและระบบจะบันทึกให้อัตโนมัติ"
+          : "ระบบจะบันทึกคำตอบให้อัตโนมัติระหว่างพิมพ์ และกดปุ่มเมื่อพร้อมส่งภารกิจ"}
+      </div>
+      {autosaveState ? (
+        <span className="rounded-full border border-primary/10 bg-primary/5 px-3 py-1 font-medium text-primary">
+          {autosaveState}
+        </span>
+      ) : null}
+    </div>
+  );
 
   const renderSaveButton = (ready, text, payloadBuilder) => (
     <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
@@ -184,6 +476,7 @@ export default function ModuleOneMission({
     return (
       <div>
         {renderReward()}
+        {renderStateBar()}
         {lesson.content.introduction ? (
           <div className="mb-5 rounded-[24px] border border-secondary/10 bg-secondary/5 p-4 text-sm leading-7 text-slate-700">
             {lesson.content.introduction}
@@ -246,52 +539,113 @@ export default function ModuleOneMission({
             placeholder="สรุปว่าตอนนี้อะไรชัดขึ้นที่สุด"
           />
         </label>
-        {renderSaveButton(ready, isCompleted ? "Update mission answers" : "Complete mission", () => ({
-          type: "reflection",
-          activePartIndex: draft.activePartIndex,
-          summary: draft.summary.trim(),
-          parts: parts.map((part) => ({
-            id: part.id,
-            title: part.title,
-            lensCode: part.lensCode,
-            items: part.questions.map((question) => ({
-              id: question.id,
-              lensTitle: question.lensTitle,
-              focus: question.focus,
-              prompt: question.prompt,
-              lensCode: question.lensCode,
-              answer: draft.answers?.[question.id]?.trim() || "",
-            })),
-          })),
-        }))}
+        {renderSaveButton(
+          ready,
+          isCompleted ? "Update mission answers" : "Complete mission",
+          () => buildDraftPayload({ lesson, draft, strategySource, selectedStrategy }),
+        )}
       </div>
     );
   }
 
   if (lesson.activityType === "module1_strategy_fusion") {
+    const strategies = draft.strategies || [];
     const ready =
-      draft.strategies?.length === 3 &&
-      draft.strategies.every(
-        (strategy) =>
-          filled(strategy.title) &&
-          filled(strategy.strategyType) &&
-          filled(strategy.internalSignal) &&
-          filled(strategy.externalSignal) &&
-          filled(strategy.strategyText) &&
-          filled(strategy.successSignal),
+      strategies.length >= 3 &&
+      strategies.every((strategy) =>
+        [strategy.title, strategy.internalSignal, strategy.externalSignal, strategy.strategyText, strategy.successSignal].every(
+          filled,
+        ),
       ) &&
       filled(draft.reflection);
+
+    if (externalInsights.length === 0) {
+      return (
+        <div className="rounded-[26px] border border-slate-100 bg-slate-50/80 p-8 text-center text-sm leading-7 text-slate-500">
+          บันทึก Mission 2 ให้ครบก่อน แล้วระบบจะเปลี่ยนคำตอบภายนอกให้เป็น word cloud สำหรับจับคู่ทำ TOW Matrix ทันที
+        </div>
+      );
+    }
 
     return (
       <div>
         {renderReward()}
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
-          <div className="space-y-4">
-            {draft.strategies?.map((strategy) => (
-              <article key={strategy.id} className="rounded-[26px] border border-slate-100 bg-white p-5">
-                <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
+        {renderStateBar()}
+        <div className="rounded-[26px] border border-secondary/10 bg-secondary/5 p-5">
+          <p className="text-sm font-semibold text-secondary">AI Mentor Guidance</p>
+          <p className="mt-3 text-sm leading-7 text-slate-700">{lesson.content.aiMentor.intro}</p>
+          <p className="mt-3 rounded-[20px] border border-white/70 bg-white/80 px-4 py-3 text-sm leading-7 text-slate-600">
+            {lesson.content.aiMentor.probe}
+          </p>
+          <div className="mt-4 flex flex-wrap gap-3 text-xs uppercase tracking-[0.18em] text-slate-400">
+            <span>Click word cloud toเติมลงช่องที่กำลังโฟกัส</span>
+            <span>
+              Active field:{" "}
+              <span className="font-semibold text-primary">
+                {focusedField?.field === "internalSignal"
+                  ? "Internal Signal"
+                  : focusedField?.field === "externalSignal"
+                    ? "External Signal"
+                    : "Auto assign"}
+              </span>
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 xl:grid-cols-3">
+          {renderCloudGroup({
+            title: "Internal Signal Cloud",
+            helper: "ดึงจาก Mission 1 เพื่อหยิบจุดแข็งหรือจุดอ่อนมาเป็นฐานคิดของกลยุทธ์",
+            tokens: internalCloud,
+            emptyText: "ยังไม่มีคำตอบจาก Mission 1 มากพอสำหรับสร้าง internal cloud",
+          })}
+          {renderCloudGroup({
+            title: "Opportunity Cloud",
+            helper: "ดึงจาก Mission 2 เฉพาะคำตอบโอกาส เพื่อจับคู่ทำ SO หรือ WO strategy",
+            tokens: opportunityCloud,
+            emptyText: "ยังไม่มีคำตอบฝั่งโอกาสจาก Mission 2",
+          })}
+          {renderCloudGroup({
+            title: "Threat Cloud",
+            helper: "ดึงจาก Mission 2 เฉพาะคำตอบอุปสรรค เพื่อจับคู่ทำ ST หรือ WT strategy",
+            tokens: threatCloud,
+            emptyText: "ยังไม่มีคำตอบฝั่งอุปสรรคจาก Mission 2",
+          })}
+        </div>
+
+        <div className="mt-6 space-y-5">
+          {strategies.map((strategy, index) => (
+            <article key={strategy.id} className="rounded-[28px] border border-slate-100 bg-white p-5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Strategy Card {index + 1}</p>
+                  <p className="mt-2 text-xl font-semibold text-ink">{strategy.title || `Strategy ${index + 1}`}</p>
+                </div>
+                <select
+                  value={strategy.strategyType || lesson.content.strategyTypes[index % lesson.content.strategyTypes.length]?.value}
+                  onChange={(event) =>
+                    setDraft((previous) => ({
+                      ...previous,
+                      strategies: previous.strategies.map((item) =>
+                        item.id === strategy.id ? { ...item, strategyType: event.target.value } : item,
+                      ),
+                    }))
+                  }
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-ink outline-none transition focus:border-accent/30 focus:ring-4 focus:ring-accent/10"
+                >
+                  {lesson.content.strategyTypes.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                <label className="rounded-[22px] border border-slate-100 bg-slate-50/80 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Title</p>
                   <input
-                    value={strategy.title}
+                    value={strategy.title || ""}
                     onChange={(event) =>
                       setDraft((previous) => ({
                         ...previous,
@@ -300,148 +654,133 @@ export default function ModuleOneMission({
                         ),
                       }))
                     }
-                    className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm font-semibold text-ink outline-none transition focus:border-accent/30 focus:ring-4 focus:ring-accent/10"
-                    placeholder="ตั้งชื่อกลยุทธ์"
+                    className="mt-3 w-full rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-ink outline-none transition focus:border-accent/30 focus:ring-4 focus:ring-accent/10"
+                    placeholder="ตั้งชื่อกลยุทธ์ให้จำง่าย"
                   />
-                  <select
-                    value={strategy.strategyType}
+                </label>
+                <label className="rounded-[22px] border border-slate-100 bg-slate-50/80 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Success Signal</p>
+                  <input
+                    value={strategy.successSignal || ""}
                     onChange={(event) =>
                       setDraft((previous) => ({
                         ...previous,
                         strategies: previous.strategies.map((item) =>
-                          item.id === strategy.id
-                            ? { ...item, strategyType: event.target.value }
-                            : item,
+                          item.id === strategy.id ? { ...item, successSignal: event.target.value } : item,
                         ),
                       }))
                     }
-                    className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm outline-none transition focus:border-accent/30 focus:ring-4 focus:ring-accent/10"
-                  >
-                    {lesson.content.strategyTypes.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <textarea
-                    rows={3}
-                    value={strategy.internalSignal}
-                    onChange={(event) =>
-                      setDraft((previous) => ({
-                        ...previous,
-                        strategies: previous.strategies.map((item) =>
-                          item.id === strategy.id
-                            ? { ...item, internalSignal: event.target.value }
-                            : item,
-                        ),
-                      }))
-                    }
-                    className="rounded-[22px] border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm leading-7 outline-none transition focus:border-accent/30 focus:ring-4 focus:ring-accent/10"
-                    placeholder="จุดแข็งหรือจุดอ่อนที่ใช้คิด"
+                    className="mt-3 w-full rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/30 focus:ring-4 focus:ring-accent/10"
+                    placeholder="ตัวชี้วัดหรือภาพความสำเร็จที่อยากเห็น"
                   />
-                  <textarea
-                    rows={3}
-                    value={strategy.externalSignal}
-                    onChange={(event) =>
-                      setDraft((previous) => ({
-                        ...previous,
-                        strategies: previous.strategies.map((item) =>
-                          item.id === strategy.id
-                            ? { ...item, externalSignal: event.target.value }
-                            : item,
-                        ),
-                      }))
-                    }
-                    className="rounded-[22px] border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm leading-7 outline-none transition focus:border-accent/30 focus:ring-4 focus:ring-accent/10"
-                    placeholder="โอกาสหรืออุปสรรคที่ใช้คิด"
-                  />
-                </div>
-                <textarea
-                  rows={4}
-                  value={strategy.strategyText}
-                  onChange={(event) =>
-                    setDraft((previous) => ({
-                      ...previous,
-                      strategies: previous.strategies.map((item) =>
-                        item.id === strategy.id
-                          ? { ...item, strategyText: event.target.value }
-                          : item,
-                      ),
-                    }))
-                  }
-                  className="mt-4 w-full rounded-[22px] border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm leading-7 outline-none transition focus:border-accent/30 focus:ring-4 focus:ring-accent/10"
-                  placeholder="อธิบายว่าจะทำอะไร"
-                />
-                <textarea
-                  rows={3}
-                  value={strategy.successSignal}
-                  onChange={(event) =>
-                    setDraft((previous) => ({
-                      ...previous,
-                      strategies: previous.strategies.map((item) =>
-                        item.id === strategy.id
-                          ? { ...item, successSignal: event.target.value }
-                          : item,
-                      ),
-                    }))
-                  }
-                  className="mt-4 w-full rounded-[22px] border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm leading-7 outline-none transition focus:border-accent/30 focus:ring-4 focus:ring-accent/10"
-                  placeholder="ถ้ากลยุทธ์นี้เวิร์ก เราจะเห็นอะไร"
-                />
-              </article>
-            ))}
-          </div>
-          <aside className="space-y-4">
-            <div className="rounded-[26px] border border-primary/10 bg-primary/5 p-5">
-              <p className="text-sm font-semibold text-primary">AI Mentor</p>
-              <p className="mt-3 text-sm leading-7 text-slate-700">{lesson.content.aiMentor.probe}</p>
-            </div>
-            <div className="rounded-[26px] border border-slate-100 bg-white p-5">
-              <p className="text-sm font-semibold text-ink">Source sparks</p>
-              <div className="mt-4 space-y-3">
-                {sourceInsights.length > 0 ? (
-                  sourceInsights.map((insight) => (
-                    <div
-                      key={insight.id}
-                      className="rounded-[20px] border border-slate-100 bg-slate-50/80 px-4 py-3 text-sm"
-                    >
-                      <p className="font-semibold text-ink">{insight.lensTitle}</p>
-                      <p className="mt-2 leading-6 text-slate-600">{insight.answer}</p>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm leading-7 text-slate-500">
-                    บันทึก Mission 1 และ 2 ก่อน แล้ววัตถุดิบสำคัญจะโผล่มาตรงนี้ครับ
-                  </p>
-                )}
+                </label>
               </div>
-            </div>
-          </aside>
+
+              <div className="mt-4 grid gap-4 xl:grid-cols-2">
+                <label
+                  className={`rounded-[24px] border p-4 transition ${
+                    focusedField?.strategyId === strategy.id && focusedField?.field === "internalSignal"
+                      ? "border-primary/30 bg-primary/5"
+                      : "border-slate-100 bg-slate-50/80"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-ink">Internal Signal</p>
+                    <span className="brand-chip border-slate-200 bg-white text-slate-500">S / W</span>
+                  </div>
+                  <p className="mt-2 text-sm leading-7 text-slate-500">
+                    คลิก cloud คำตอบจาก Mission 1 หรือพิมพ์เพิ่มเองเพื่อระบุจุดแข็ง/จุดอ่อนที่ใช้ใน TOW matrix
+                  </p>
+                  <textarea
+                    rows={4}
+                    value={strategy.internalSignal || ""}
+                    onFocus={() => setFocusedField({ strategyId: strategy.id, field: "internalSignal" })}
+                    onChange={(event) =>
+                      setDraft((previous) => ({
+                        ...previous,
+                        strategies: previous.strategies.map((item) =>
+                          item.id === strategy.id ? { ...item, internalSignal: event.target.value } : item,
+                        ),
+                      }))
+                    }
+                    className="mt-3 w-full rounded-[20px] border border-slate-200 bg-white px-4 py-3 text-sm leading-7 outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
+                    placeholder="เช่น ครูเล่าเรื่องเก่ง / ภาระงานหลังบ้านสูง"
+                  />
+                </label>
+
+                <label
+                  className={`rounded-[24px] border p-4 transition ${
+                    focusedField?.strategyId === strategy.id && focusedField?.field === "externalSignal"
+                      ? "border-accent/30 bg-accent/5"
+                      : "border-slate-100 bg-slate-50/80"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-ink">External Signal</p>
+                    <span className="brand-chip border-slate-200 bg-white text-slate-500">O / T</span>
+                  </div>
+                  <p className="mt-2 text-sm leading-7 text-slate-500">
+                    ระบบดึง word cloud จาก Mission 2 มาให้แล้ว คลิกเพื่อเติมโอกาสหรืออุปสรรคลงช่องนี้ได้ทันที
+                  </p>
+                  <textarea
+                    rows={4}
+                    value={strategy.externalSignal || ""}
+                    onFocus={() => setFocusedField({ strategyId: strategy.id, field: "externalSignal" })}
+                    onChange={(event) =>
+                      setDraft((previous) => ({
+                        ...previous,
+                        strategies: previous.strategies.map((item) =>
+                          item.id === strategy.id ? { ...item, externalSignal: event.target.value } : item,
+                        ),
+                      }))
+                    }
+                    className="mt-3 w-full rounded-[20px] border border-slate-200 bg-white px-4 py-3 text-sm leading-7 outline-none transition focus:border-accent/30 focus:ring-4 focus:ring-accent/10"
+                    placeholder="เช่น AI tools ใหม่ / อินเทอร์เน็ตไม่เสถียร"
+                  />
+                </label>
+              </div>
+
+              <label className="mt-4 block rounded-[24px] border border-slate-100 bg-slate-50/80 p-4">
+                <p className="text-sm font-semibold text-ink">Strategy Statement</p>
+                <p className="mt-2 text-sm leading-7 text-slate-500">
+                  เขียนกลยุทธ์ที่เกิดจากการจับคู่ internal + external signal ให้ชัดว่าใครทำอะไร เปลี่ยนอะไร และเพราะอะไร
+                </p>
+                <textarea
+                  rows={5}
+                  value={strategy.strategyText || ""}
+                  onChange={(event) =>
+                    setDraft((previous) => ({
+                      ...previous,
+                      strategies: previous.strategies.map((item) =>
+                        item.id === strategy.id ? { ...item, strategyText: event.target.value } : item,
+                      ),
+                    }))
+                  }
+                  className="mt-3 w-full rounded-[20px] border border-slate-200 bg-white px-4 py-3 text-sm leading-7 outline-none transition focus:border-accent/30 focus:ring-4 focus:ring-accent/10"
+                  placeholder="เช่น ใช้ทักษะการเล่าเรื่องของครูผสาน AI เพื่อสร้างบทเรียนสั้นที่เด็กเข้าถึงได้แม้เวลาจำกัด"
+                />
+              </label>
+            </article>
+          ))}
         </div>
+
         <label className="mt-5 block rounded-[26px] border border-slate-100 bg-white p-5">
-          <p className="text-sm font-semibold text-ink">Reflection</p>
+          <p className="text-sm font-semibold text-ink">AI Mentor Reflection</p>
+          <p className="mt-2 text-sm leading-7 text-slate-600">{lesson.content.aiMentor.probe}</p>
           <textarea
             rows={4}
             value={draft.reflection || ""}
             onChange={(event) => setDraft((previous) => ({ ...previous, reflection: event.target.value }))}
-            className="mt-3 w-full rounded-[22px] border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm leading-7 outline-none transition focus:border-accent/30 focus:ring-4 focus:ring-accent/10"
-            placeholder="สรุปว่ากลยุทธ์ทั้ง 3 ใบนี้ตอบโจทย์ห้องเรียนอย่างไร"
+            className="mt-4 w-full rounded-[22px] border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm leading-7 outline-none transition focus:border-accent/30 focus:ring-4 focus:ring-accent/10"
+            placeholder="สรุปว่าทำไม 3 กลยุทธ์นี้ถึงตอบโจทย์บริบทจริงของห้องเรียนคุณครู"
           />
         </label>
-        {renderSaveButton(ready, isCompleted ? "Update strategy cards" : "Forge 3 strategies", () => ({
-          type: "strategies",
-          reflection: draft.reflection.trim(),
-          strategies: draft.strategies.map((strategy) => ({
-            ...strategy,
-            title: strategy.title.trim(),
-            internalSignal: strategy.internalSignal.trim(),
-            externalSignal: strategy.externalSignal.trim(),
-            strategyText: strategy.strategyText.trim(),
-            successSignal: strategy.successSignal.trim(),
-          })),
-        }))}
+
+        {renderSaveButton(
+          ready,
+          isCompleted ? "Update strategy fusion" : "Lock 3 TOW strategies",
+          () => buildDraftPayload({ lesson, draft, strategySource, selectedStrategy }),
+        )}
       </div>
     );
   }
@@ -467,6 +806,7 @@ export default function ModuleOneMission({
     return (
       <div>
         {renderReward()}
+        {renderStateBar()}
         <div className="space-y-4">
           {strategySource.map((strategy) => {
             const ratings = draft.ratings?.[strategy.id] || {};
@@ -539,24 +879,11 @@ export default function ModuleOneMission({
             placeholder="ทำไมกลยุทธ์นี้จึงควรเริ่มก่อน"
           />
         </label>
-        {renderSaveButton(ready, isCompleted ? "Update selected strategy" : "Lock priority strategy", () => ({
-          type: "needs-detective",
-          selectedStrategyId: draft.selectedStrategyId,
-          selectedStrategy:
-            strategySource.find((strategy) => strategy.id === draft.selectedStrategyId) || null,
-          selectionReason: draft.selectionReason.trim(),
-          strategyScores: strategySource.map((strategy) => ({
-            strategyId: strategy.id,
-            title: strategy.title,
-            strategyType: strategy.strategyType,
-            ratings: draft.ratings?.[strategy.id] || {},
-            total: lesson.content.ratingCriteria.reduce(
-              (sum, criterion) =>
-                sum + Number(draft.ratings?.[strategy.id]?.[criterion.id] || 0),
-              0,
-            ),
-          })),
-        }))}
+        {renderSaveButton(
+          ready,
+          isCompleted ? "Update selected strategy" : "Lock priority strategy",
+          () => buildDraftPayload({ lesson, draft, strategySource, selectedStrategy }),
+        )}
       </div>
     );
   }
@@ -573,6 +900,7 @@ export default function ModuleOneMission({
   return (
     <div>
       {renderReward()}
+      {renderStateBar()}
       <div className="rounded-[26px] border border-primary/10 bg-primary/5 p-5">
         <p className="text-sm font-semibold text-primary">Selected strategy</p>
         <p className="mt-3 text-xl font-semibold text-ink">
@@ -638,17 +966,11 @@ export default function ModuleOneMission({
         />
       </label>
 
-      {renderSaveButton(ready, isCompleted ? "Update PDCA Action Plan" : "Save PDCA Action Plan", () => ({
-        type: "pdca",
-        strategyTitle: draft.strategyTitle.trim(),
-        startDate: draft.startDate,
-        reviewDate: draft.reviewDate,
-        supportNeeded: draft.supportNeeded.trim(),
-        plan: draft.plan.trim(),
-        do: draft.do.trim(),
-        check: draft.check.trim(),
-        act: draft.act.trim(),
-      }))}
+      {renderSaveButton(
+        ready,
+        isCompleted ? "Update PDCA Action Plan" : "Save PDCA Action Plan",
+        () => buildDraftPayload({ lesson, draft, strategySource, selectedStrategy }),
+      )}
     </div>
   );
 }

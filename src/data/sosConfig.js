@@ -1,4 +1,5 @@
 export const SOS_COLLECTION = "duSosCases";
+export const SOS_USER_SUBCOLLECTION = "sosCases";
 
 export const sosRiskOptions = [
   {

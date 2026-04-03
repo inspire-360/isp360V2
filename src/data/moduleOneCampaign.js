@@ -34,6 +34,20 @@ export const MODULE_ONE_BADGE = "In-Sight Badge";
 export const MODULE_ONE_REPORT_KEY = "module1";
 export const MODULE_ONE_UNLOCK_TITLE = "Module 2: S - Design";
 
+export const generateModuleOneCardSerial = (uid = "USER", generatedAt = new Date().toISOString()) => {
+  const safeUid = String(uid || "USER").replace(/[^a-z0-9]/gi, "").toUpperCase().slice(-6) || "USER01";
+  const stamp = new Date(generatedAt);
+  const dateCode = Number.isNaN(stamp.getTime())
+    ? "00000000"
+    : [
+        stamp.getFullYear(),
+        String(stamp.getMonth() + 1).padStart(2, "0"),
+        String(stamp.getDate()).padStart(2, "0"),
+      ].join("");
+
+  return `INSIGHT-${dateCode}-${safeUid}`;
+};
+
 export const moduleOneStages = [
   {
     step: 1,
@@ -410,10 +424,10 @@ export const moduleOneLessons = [
     iconName: "PlayCircle",
     content: {
       videoUrl:
-        "https://www.canva.com/design/DAHFgpFnz8E/VXANS3zHrTRdvU7XGSIG8Q/view",
+        "https://www.canva.com/design/DAHFgpFnz8E/VXANS3zHrTRdvU7XGSIG8Q/watch?embed",
       frameLabel: "In-Sight Lesson Deck",
       externalUrl:
-        "https://www.canva.com/design/DAHFgpFnz8E/VXANS3zHrTRdvU7XGSIG8Q/view",
+        "https://www.canva.com/design/DAHFgpFnz8E/VXANS3zHrTRdvU7XGSIG8Q/watch?embed",
       description:
         "บทเรียนเตรียมมุมมองสำหรับ Module 1 หลังจบ pre-test ให้ดูภาพรวมนี้ก่อน แล้วค่อยเข้าสู่ภารกิจสำรวจภายใน ภายนอก และการออกแบบแผนลงมือทำ",
       campaignStep: 1,
@@ -643,7 +657,8 @@ const missionTitleById = Object.fromEntries(
   moduleOneLessons.map((lesson) => [lesson.id, lesson.title]),
 );
 
-export const buildModuleOneReportCard = (missionResponses = {}, postTest = {}) => {
+export const buildModuleOneReportCard = (missionResponses = {}, postTest = {}, trainee = {}) => {
+  const generatedAt = new Date().toISOString();
   const missionOne = missionResponses["m1-mission-1"] || {};
   const missionTwo = missionResponses["m1-mission-2"] || {};
   const missionThree = missionResponses["m1-mission-3"] || {};
@@ -656,9 +671,14 @@ export const buildModuleOneReportCard = (missionResponses = {}, postTest = {}) =
     null;
 
   return {
-    generatedAt: new Date().toISOString(),
+    generatedAt,
     badge: MODULE_ONE_BADGE,
     unlockedModule: MODULE_ONE_UNLOCK_TITLE,
+    traineeName: trainee.name || trainee.displayName || trainee.email || "InSPIRE Learner",
+    traineeEmail: trainee.email || "",
+    cardSerial:
+      trainee.cardSerial ||
+      generateModuleOneCardSerial(trainee.uid || trainee.email || "USER", generatedAt),
     score: postTest.score ?? 0,
     totalQuestions: postTest.totalQuestions ?? moduleOnePostTestQuestions.length,
     title: moduleOneModuleMeta.title,

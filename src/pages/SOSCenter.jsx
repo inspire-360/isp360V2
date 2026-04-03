@@ -13,20 +13,18 @@ import {
   Sparkles,
 } from "lucide-react";
 import {
-  addDoc,
   arrayUnion,
   collection,
   doc,
   onSnapshot,
-  query,
   serverTimestamp,
-  updateDoc,
-  where,
+  setDoc,
 } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useAuth } from "../contexts/AuthContext";
 import {
   SOS_COLLECTION,
+  SOS_USER_SUBCOLLECTION,
   createTimelineEntry,
   formatCaseNumber,
   formatDateTime,
@@ -73,10 +71,7 @@ export default function SOSCenter() {
   useEffect(() => {
     if (!currentUser) return undefined;
 
-    const casesQuery = query(
-      collection(db, SOS_COLLECTION),
-      where("requesterId", "==", currentUser.uid),
-    );
+    const casesQuery = collection(db, "users", currentUser.uid, SOS_USER_SUBCOLLECTION);
 
     const unsubscribe = onSnapshot(
       casesQuery,
@@ -126,7 +121,8 @@ export default function SOSCenter() {
     try {
       const riskMeta = getRiskMeta(form.riskLevel);
 
-      await addDoc(collection(db, SOS_COLLECTION), {
+      const caseId = doc(collection(db, "users", currentUser.uid, SOS_USER_SUBCOLLECTION)).id;
+      const baseCase = {
         requesterId: currentUser.uid,
         requesterName,
         requesterEmail: currentUser.email || "",
@@ -154,7 +150,22 @@ export default function SOSCenter() {
             approvalState: "pending_review",
           }),
         ],
-      });
+      };
+
+      const userCaseRef = doc(db, "users", currentUser.uid, SOS_USER_SUBCOLLECTION, caseId);
+      const rootCaseRef = doc(db, SOS_COLLECTION, caseId);
+      const [userWrite, rootWrite] = await Promise.allSettled([
+        setDoc(userCaseRef, baseCase, { merge: true }),
+        setDoc(rootCaseRef, baseCase, { merge: true }),
+      ]);
+
+      if (userWrite.status !== "fulfilled") {
+        throw userWrite.reason;
+      }
+
+      if (rootWrite.status !== "fulfilled") {
+        console.warn("Root SOS mirror is pending:", rootWrite.reason);
+      }
 
       setForm(defaultForm);
       setMessage("SOS ถูกส่งถึง DU แล้ว ตอนนี้คุณครูติดตามสถานะ คำแนะนำ และเพิ่มข้อมูลต่อได้จากคิวด้านขวา");
@@ -173,7 +184,7 @@ export default function SOSCenter() {
     setSubmittingFollowUp(caseId);
 
     try {
-      await updateDoc(doc(db, SOS_COLLECTION, caseId), {
+      const payload = {
         status: "in_progress",
         updatedAt: serverTimestamp(),
         updates: arrayUnion(
@@ -184,7 +195,12 @@ export default function SOSCenter() {
             status: "in_progress",
           }),
         ),
-      });
+      };
+
+      await Promise.allSettled([
+        setDoc(doc(db, "users", currentUser.uid, SOS_USER_SUBCOLLECTION, caseId), payload, { merge: true }),
+        setDoc(doc(db, SOS_COLLECTION, caseId), payload, { merge: true }),
+      ]);
       setFollowUpDrafts((previous) => ({ ...previous, [caseId]: "" }));
     } catch (error) {
       console.error("Failed to add follow-up:", error);
