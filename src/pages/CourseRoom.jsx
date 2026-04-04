@@ -183,6 +183,25 @@ export default function CourseRoom() {
     return Math.min(Math.max(lessonIndex ?? 0, 0), lessons.length - 1);
   };
 
+  const getUnlockedModuleIndexFromLessons = (completedLessons = []) => {
+    let unlockedIndex = 0;
+
+    for (let moduleIndex = 0; moduleIndex < currentCourse.modules.length - 1; moduleIndex += 1) {
+      const moduleLessons = currentCourse.modules[moduleIndex]?.lessons || [];
+      const isModuleComplete =
+        moduleLessons.length > 0 &&
+        moduleLessons.every((lesson) => completedLessons.includes(lesson.id));
+
+      if (!isModuleComplete) {
+        return getSafeModuleIndex(moduleIndex);
+      }
+
+      unlockedIndex = moduleIndex + 1;
+    }
+
+    return getSafeModuleIndex(unlockedIndex);
+  };
+
   const buildEnrollmentMeta = ({
     completedLessons = progressData.completedLessons,
     unlockedModuleIndex = progressData.currentModuleIndex,
@@ -246,14 +265,34 @@ export default function CourseRoom() {
 
           const data = snapshot.data();
           const completedLessons = Array.isArray(data.completedLessons) ? data.completedLessons : [];
-          const unlockedModuleIndex = getSafeModuleIndex(data.currentModuleIndex || 0);
+          const storedUnlockedModuleIndex = getSafeModuleIndex(data.currentModuleIndex || 0);
+          const derivedUnlockedModuleIndex = getUnlockedModuleIndexFromLessons(completedLessons);
+          const unlockedModuleIndex = Math.max(storedUnlockedModuleIndex, derivedUnlockedModuleIndex);
+          const requestedActiveModuleIndex =
+            typeof data.activeModuleIndex === "number" ? data.activeModuleIndex : unlockedModuleIndex;
           const nextActiveModuleIndex = getSafeModuleIndex(
-            typeof data.activeModuleIndex === "number" ? data.activeModuleIndex : unlockedModuleIndex,
+            Math.min(requestedActiveModuleIndex, unlockedModuleIndex),
           );
           const nextActiveLessonIndex =
             typeof data.activeLessonIndex === "number"
               ? getSafeLessonIndex(nextActiveModuleIndex, data.activeLessonIndex)
               : getFirstPendingLessonIndex(nextActiveModuleIndex, completedLessons);
+
+          if (unlockedModuleIndex !== storedUnlockedModuleIndex) {
+            await setDoc(
+              enrollRef,
+              {
+                ...buildEnrollmentMeta({
+                  completedLessons,
+                  unlockedModuleIndex,
+                  activeModule: nextActiveModuleIndex,
+                  activeLesson: nextActiveLessonIndex,
+                }),
+                lastAccess: new Date(),
+              },
+              { merge: true },
+            );
+          }
 
           setProgressData({
             ...defaultProgressData,
@@ -339,14 +378,12 @@ export default function CourseRoom() {
 
     try {
       const newCompleted = [...progressData.completedLessons, currentLesson.id];
-      const isModuleDone = currentModule.lessons.every((lesson) => newCompleted.includes(lesson.id));
-      const unlockedModule = activeModuleIndex + 1;
-      const nextModuleIndex =
-        isModuleDone &&
-        unlockedModule < currentCourse.modules.length &&
-        unlockedModule > progressData.currentModuleIndex
-          ? unlockedModule
-          : progressData.currentModuleIndex;
+      const previousUnlockedModuleIndex = progressData.currentModuleIndex;
+      const nextModuleIndex = Math.max(
+        previousUnlockedModuleIndex,
+        getUnlockedModuleIndexFromLessons(newCompleted),
+      );
+      const isNewModuleUnlocked = nextModuleIndex > previousUnlockedModuleIndex;
       let nextActiveModuleIndex = activeModuleIndex;
       let nextActiveLessonIndex = activeLessonIndex;
 
@@ -356,16 +393,13 @@ export default function CourseRoom() {
         currentModuleIndex: nextModuleIndex,
       }));
 
-      if (isModuleDone) {
-        const unlockedModule = activeModuleIndex + 1;
-        if (unlockedModule < currentCourse.modules.length) {
-          setExpandedModules((previous) => ({ ...previous, [unlockedModule]: true }));
-          if (!stayOnLesson) {
-            nextActiveModuleIndex = unlockedModule;
-            nextActiveLessonIndex = getFirstPendingLessonIndex(unlockedModule, newCompleted);
-          }
-          alert(`ปลดล็อก ${currentCourse.modules[unlockedModule].title} แล้ว`);
+      if (isNewModuleUnlocked) {
+        setExpandedModules((previous) => ({ ...previous, [nextModuleIndex]: true }));
+        if (!stayOnLesson) {
+          nextActiveModuleIndex = nextModuleIndex;
+          nextActiveLessonIndex = getFirstPendingLessonIndex(nextModuleIndex, newCompleted);
         }
+        alert(`ปลดล็อก ${currentCourse.modules[nextModuleIndex].title} แล้ว`);
       } else if (!stayOnLesson) {
         const nextLessonIndex = currentModule.lessons.findIndex(
           (lesson) => !newCompleted.includes(lesson.id),
