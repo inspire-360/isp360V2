@@ -23,6 +23,8 @@ import { arrayUnion, doc, onSnapshot, setDoc, updateDoc } from "firebase/firesto
 import SWOTBoard from "../components/activities/SWOTBoard";
 import ModuleOneMission from "../components/course/ModuleOneMission";
 import ModuleOneReportCard from "../components/course/ModuleOneReportCard";
+import ModuleThreeMission from "../components/course/ModuleThreeMission";
+import ModuleThreeReportCard from "../components/course/ModuleThreeReportCard";
 import ModuleTwoMission from "../components/course/ModuleTwoMission";
 import ModuleTwoReportCard from "../components/course/ModuleTwoReportCard";
 import { useAuth } from "../contexts/AuthContext";
@@ -34,6 +36,12 @@ import {
   generateModuleOneCardSerial,
   moduleOneStages,
 } from "../data/moduleOneCampaign";
+import {
+  MODULE_THREE_BADGE,
+  MODULE_THREE_REPORT_KEY,
+  buildModuleThreeReportCard,
+  generateModuleThreeCardSerial,
+} from "../data/moduleThreeCampaign";
 import {
   MODULE_TWO_BADGE,
   MODULE_TWO_REPORT_KEY,
@@ -120,6 +128,7 @@ export default function CourseRoom() {
   const currentGamification = currentLesson?.content?.gamification;
   const currentMissionResponse = currentLesson ? progressData.missionResponses?.[currentLesson.id] : null;
   const moduleOneReport = progressData.moduleReports?.[MODULE_ONE_REPORT_KEY];
+  const moduleThreeReport = progressData.moduleReports?.[MODULE_THREE_REPORT_KEY];
   const moduleTwoReport = progressData.moduleReports?.[MODULE_TWO_REPORT_KEY];
   const completedSet = useMemo(
     () => new Set(progressData.completedLessons),
@@ -431,11 +440,52 @@ export default function CourseRoom() {
 
   const saveModuleOneMission = async (payload) => persistMissionResponse(payload, true);
   const saveModuleTwoMission = async (payload) => persistMissionResponse(payload, true);
+  const saveModuleThreeMission = async (payload) => {
+    if (!currentUser || !currentLesson) return;
+
+    if (currentLesson.id !== "m3-posttest") {
+      await persistMissionResponse(payload, true);
+      return;
+    }
+
+    const timestamp = new Date().toISOString();
+    const record = {
+      ...payload,
+      saveState: "submitted",
+      updatedAt: timestamp,
+      submittedAt: timestamp,
+    };
+    const nextMissionResponses = {
+      ...progressData.missionResponses,
+      [currentLesson.id]: record,
+    };
+
+    await mergeEnrollmentData({
+      missionResponses: {
+        [currentLesson.id]: record,
+      },
+    });
+
+    setProgressData((previous) => ({
+      ...previous,
+      missionResponses: {
+        ...previous.missionResponses,
+        [currentLesson.id]: record,
+      },
+    }));
+
+    await saveModuleThreeReport(nextMissionResponses);
+
+    if (!completedSet.has(currentLesson.id)) {
+      await markLessonComplete({ stayOnLesson: true });
+    }
+  };
 
   const saveModuleOneDraft = async (payload) => {
     await persistMissionResponse(payload, false);
   };
   const saveModuleTwoDraft = async (payload) => persistMissionResponse(payload, false);
+  const saveModuleThreeDraft = async (payload) => persistMissionResponse(payload, false);
 
   const saveModuleOneReport = async (score, totalQuestions) => {
     const existingSerial = progressData.moduleReports?.[MODULE_ONE_REPORT_KEY]?.cardSerial;
@@ -506,6 +556,36 @@ export default function CourseRoom() {
       earnedBadges: previous.earnedBadges.includes(MODULE_TWO_BADGE)
         ? previous.earnedBadges
         : [...previous.earnedBadges, MODULE_TWO_BADGE],
+    }));
+
+    return report;
+  };
+
+  const saveModuleThreeReport = async (missionResponsesSource = progressData.missionResponses) => {
+    const existingSerial = progressData.moduleReports?.[MODULE_THREE_REPORT_KEY]?.cardSerial;
+    const report = buildModuleThreeReportCard(missionResponsesSource, {
+      uid: currentUser?.uid,
+      email: currentUser?.email,
+      name: currentUser?.displayName || currentUser?.email?.split("@")[0],
+      cardSerial: existingSerial || generateModuleThreeCardSerial(currentUser?.uid),
+    });
+
+    await mergeEnrollmentData({
+      moduleReports: {
+        [MODULE_THREE_REPORT_KEY]: report,
+      },
+      earnedBadges: arrayUnion(MODULE_THREE_BADGE),
+    });
+
+    setProgressData((previous) => ({
+      ...previous,
+      moduleReports: {
+        ...previous.moduleReports,
+        [MODULE_THREE_REPORT_KEY]: report,
+      },
+      earnedBadges: previous.earnedBadges.includes(MODULE_THREE_BADGE)
+        ? previous.earnedBadges
+        : [...previous.earnedBadges, MODULE_THREE_BADGE],
     }));
 
     return report;
@@ -844,12 +924,26 @@ export default function CourseRoom() {
             onSave={saveModuleTwoMission}
           />
         ) : null}
+        {currentLesson.activityType?.startsWith("module3_") ? (
+          <ModuleThreeMission
+            lesson={currentLesson}
+            savedResponse={currentMissionResponse}
+            allResponses={progressData.missionResponses}
+            isCompleted={completedSet.has(currentLesson.id)}
+            onDraftSave={saveModuleThreeDraft}
+            onSave={saveModuleThreeMission}
+          />
+        ) : null}
         {currentLesson.activityType === "swot_board" ? <SWOTBoard /> : null}
         {!currentLesson.activityType?.startsWith("module1_") &&
-        !currentLesson.activityType?.startsWith("module2_")
+        !currentLesson.activityType?.startsWith("module2_") &&
+        !currentLesson.activityType?.startsWith("module3_")
           ? renderActionFooter("Submit mission", <PenTool size={16} />)
           : null}
       </div>
+      {currentLesson.id === "m3-posttest" && moduleThreeReport ? (
+        <ModuleThreeReportCard report={moduleThreeReport} />
+      ) : null}
     </div>
   );
 

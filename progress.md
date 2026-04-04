@@ -91,3 +91,12 @@ to update Module 2 [Module-2 Detail : ...]
 - Updated the teacher course structure to load Module 2 from the new campaign file and keep Module 3 unlock behavior on `m2-posttest`.
 - Updated teacher course catalog counts to reflect the larger course footprint after expanding Module 2.
 - Verified with `npm run build`; final build passed after the new Module 2 campaign, report card, and CourseRoom integration changes.
+
+Original prompt:
+to update Module 3 [Module-3 Detail : ...]
+
+- Added a dedicated `moduleThreeCampaign` data layer for `P - PLC : รวมพลัง สร้างเครือข่ายแห่งการเรียนรู้`, including the requested Module 3 pre-test, Canva `watch?embed` lesson deck, three asynchronous PLC missions, and the Reflection Mirror close-out.
+- Built `ModuleThreeMission.jsx` for the new Idea Billboard, Mastermind Comments, 60-Second Spell, and Reflection Mirror flows with autosave-backed Firebase persistence and Padlet embed support.
+- Added `ModuleThreeReportCard.jsx` with PNG/PDF export, trainee identity, card serial, PLC evidence sections, `P-PLC Badge`, and Module 4 unlock summary.
+- Wired Module 3 into `teacherCourse.js` and `CourseRoom.jsx`, including live draft saving, final posttest report generation, badge awarding, stay-on-page completion, and visible report card rendering after submission.
+- Updated teacher course catalog counts to match the expanded Module 3 footprint.
