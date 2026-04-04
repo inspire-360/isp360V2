@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import { arrayUnion, doc, onSnapshot, setDoc, updateDoc } from "firebase/firestore";
 import SWOTBoard from "../components/activities/SWOTBoard";
+import ModuleFourMission from "../components/course/ModuleFourMission";
+import ModuleFourReportCard from "../components/course/ModuleFourReportCard";
 import ModuleOneMission from "../components/course/ModuleOneMission";
 import ModuleOneReportCard from "../components/course/ModuleOneReportCard";
 import ModuleThreeMission from "../components/course/ModuleThreeMission";
@@ -29,6 +31,12 @@ import ModuleTwoMission from "../components/course/ModuleTwoMission";
 import ModuleTwoReportCard from "../components/course/ModuleTwoReportCard";
 import { useAuth } from "../contexts/AuthContext";
 import { getPostTestQuestions, getPreTestQuestions } from "../data/standardizedTests";
+import {
+  MODULE_FOUR_BADGE,
+  MODULE_FOUR_REPORT_KEY,
+  buildModuleFourReportCard,
+  generateModuleFourCardSerial,
+} from "../data/moduleFourCampaign";
 import {
   MODULE_ONE_BADGE,
   MODULE_ONE_REPORT_KEY,
@@ -127,6 +135,7 @@ export default function CourseRoom() {
   const currentLesson = currentModule?.lessons?.[activeLessonIndex];
   const currentGamification = currentLesson?.content?.gamification;
   const currentMissionResponse = currentLesson ? progressData.missionResponses?.[currentLesson.id] : null;
+  const moduleFourReport = progressData.moduleReports?.[MODULE_FOUR_REPORT_KEY];
   const moduleOneReport = progressData.moduleReports?.[MODULE_ONE_REPORT_KEY];
   const moduleThreeReport = progressData.moduleReports?.[MODULE_THREE_REPORT_KEY];
   const moduleTwoReport = progressData.moduleReports?.[MODULE_TWO_REPORT_KEY];
@@ -439,6 +448,7 @@ export default function CourseRoom() {
   };
 
   const saveModuleOneMission = async (payload) => persistMissionResponse(payload, true);
+  const saveModuleFourMission = async (payload) => persistMissionResponse(payload, true);
   const saveModuleTwoMission = async (payload) => persistMissionResponse(payload, true);
   const saveModuleThreeMission = async (payload) => {
     if (!currentUser || !currentLesson) return;
@@ -484,6 +494,7 @@ export default function CourseRoom() {
   const saveModuleOneDraft = async (payload) => {
     await persistMissionResponse(payload, false);
   };
+  const saveModuleFourDraft = async (payload) => persistMissionResponse(payload, false);
   const saveModuleTwoDraft = async (payload) => persistMissionResponse(payload, false);
   const saveModuleThreeDraft = async (payload) => persistMissionResponse(payload, false);
 
@@ -519,6 +530,43 @@ export default function CourseRoom() {
       earnedBadges: previous.earnedBadges.includes(MODULE_ONE_BADGE)
         ? previous.earnedBadges
         : [...previous.earnedBadges, MODULE_ONE_BADGE],
+    }));
+
+    return report;
+  };
+
+  const saveModuleFourReport = async (score, totalQuestions) => {
+    const existingSerial = progressData.moduleReports?.[MODULE_FOUR_REPORT_KEY]?.cardSerial;
+    const report = buildModuleFourReportCard(
+      progressData.missionResponses,
+      {
+        score,
+        totalQuestions,
+      },
+      {
+        uid: currentUser?.uid,
+        email: currentUser?.email,
+        name: currentUser?.displayName || currentUser?.email?.split("@")[0],
+        cardSerial: existingSerial || generateModuleFourCardSerial(currentUser?.uid),
+      },
+    );
+
+    await mergeEnrollmentData({
+      moduleReports: {
+        [MODULE_FOUR_REPORT_KEY]: report,
+      },
+      earnedBadges: arrayUnion(MODULE_FOUR_BADGE),
+    });
+
+    setProgressData((previous) => ({
+      ...previous,
+      moduleReports: {
+        ...previous.moduleReports,
+        [MODULE_FOUR_REPORT_KEY]: report,
+      },
+      earnedBadges: previous.earnedBadges.includes(MODULE_FOUR_BADGE)
+        ? previous.earnedBadges
+        : [...previous.earnedBadges, MODULE_FOUR_BADGE],
     }));
 
     return report;
@@ -658,6 +706,9 @@ export default function CourseRoom() {
       if (isPassed) {
         if (currentLesson.id === "m1-posttest") {
           await saveModuleOneReport(score, quizQuestions.length);
+          await markLessonComplete({ stayOnLesson: true });
+        } else if (currentLesson.id === "m4-posttest") {
+          await saveModuleFourReport(score, quizQuestions.length);
           await markLessonComplete({ stayOnLesson: true });
         } else if (currentLesson.id === "m2-posttest") {
           await saveModuleTwoReport(score, quizQuestions.length);
@@ -914,6 +965,16 @@ export default function CourseRoom() {
             onSave={saveModuleOneMission}
           />
         ) : null}
+        {currentLesson.activityType?.startsWith("module4_") ? (
+          <ModuleFourMission
+            lesson={currentLesson}
+            savedResponse={currentMissionResponse}
+            allResponses={progressData.missionResponses}
+            isCompleted={completedSet.has(currentLesson.id)}
+            onDraftSave={saveModuleFourDraft}
+            onSave={saveModuleFourMission}
+          />
+        ) : null}
         {currentLesson.activityType?.startsWith("module2_") ? (
           <ModuleTwoMission
             lesson={currentLesson}
@@ -936,6 +997,7 @@ export default function CourseRoom() {
         ) : null}
         {currentLesson.activityType === "swot_board" ? <SWOTBoard /> : null}
         {!currentLesson.activityType?.startsWith("module1_") &&
+        !currentLesson.activityType?.startsWith("module4_") &&
         !currentLesson.activityType?.startsWith("module2_") &&
         !currentLesson.activityType?.startsWith("module3_")
           ? renderActionFooter("Submit mission", <PenTool size={16} />)
@@ -959,6 +1021,13 @@ export default function CourseRoom() {
             unlockMessage: "Report card พร้อมแล้ว และ Module 2 ถูกปลดล็อกให้เรียบร้อย",
             ReportCardComponent: ModuleOneReportCard,
           }
+        : currentLesson.id === "m4-posttest"
+          ? {
+              badge: MODULE_FOUR_BADGE,
+              report: moduleFourReport,
+              unlockMessage: "Report card พร้อมแล้ว และ Module 5 ถูกปลดล็อกให้เรียบร้อย",
+              ReportCardComponent: ModuleFourReportCard,
+            }
         : currentLesson.id === "m2-posttest"
           ? {
               badge: MODULE_TWO_BADGE,

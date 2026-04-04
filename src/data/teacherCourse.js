@@ -1,4 +1,5 @@
 import { moduleOneLessons, moduleOneModuleMeta } from "./moduleOneCampaign";
+import { moduleFourLessons, moduleFourModuleMeta } from "./moduleFourCampaign";
 import { moduleThreeLessons, moduleThreeModuleMeta } from "./moduleThreeCampaign";
 import { moduleTwoLessons, moduleTwoModuleMeta } from "./moduleTwoCampaign";
 
@@ -85,6 +86,14 @@ const moduleThreeModule = {
   description: moduleThreeModuleMeta.description,
   campaignName: moduleThreeModuleMeta.campaignName,
   lessons: moduleThreeLessons,
+};
+
+const moduleFourModule = {
+  id: "module-4",
+  title: moduleFourModuleMeta.title,
+  description: moduleFourModuleMeta.description,
+  campaignName: moduleFourModuleMeta.campaignName,
+  lessons: moduleFourLessons,
 };
 
 const learningModules = [
@@ -434,5 +443,5 @@ export const teacherCourseData = {
   title: "InSPIRE for Teacher: เส้นทางสู่ครูนวัตกร",
   description:
     "หลักสูตรพัฒนาครูผ่านกระบวนการ Design Thinking ที่เปลี่ยนแต่ละภารกิจให้เป็น quest พร้อม feedback และ reward ที่ติดตามได้",
-  modules: [preTestModule, moduleOneModule, moduleTwoModule, moduleThreeModule, ...learningModules.slice(3), postTestModule],
+  modules: [preTestModule, moduleOneModule, moduleTwoModule, moduleThreeModule, moduleFourModule, ...learningModules.slice(4), postTestModule],
 };

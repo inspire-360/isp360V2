@@ -100,3 +100,12 @@ to update Module 3 [Module-3 Detail : ...]
 - Added `ModuleThreeReportCard.jsx` with PNG/PDF export, trainee identity, card serial, PLC evidence sections, `P-PLC Badge`, and Module 4 unlock summary.
 - Wired Module 3 into `teacherCourse.js` and `CourseRoom.jsx`, including live draft saving, final posttest report generation, badge awarding, stay-on-page completion, and visible report card rendering after submission.
 - Updated teacher course catalog counts to match the expanded Module 3 footprint.
+
+Original prompt:
+to update Module 4 [Module-4 Detail : ...]
+
+- Added a dedicated `moduleFourCampaign` data layer for `I - Innovation : ก้าวสู่ความพร้อม จุดประกายนวัตกรรม`, including a Module 4 pre-test, the requested Canva lesson embed, four innovation missions, and a 5-question post-test that passes at 3 points.
+- Built `ModuleFourMission.jsx` to support innovation formula design, one-page blueprint planning, artifact crafting, and beta-test reflection with Firebase-backed autosave and mission completion flow.
+- Added `ModuleFourReportCard.jsx` with PNG/PDF export, innovation formula summary, prototype evidence sections, post-test score, trainee identity, card serial, `In-Innovation Badge`, and Module 5 unlock summary.
+- Wired Module 4 into `teacherCourse.js` and `CourseRoom.jsx`, including mission rendering, post-test report generation, badge awarding, and stay-on-page report display after completion.
+- Updated teacher course catalog lesson and mission counts to reflect the expanded Module 4 footprint.
