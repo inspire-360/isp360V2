@@ -79,3 +79,15 @@ Original prompt:
 - Added DU member management controls inside the admin console so admins can edit prefix/name/position/school, assign roles, and reset learning data for either all enrollments or a selected course enrollment.
 - Verified with `npm run build`; the updated DU Console, presence helpers, route guard, and SOS sync changes all compiled successfully.
 - This round was verified at build level only. Authenticated DU Console and SOS flows still need an actual signed-in admin session for full browser-based end-to-end validation.
+
+Original prompt:
+to update Module 2 [Module-2 Detail : ...]
+
+- Added a dedicated `moduleTwoCampaign` data layer so Module 2 is now a full `S - Design : ออกแบบฝัน ปั้นแผนสู่การพัฒนา` campaign instead of the old placeholder block.
+- Added a Module 2 pre-test, the requested Canva `watch?embed` lesson deck, six guided missions, and a 5-question post-test with pass score `3`.
+- Built a Firebase-backed `ModuleTwoMission` experience covering Dream Lab & TOWS Matrix, Vibe Check, 30-Day Roadmap, 5W1H pitch, SMART objective, and 3-lens quality review.
+- Wired Module 2 missions into `CourseRoom.jsx` with autosave, submission, completion tracking, and report generation behavior matching the existing Module 1 flow.
+- Added a `ModuleTwoReportCard` with PNG/PDF export, trainee identity, card serial, roadmap summary, SMART promise, and quality-lens documentation.
+- Updated the teacher course structure to load Module 2 from the new campaign file and keep Module 3 unlock behavior on `m2-posttest`.
+- Updated teacher course catalog counts to reflect the larger course footprint after expanding Module 2.
+- Verified with `npm run build`; final build passed after the new Module 2 campaign, report card, and CourseRoom integration changes.

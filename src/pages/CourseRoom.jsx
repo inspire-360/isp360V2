@@ -23,6 +23,8 @@ import { arrayUnion, doc, onSnapshot, setDoc, updateDoc } from "firebase/firesto
 import SWOTBoard from "../components/activities/SWOTBoard";
 import ModuleOneMission from "../components/course/ModuleOneMission";
 import ModuleOneReportCard from "../components/course/ModuleOneReportCard";
+import ModuleTwoMission from "../components/course/ModuleTwoMission";
+import ModuleTwoReportCard from "../components/course/ModuleTwoReportCard";
 import { useAuth } from "../contexts/AuthContext";
 import { getPostTestQuestions, getPreTestQuestions } from "../data/standardizedTests";
 import {
@@ -32,6 +34,12 @@ import {
   generateModuleOneCardSerial,
   moduleOneStages,
 } from "../data/moduleOneCampaign";
+import {
+  MODULE_TWO_BADGE,
+  MODULE_TWO_REPORT_KEY,
+  buildModuleTwoReportCard,
+  generateModuleTwoCardSerial,
+} from "../data/moduleTwoCampaign";
 import { teacherCourseData } from "../data/teacherCourse";
 import { db } from "../lib/firebase";
 import { getIcon } from "../utils/iconHelper";
@@ -112,7 +120,7 @@ export default function CourseRoom() {
   const currentGamification = currentLesson?.content?.gamification;
   const currentMissionResponse = currentLesson ? progressData.missionResponses?.[currentLesson.id] : null;
   const moduleOneReport = progressData.moduleReports?.[MODULE_ONE_REPORT_KEY];
-  const isCurrentModuleOneLesson = currentLesson?.id?.startsWith("m1-");
+  const moduleTwoReport = progressData.moduleReports?.[MODULE_TWO_REPORT_KEY];
   const completedSet = useMemo(
     () => new Set(progressData.completedLessons),
     [progressData.completedLessons],
@@ -390,15 +398,17 @@ export default function CourseRoom() {
     );
   };
 
-  const saveModuleOneMission = async (payload) => {
+  const persistMissionResponse = async (payload, submitted = false) => {
     if (!currentUser || !currentLesson) return;
 
     const record = {
       ...payload,
-      saveState: "submitted",
-      submittedAt: new Date().toISOString(),
+      saveState: submitted || completedSet.has(currentLesson.id) ? "submitted" : "draft",
       updatedAt: new Date().toISOString(),
     };
+    if (submitted) {
+      record.submittedAt = new Date().toISOString();
+    }
 
     await mergeEnrollmentData({
       missionResponses: {
@@ -414,34 +424,18 @@ export default function CourseRoom() {
       },
     }));
 
-    if (!completedSet.has(currentLesson.id)) {
+    if (submitted && !completedSet.has(currentLesson.id)) {
       await markLessonComplete();
     }
   };
 
+  const saveModuleOneMission = async (payload) => persistMissionResponse(payload, true);
+  const saveModuleTwoMission = async (payload) => persistMissionResponse(payload, true);
+
   const saveModuleOneDraft = async (payload) => {
-    if (!currentUser || !currentLesson) return;
-
-    const record = {
-      ...payload,
-      saveState: completedSet.has(currentLesson.id) ? "submitted" : "draft",
-      updatedAt: new Date().toISOString(),
-    };
-
-    await mergeEnrollmentData({
-      missionResponses: {
-        [currentLesson.id]: record,
-      },
-    });
-
-    setProgressData((previous) => ({
-      ...previous,
-      missionResponses: {
-        ...previous.missionResponses,
-        [currentLesson.id]: record,
-      },
-    }));
+    await persistMissionResponse(payload, false);
   };
+  const saveModuleTwoDraft = async (payload) => persistMissionResponse(payload, false);
 
   const saveModuleOneReport = async (score, totalQuestions) => {
     const existingSerial = progressData.moduleReports?.[MODULE_ONE_REPORT_KEY]?.cardSerial;
@@ -475,6 +469,43 @@ export default function CourseRoom() {
       earnedBadges: previous.earnedBadges.includes(MODULE_ONE_BADGE)
         ? previous.earnedBadges
         : [...previous.earnedBadges, MODULE_ONE_BADGE],
+    }));
+
+    return report;
+  };
+
+  const saveModuleTwoReport = async (score, totalQuestions) => {
+    const existingSerial = progressData.moduleReports?.[MODULE_TWO_REPORT_KEY]?.cardSerial;
+    const report = buildModuleTwoReportCard(
+      progressData.missionResponses,
+      {
+        score,
+        totalQuestions,
+      },
+      {
+        uid: currentUser?.uid,
+        email: currentUser?.email,
+        name: currentUser?.displayName || currentUser?.email?.split("@")[0],
+        cardSerial: existingSerial || generateModuleTwoCardSerial(currentUser?.uid),
+      },
+    );
+
+    await mergeEnrollmentData({
+      moduleReports: {
+        [MODULE_TWO_REPORT_KEY]: report,
+      },
+      earnedBadges: arrayUnion(MODULE_TWO_BADGE),
+    });
+
+    setProgressData((previous) => ({
+      ...previous,
+      moduleReports: {
+        ...previous.moduleReports,
+        [MODULE_TWO_REPORT_KEY]: report,
+      },
+      earnedBadges: previous.earnedBadges.includes(MODULE_TWO_BADGE)
+        ? previous.earnedBadges
+        : [...previous.earnedBadges, MODULE_TWO_BADGE],
     }));
 
     return report;
@@ -548,6 +579,9 @@ export default function CourseRoom() {
         if (currentLesson.id === "m1-posttest") {
           await saveModuleOneReport(score, quizQuestions.length);
           await markLessonComplete({ stayOnLesson: true });
+        } else if (currentLesson.id === "m2-posttest") {
+          await saveModuleTwoReport(score, quizQuestions.length);
+          await markLessonComplete({ stayOnLesson: true });
         } else {
           await markLessonComplete();
         }
@@ -579,6 +613,7 @@ export default function CourseRoom() {
     if (!currentGamification) return null;
 
     const campaignStep = currentLesson.content?.campaignStep || 0;
+    const campaignStages = currentLesson.content?.campaignStages || moduleOneStages;
     const mentor = currentLesson.content?.aiMentor;
 
     return (
@@ -601,8 +636,8 @@ export default function CourseRoom() {
         </div>
 
         {campaignStep ? (
-          <div className="mt-6 grid gap-3 md:grid-cols-4">
-            {moduleOneStages.map((stage) => {
+          <div className={`mt-6 grid gap-3 ${campaignStages.length > 4 ? "md:grid-cols-2 xl:grid-cols-6" : "md:grid-cols-4"}`}>
+            {campaignStages.map((stage) => {
               const isActive = stage.step === campaignStep;
               const isDone = stage.step < campaignStep;
               return (
@@ -799,8 +834,19 @@ export default function CourseRoom() {
             onSave={saveModuleOneMission}
           />
         ) : null}
+        {currentLesson.activityType?.startsWith("module2_") ? (
+          <ModuleTwoMission
+            lesson={currentLesson}
+            savedResponse={currentMissionResponse}
+            allResponses={progressData.missionResponses}
+            isCompleted={completedSet.has(currentLesson.id)}
+            onDraftSave={saveModuleTwoDraft}
+            onSave={saveModuleTwoMission}
+          />
+        ) : null}
         {currentLesson.activityType === "swot_board" ? <SWOTBoard /> : null}
-        {!currentLesson.activityType?.startsWith("module1_")
+        {!currentLesson.activityType?.startsWith("module1_") &&
+        !currentLesson.activityType?.startsWith("module2_")
           ? renderActionFooter("Submit mission", <PenTool size={16} />)
           : null}
       </div>
@@ -811,10 +857,27 @@ export default function CourseRoom() {
     const isPosttest = currentLesson.content?.isPosttest;
     const isPassed = quizScore >= (currentLesson.content?.passScore || 0);
     const isCompleted = completedSet.has(currentLesson.id);
-    const isModuleOnePosttest = currentLesson.id === "m1-posttest";
+    const posttestMeta =
+      currentLesson.id === "m1-posttest"
+        ? {
+            badge: MODULE_ONE_BADGE,
+            report: moduleOneReport,
+            unlockMessage: "Report card พร้อมแล้ว และ Module 2 ถูกปลดล็อกให้เรียบร้อย",
+            ReportCardComponent: ModuleOneReportCard,
+          }
+        : currentLesson.id === "m2-posttest"
+          ? {
+              badge: MODULE_TWO_BADGE,
+              report: moduleTwoReport,
+              unlockMessage: "Report card พร้อมแล้ว และ Module 3 ถูกปลดล็อกให้เรียบร้อย",
+              ReportCardComponent: ModuleTwoReportCard,
+            }
+          : null;
+    const isSpecialPosttest = Boolean(posttestMeta);
     const scoreValue =
-      quizSubmitted || !isModuleOnePosttest ? quizScore : moduleOneReport?.score || quizScore;
-    const scoreMax = quizQuestions.length || moduleOneReport?.totalQuestions || 0;
+      quizSubmitted || !isSpecialPosttest ? quizScore : posttestMeta?.report?.score || quizScore;
+    const scoreMax = quizQuestions.length || posttestMeta?.report?.totalQuestions || 0;
+    const ReportCardComponent = posttestMeta?.ReportCardComponent;
 
     if (quizSubmitted || isCompleted) {
       return (
@@ -825,18 +888,18 @@ export default function CourseRoom() {
               {isPassed || isCompleted ? <Award size={44} /> : <RotateCcw size={44} />}
             </div>
             <h2 className="mt-6 font-display text-3xl font-bold text-ink">
-              {isCompleted && !isModuleOnePosttest ? "Checkpoint cleared" : `${scoreValue} / ${scoreMax}`}
+              {isCompleted && !isSpecialPosttest ? "Checkpoint cleared" : `${scoreValue} / ${scoreMax}`}
             </h2>
             <p className="mt-3 text-sm leading-7 text-slate-500">
               {isPassed || isCompleted
                 ? "คุณผ่าน checkpoint นี้แล้ว"
                 : "ยังไม่ผ่านเกณฑ์ ลองทำใหม่ได้จากปุ่มด้านล่าง"}
             </p>
-            {isModuleOnePosttest && moduleOneReport && (isPassed || isCompleted) ? (
+            {isSpecialPosttest && posttestMeta?.report && (isPassed || isCompleted) ? (
               <div className="mt-6 rounded-[28px] border border-primary/10 bg-primary/5 p-5 text-left">
-                <p className="text-sm font-semibold text-primary">{MODULE_ONE_BADGE}</p>
+                <p className="text-sm font-semibold text-primary">{posttestMeta.badge}</p>
                 <p className="mt-2 text-base font-semibold text-ink">
-                  Report card พร้อมแล้ว และ Module 2 ถูกปลดล็อกให้เรียบร้อย
+                  {posttestMeta.unlockMessage}
                 </p>
               </div>
             ) : null}
@@ -847,8 +910,8 @@ export default function CourseRoom() {
               </button>
             ) : null}
           </div>
-          {isModuleOnePosttest && moduleOneReport && (isPassed || isCompleted) ? (
-            <ModuleOneReportCard report={moduleOneReport} />
+          {isSpecialPosttest && posttestMeta?.report && ReportCardComponent && (isPassed || isCompleted) ? (
+            <ReportCardComponent report={posttestMeta.report} />
           ) : null}
         </div>
       );
