@@ -7,7 +7,7 @@ import { getRoleLabel } from "../utils/userRoles";
 
 export default function OnlineUsers() {
   const [users, setUsers] = useState([]);
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     const usersQuery = query(collection(db, "users"), orderBy("lastSeen", "desc"), limit(20));

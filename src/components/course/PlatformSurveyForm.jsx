@@ -13,7 +13,7 @@ const buildPayload = (draft) => ({
   finalReflection: draft.finalReflection || "",
 });
 
-const hasContent = (payload) => JSON.stringify(payload).replace(/[\s":,{}\[\]]/g, "").length > 0;
+const hasContent = (payload) => JSON.stringify(payload).replace(/[\s":,{}[\]]/g, "").length > 0;
 
 const TextArea = ({ value, onChange, placeholder, rows = 5 }) => (
   <textarea
