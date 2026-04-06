@@ -72,7 +72,7 @@ const buildPayload = (lesson, draft) => {
   };
 };
 
-const hasContent = (payload) => JSON.stringify(payload).replace(/[\s":,{}\[\]]/g, "").length > 0;
+const hasContent = (payload) => JSON.stringify(payload).replace(/[\s":,{}[\]]/g, "").length > 0;
 
 const SectionIntro = ({ intro, helper }) => (
   <div className="rounded-[24px] border border-secondary/10 bg-secondary/5 p-5">

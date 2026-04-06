@@ -106,7 +106,7 @@ const moduleFiveModule = {
   lessons: moduleFiveLessons,
 };
 
-const learningModules = [
+const LEARNING_MODULES = [
   {
     id: "module-1",
     title: "Module 1: In - Insight",

@@ -41,7 +41,7 @@ const buildPayload = (lesson, draft) => {
   };
 };
 
-const hasContent = (payload) => JSON.stringify(payload).replace(/[\s":,{}\[\]]/g, "").length > 0;
+const hasContent = (payload) => JSON.stringify(payload).replace(/[\s":,{}[\]]/g, "").length > 0;
 
 const Field = ({ label, helper, children }) => (
   <div>

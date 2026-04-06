@@ -37,12 +37,10 @@ import {
   mergeSosCases,
   normalizeRiskLevel,
   normalizeTags,
-  riskSortValue,
   sosApprovalTone,
   sosCategoryOptions,
   sosRiskOptions,
   sosRiskTone,
-  sosStatusOptions,
   sosStatusTone,
   toUnixTime,
 } from "../data/sosConfig";

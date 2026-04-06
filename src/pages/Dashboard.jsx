@@ -20,6 +20,42 @@ import { courseCatalog } from "../data/courseCatalog";
 import { db } from "../lib/firebase";
 import { getCourseIcon } from "../utils/courseIcons";
 
+const duCoreRoles = [
+  {
+    title: "Data Analyst",
+    detail: "วิเคราะห์ข้อมูลเชิงพื้นที่เพื่อสร้าง Area-based Needs Map และระบุกลุ่มครูที่ต้องการความช่วยเหลือเร่งด่วน",
+  },
+  {
+    title: "Coach & Mentor",
+    detail: "ลงพื้นที่ประกบครูในห้องเรียน ติดตามการสอนจริง และให้ feedback ผ่าน DU Dashboard",
+  },
+  {
+    title: "Strategic Matchmaker",
+    detail: "จับคู่ความต้องการพัฒนาของครูกับผู้เชี่ยวชาญหรือภาคีเครือข่ายที่เหมาะสม",
+  },
+  {
+    title: "Innovation Scout",
+    detail: "คัดเลือกนวัตกรรมครูที่มีศักยภาพ สนับสนุนทรัพยากรตั้งต้น และผลักดันสู่ Best Practice",
+  },
+  {
+    title: "Facilitator",
+    detail: "อำนวยความสะดวกด้านเทคนิคและกระบวนการ PLC เพื่อเร่งการแลกเปลี่ยนเรียนรู้เชิงโต้ตอบ",
+  },
+  {
+    title: "Community Builder",
+    detail: "สร้างผู้นำเครือข่ายครูในแต่ละกลุ่มสาระ เพื่อความยั่งยืนของระบบพัฒนาครู",
+  },
+];
+
+const inspireFlow = [
+  { step: "In", title: "Insight & Identification", detail: "วิเคราะห์ข้อมูลรายบุคคลเพื่อระบุจุดวิกฤตและจุดแข็ง" },
+  { step: "S", title: "Synergy & Strategic Alignment", detail: "เชื่อมภาคีเครือข่ายและจัดการ Resource Sharing ให้ตรงโจทย์" },
+  { step: "P", title: "Professional Empowerment", detail: "พัฒนาครูด้วย Micro-Learning และ On-the-job Coaching" },
+  { step: "I", title: "Innovation-Driven Pedagogy", detail: "สร้าง Innovation Lab เพื่อทดลอง ต้นแบบ และต่อยอดนวัตกรรม" },
+  { step: "R", title: "Real-time Monitoring & Reflexivity", detail: "ติดตามผลแบบต่อเนื่องด้วย Dashboard และ Feedback Loop 360°" },
+  { step: "E", title: "Ecosystem for Excellence", detail: "สร้างวัฒนธรรม PLC ถอดบทเรียน และขยายผลอย่างยั่งยืน" },
+];
+
 export default function Dashboard() {
   const { currentUser, userRole } = useAuth();
   const navigate = useNavigate();
@@ -320,6 +356,46 @@ export default function Dashboard() {
         </section>
       </div>
 
+      <section className="brand-panel p-6 md:p-8">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="brand-chip border-secondary/10 bg-secondary/5 text-secondary">
+              <ShieldCheck size={14} />
+              DU Console + DU Dashboard framework
+            </p>
+            <h2 className="mt-3 font-display text-2xl font-bold text-ink">
+              บทบาททีม DU และวงจร InSPIRE360 ที่ใช้ขับเคลื่อนจริง
+            </h2>
+          </div>
+          <p className="max-w-2xl text-sm leading-7 text-slate-500">
+            โครงสร้างนี้ช่วยให้ทีม DU ติดตามครูรายบุคคลได้ไว เชื่อมทรัพยากรได้ตรง และยกระดับคุณภาพผู้เรียนอย่างต่อเนื่อง
+          </p>
+        </div>
+
+        <div className="mt-6 grid gap-4 lg:grid-cols-2">
+          {duCoreRoles.map((role) => (
+            <article key={role.title} className="rounded-[24px] border border-slate-100 bg-slate-50/80 p-5">
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-400">DU role</p>
+              <h3 className="mt-2 font-display text-xl font-bold text-ink">{role.title}</h3>
+              <p className="mt-3 text-sm leading-7 text-slate-600">{role.detail}</p>
+            </article>
+          ))}
+        </div>
+
+        <div className="mt-8">
+          <h3 className="font-display text-xl font-bold text-ink">InSPIRE 360° Innovation System Guidelines</h3>
+          <div className="mt-4 grid gap-4 xl:grid-cols-2">
+            {inspireFlow.map((item) => (
+              <article key={item.step} className="rounded-[24px] border border-primary/10 bg-primary/5 p-5">
+                <p className="text-xs uppercase tracking-[0.18em] text-primary">Stage {item.step}</p>
+                <h4 className="mt-2 text-lg font-semibold text-ink">{item.title}</h4>
+                <p className="mt-3 text-sm leading-7 text-slate-600">{item.detail}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {showModal && selectedCourse ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
@@ -364,4 +440,3 @@ export default function Dashboard() {
     </div>
   );
 }
-
