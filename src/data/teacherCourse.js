@@ -1,5 +1,7 @@
 import { moduleOneLessons, moduleOneModuleMeta } from "./moduleOneCampaign";
 import { moduleFourLessons, moduleFourModuleMeta } from "./moduleFourCampaign";
+import { finalPostTestQuestions, FINAL_POSTTEST_COOLDOWN_HOURS, FINAL_POSTTEST_MAX_ATTEMPTS, FINAL_POSTTEST_PASS_SCORE } from "./courseCompletion";
+import { moduleFiveLessons, moduleFiveModuleMeta } from "./moduleFiveCampaign";
 import { moduleThreeLessons, moduleThreeModuleMeta } from "./moduleThreeCampaign";
 import { moduleTwoLessons, moduleTwoModuleMeta } from "./moduleTwoCampaign";
 
@@ -94,6 +96,14 @@ const moduleFourModule = {
   description: moduleFourModuleMeta.description,
   campaignName: moduleFourModuleMeta.campaignName,
   lessons: moduleFourLessons,
+};
+
+const moduleFiveModule = {
+  id: "module-5",
+  title: moduleFiveModuleMeta.title,
+  description: moduleFiveModuleMeta.description,
+  campaignName: moduleFiveModuleMeta.campaignName,
+  lessons: moduleFiveLessons,
 };
 
 const learningModules = [
@@ -374,46 +384,47 @@ const learningModules = [
 
 const postTestModule = {
   id: "module-posttest",
-  title: "Finish Line: Post-test & Certification",
-  description: "วัดผลลัพธ์ปลายทาง เก็บ feedback และปลดล็อกใบรับรอง",
-  campaignName: "Launch Review",
+  title: "Finish Line: Post-test, Survey & Certificate",
+  description: "วัดผลปลายคอร์ส เก็บความพึงพอใจต่อแพลตฟอร์ม และปลดล็อกใบรับรอง InSPIRE360",
+  campaignName: "Final Gate",
   lessons: [
     {
       id: "posttest-exam",
-      title: "Post-test Checkpoint",
+      title: "Post-test: InSPIRE360 Mastery Gate",
       type: "quiz",
       iconName: "CheckSquare",
       content: {
         isPosttest: true,
-        passScore: 8,
-        maxAttempts: 5,
-        questionsCount: 10,
+        passScore: FINAL_POSTTEST_PASS_SCORE,
+        maxAttempts: FINAL_POSTTEST_MAX_ATTEMPTS,
+        cooldownHours: FINAL_POSTTEST_COOLDOWN_HOURS,
+        questionsCount: finalPostTestQuestions.length,
+        questions: finalPostTestQuestions,
         description:
-          "ข้อสอบ 10 ข้อ เกณฑ์ผ่าน 8 คะแนน หากไม่ผ่านครบ 5 ครั้ง ระบบจะรีเซ็ตกลับไปเริ่มจาก Module 1",
+          "ตอบ 5 ข้อ ผ่านเมื่อได้อย่างน้อย 4 คะแนน หากไม่ผ่านทำใหม่ได้ 3 ครั้ง และถ้าใช้ครบ 3 ครั้งจะต้องรอ 12 ชั่วโมงก่อนเริ่มรอบใหม่",
         gamification: checkpointProfile({
           arc: "Final Check",
           xp: 120,
-          reward: "Certification lane access",
+          reward: "Survey + certificate lane access",
           badge: "Verifier",
-          objective: "พิสูจน์ว่าคุณพร้อมจบหลักสูตรและต่อยอดสู่การใช้งานจริง",
+          objective: "ยืนยันความพร้อมก่อนเข้าสู่แบบประเมินความพึงพอใจและการรับ certificate ปลายคอร์ส",
         }),
       },
     },
     {
       id: "final-survey",
-      title: "Reflection Survey",
-      type: "article",
+      title: "Platform Satisfaction Survey",
+      type: "activity",
+      activityType: "final_platform_survey",
       iconName: "FileText",
       content: {
-        text: "ตอบแบบประเมินความพึงพอใจหลังเรียนจบ เพื่อช่วยพัฒนาหลักสูตรและระบบสนับสนุนครูในรุ่นถัดไป",
-        surveyUrl: "https://example.com/inspire-survey",
-        surveyLabel: "เปิดแบบสอบถามความพึงพอใจ",
+        text: "ทำแบบประเมินความพึงพอใจการใช้ Platform ภายในระบบ เพื่อส่งเสียงสะท้อนกลับไปพัฒนา InSPIRE360 รุ่นถัดไป",
         gamification: checkpointProfile({
           arc: "Signal Back",
           xp: 60,
           reward: "Voice to DU",
           badge: "Contributor",
-          objective: "ส่ง feedback กลับเข้าสู่ระบบ DU เพื่อปรับปรุงประสบการณ์รุ่นต่อไป",
+          objective: "ส่ง feedback ด้านประสบการณ์ใช้งานแพลตฟอร์มกลับไปยังทีมพัฒนาและ DU",
         }),
       },
     },
@@ -423,9 +434,8 @@ const postTestModule = {
       type: "certificate",
       iconName: "Award",
       content: {
-        text: "เมื่อผ่าน post-test และ survey แล้ว คุณจะปลดล็อกใบรับรองหลักสูตร InSPIRE for Teacher",
-        certificateUrl: "#",
-        certificateLabel: "ดาวน์โหลดเกียรติบัตร (PDF)",
+        text: "เมื่อผ่าน post-test ปลายคอร์สและทำแบบประเมินความพึงพอใจแล้ว คุณจะสามารถดาวน์โหลด Certificate of InSPIRE360 ได้ทันทีทั้งแบบ PDF และภาพ",
+        certificateLabel: "Download InSPIRE360 Certificate",
         gamification: checkpointProfile({
           arc: "Vault Unlock",
           xp: 140,
@@ -443,5 +453,13 @@ export const teacherCourseData = {
   title: "InSPIRE for Teacher: เส้นทางสู่ครูนวัตกร",
   description:
     "หลักสูตรพัฒนาครูผ่านกระบวนการ Design Thinking ที่เปลี่ยนแต่ละภารกิจให้เป็น quest พร้อม feedback และ reward ที่ติดตามได้",
-  modules: [preTestModule, moduleOneModule, moduleTwoModule, moduleThreeModule, moduleFourModule, ...learningModules.slice(4), postTestModule],
+  modules: [
+    preTestModule,
+    moduleOneModule,
+    moduleTwoModule,
+    moduleThreeModule,
+    moduleFourModule,
+    moduleFiveModule,
+    postTestModule,
+  ],
 };

@@ -21,15 +21,20 @@ import {
 } from "lucide-react";
 import { arrayUnion, doc, onSnapshot, setDoc, updateDoc } from "firebase/firestore";
 import SWOTBoard from "../components/activities/SWOTBoard";
+import CourseCertificateCard from "../components/course/CourseCertificateCard";
 import ModuleFourMission from "../components/course/ModuleFourMission";
 import ModuleFourReportCard from "../components/course/ModuleFourReportCard";
+import ModuleFiveMission from "../components/course/ModuleFiveMission";
+import ModuleFiveReportCard from "../components/course/ModuleFiveReportCard";
 import ModuleOneMission from "../components/course/ModuleOneMission";
 import ModuleOneReportCard from "../components/course/ModuleOneReportCard";
 import ModuleThreeMission from "../components/course/ModuleThreeMission";
 import ModuleThreeReportCard from "../components/course/ModuleThreeReportCard";
 import ModuleTwoMission from "../components/course/ModuleTwoMission";
 import ModuleTwoReportCard from "../components/course/ModuleTwoReportCard";
+import PlatformSurveyForm from "../components/course/PlatformSurveyForm";
 import { useAuth } from "../contexts/AuthContext";
+import { buildCourseCertificate } from "../data/courseCompletion";
 import { getPostTestQuestions, getPreTestQuestions } from "../data/standardizedTests";
 import {
   MODULE_FOUR_BADGE,
@@ -37,6 +42,12 @@ import {
   buildModuleFourReportCard,
   generateModuleFourCardSerial,
 } from "../data/moduleFourCampaign";
+import {
+  MODULE_FIVE_BADGE,
+  MODULE_FIVE_REPORT_KEY,
+  buildModuleFiveReportCard,
+  generateModuleFiveCardSerial,
+} from "../data/moduleFiveCampaign";
 import {
   MODULE_ONE_BADGE,
   MODULE_ONE_REPORT_KEY,
@@ -90,6 +101,8 @@ const defaultProgressData = {
   currentModuleIndex: 0,
   postTestAttempts: 0,
   score: 0,
+  quizAttempts: {},
+  quizCooldowns: {},
   missionResponses: {},
   moduleReports: {},
   earnedBadges: [],
@@ -109,6 +122,7 @@ export default function CourseRoom() {
   const [quizAnswers, setQuizAnswers] = useState({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [quizScore, setQuizScore] = useState(0);
+  const [currentTime, setCurrentTime] = useState(Date.now());
 
   const courseId = "course-teacher";
   const currentCourse = teacherCourseData;
@@ -136,6 +150,7 @@ export default function CourseRoom() {
   const currentGamification = currentLesson?.content?.gamification;
   const currentMissionResponse = currentLesson ? progressData.missionResponses?.[currentLesson.id] : null;
   const moduleFourReport = progressData.moduleReports?.[MODULE_FOUR_REPORT_KEY];
+  const moduleFiveReport = progressData.moduleReports?.[MODULE_FIVE_REPORT_KEY];
   const moduleOneReport = progressData.moduleReports?.[MODULE_ONE_REPORT_KEY];
   const moduleThreeReport = progressData.moduleReports?.[MODULE_THREE_REPORT_KEY];
   const moduleTwoReport = progressData.moduleReports?.[MODULE_TWO_REPORT_KEY];
@@ -143,6 +158,25 @@ export default function CourseRoom() {
     () => new Set(progressData.completedLessons),
     [progressData.completedLessons],
   );
+  const courseCertificate = useMemo(() => {
+    if (!completedSet.has("posttest-exam") || !completedSet.has("final-survey")) return null;
+
+    return buildCourseCertificate(
+      progressData,
+      {
+        uid: currentUser?.uid,
+        email: currentUser?.email,
+        displayName: currentUser?.displayName,
+        name: currentUser?.displayName || currentUser?.email?.split("@")[0],
+      },
+      {
+        generatedAt:
+          progressData.missionResponses?.["final-survey"]?.submittedAt ||
+          progressData.missionResponses?.["final-survey"]?.updatedAt ||
+          progressData.moduleReports?.[MODULE_FIVE_REPORT_KEY]?.generatedAt,
+      },
+    );
+  }, [completedSet, currentUser, progressData]);
 
   const totalXp = useMemo(
     () => allLessons.reduce((sum, item) => sum + getLessonXp(item.lesson), 0),
@@ -181,6 +215,32 @@ export default function CourseRoom() {
     const lessons = currentCourse.modules[safeModuleIndex]?.lessons || [];
     if (lessons.length === 0) return 0;
     return Math.min(Math.max(lessonIndex ?? 0, 0), lessons.length - 1);
+  };
+
+  const getQuizAttemptCount = (lessonId) =>
+    progressData.quizAttempts?.[lessonId] ??
+    (lessonId === "posttest-exam" ? progressData.postTestAttempts || 0 : 0);
+
+  const getQuizCooldownUntil = (lessonId) => progressData.quizCooldowns?.[lessonId] || null;
+
+  const getQuizCooldownRemainingMs = (lessonId) => {
+    const cooldownUntil = getQuizCooldownUntil(lessonId);
+    if (!cooldownUntil) return 0;
+
+    const remaining = new Date(cooldownUntil).getTime() - currentTime;
+    return remaining > 0 ? remaining : 0;
+  };
+
+  const formatCooldown = (milliseconds) => {
+    if (!milliseconds) return "0m";
+
+    const totalMinutes = Math.ceil(milliseconds / 60000);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+
+    if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
+    if (hours > 0) return `${hours}h`;
+    return `${minutes}m`;
   };
 
   const getUnlockedModuleIndexFromLessons = (completedLessons = []) => {
@@ -233,6 +293,11 @@ export default function CourseRoom() {
       status: completedCount >= allLessons.length ? "completed" : "active",
     };
   };
+
+  useEffect(() => {
+    const timerId = window.setInterval(() => setCurrentTime(Date.now()), 60000);
+    return () => window.clearInterval(timerId);
+  }, []);
 
   useEffect(() => {
     if (!currentUser) return undefined;
@@ -301,6 +366,8 @@ export default function CourseRoom() {
             currentModuleIndex: unlockedModuleIndex,
             postTestAttempts: data.postTestAttempts || 0,
             score: data.score || 0,
+            quizAttempts: data.quizAttempts || {},
+            quizCooldowns: data.quizCooldowns || {},
             missionResponses: data.missionResponses || {},
             moduleReports: data.moduleReports || {},
             earnedBadges: data.earnedBadges || [],
@@ -483,6 +550,7 @@ export default function CourseRoom() {
 
   const saveModuleOneMission = async (payload) => persistMissionResponse(payload, true);
   const saveModuleFourMission = async (payload) => persistMissionResponse(payload, true);
+  const saveModuleFiveMission = async (payload) => persistMissionResponse(payload, true);
   const saveModuleTwoMission = async (payload) => persistMissionResponse(payload, true);
   const saveModuleThreeMission = async (payload) => {
     if (!currentUser || !currentLesson) return;
@@ -529,8 +597,11 @@ export default function CourseRoom() {
     await persistMissionResponse(payload, false);
   };
   const saveModuleFourDraft = async (payload) => persistMissionResponse(payload, false);
+  const saveModuleFiveDraft = async (payload) => persistMissionResponse(payload, false);
   const saveModuleTwoDraft = async (payload) => persistMissionResponse(payload, false);
   const saveModuleThreeDraft = async (payload) => persistMissionResponse(payload, false);
+  const saveFinalSurvey = async (payload) => persistMissionResponse(payload, true);
+  const saveFinalSurveyDraft = async (payload) => persistMissionResponse(payload, false);
 
   const saveModuleOneReport = async (score, totalQuestions) => {
     const existingSerial = progressData.moduleReports?.[MODULE_ONE_REPORT_KEY]?.cardSerial;
@@ -601,6 +672,43 @@ export default function CourseRoom() {
       earnedBadges: previous.earnedBadges.includes(MODULE_FOUR_BADGE)
         ? previous.earnedBadges
         : [...previous.earnedBadges, MODULE_FOUR_BADGE],
+    }));
+
+    return report;
+  };
+
+  const saveModuleFiveReport = async (score, totalQuestions) => {
+    const existingSerial = progressData.moduleReports?.[MODULE_FIVE_REPORT_KEY]?.cardSerial;
+    const report = buildModuleFiveReportCard(
+      progressData.missionResponses,
+      {
+        score,
+        totalQuestions,
+      },
+      {
+        uid: currentUser?.uid,
+        email: currentUser?.email,
+        name: currentUser?.displayName || currentUser?.email?.split("@")[0],
+        cardSerial: existingSerial || generateModuleFiveCardSerial(currentUser?.uid),
+      },
+    );
+
+    await mergeEnrollmentData({
+      moduleReports: {
+        [MODULE_FIVE_REPORT_KEY]: report,
+      },
+      earnedBadges: arrayUnion(MODULE_FIVE_BADGE),
+    });
+
+    setProgressData((previous) => ({
+      ...previous,
+      moduleReports: {
+        ...previous.moduleReports,
+        [MODULE_FIVE_REPORT_KEY]: report,
+      },
+      earnedBadges: previous.earnedBadges.includes(MODULE_FIVE_BADGE)
+        ? previous.earnedBadges
+        : [...previous.earnedBadges, MODULE_FIVE_BADGE],
     }));
 
     return report;
@@ -711,6 +819,15 @@ export default function CourseRoom() {
 
   const submitQuiz = async () => {
     if (!currentUser || !currentLesson) return;
+    const lessonId = currentLesson.id;
+    const cooldownRemainingMs = currentLesson.content?.isPosttest
+      ? getQuizCooldownRemainingMs(lessonId)
+      : 0;
+
+    if (cooldownRemainingMs > 0) {
+      alert(`ยังไม่สามารถทำ post-test นี้ได้ ต้องรออีก ${formatCooldown(cooldownRemainingMs)}`);
+      return;
+    }
 
     let score = 0;
     quizQuestions.forEach((question) => {
@@ -729,29 +846,61 @@ export default function CourseRoom() {
     }
 
     if (currentLesson.content?.isPosttest) {
-      const newAttempts = progressData.postTestAttempts + 1;
-      await updateDoc(enrollRef, {
-        postTestAttempts: newAttempts,
+      const maxAttempts = currentLesson.content?.maxAttempts || 5;
+      const cooldownHours = currentLesson.content?.cooldownHours || 0;
+      const currentAttempts = getQuizAttemptCount(lessonId);
+      const rawAttempts = currentAttempts + 1;
+      const cooldownTriggered = !isPassed && cooldownHours > 0 && rawAttempts >= maxAttempts;
+      const storedAttempts = cooldownTriggered ? 0 : rawAttempts;
+      const cooldownUntil = cooldownTriggered
+        ? new Date(Date.now() + cooldownHours * 60 * 60 * 1000).toISOString()
+        : null;
+      const updatePayload = {
+        [`quizAttempts.${lessonId}`]: storedAttempts,
+        [`quizCooldowns.${lessonId}`]: cooldownUntil,
         score,
         lastAccess: new Date(),
-      });
-      setProgressData((previous) => ({ ...previous, postTestAttempts: newAttempts, score }));
+      };
+
+      if (lessonId === "posttest-exam") {
+        updatePayload.postTestAttempts = storedAttempts;
+      }
+
+      await updateDoc(enrollRef, updatePayload);
+      setProgressData((previous) => ({
+        ...previous,
+        postTestAttempts: lessonId === "posttest-exam" ? storedAttempts : previous.postTestAttempts,
+        score,
+        quizAttempts: {
+          ...previous.quizAttempts,
+          [lessonId]: storedAttempts,
+        },
+        quizCooldowns: {
+          ...previous.quizCooldowns,
+          [lessonId]: cooldownUntil,
+        },
+      }));
 
       if (isPassed) {
-        if (currentLesson.id === "m1-posttest") {
+        if (lessonId === "m1-posttest") {
           await saveModuleOneReport(score, quizQuestions.length);
           await markLessonComplete({ stayOnLesson: true });
-        } else if (currentLesson.id === "m4-posttest") {
+        } else if (lessonId === "m4-posttest") {
           await saveModuleFourReport(score, quizQuestions.length);
           await markLessonComplete({ stayOnLesson: true });
-        } else if (currentLesson.id === "m2-posttest") {
+        } else if (lessonId === "m5-posttest") {
+          await saveModuleFiveReport(score, quizQuestions.length);
+          await markLessonComplete({ stayOnLesson: true });
+        } else if (lessonId === "m2-posttest") {
           await saveModuleTwoReport(score, quizQuestions.length);
           await markLessonComplete({ stayOnLesson: true });
         } else {
           await markLessonComplete();
         }
         alert("ยินดีด้วย คุณผ่าน post-test แล้ว");
-      } else if (newAttempts >= (currentLesson.content?.maxAttempts || 5)) {
+      } else if (cooldownTriggered) {
+        alert(`ยังไม่ผ่านครบ ${maxAttempts} ครั้ง ระบบจะเปิดให้ทำใหม่อีกใน ${cooldownHours} ชั่วโมง`);
+      } else if (rawAttempts >= maxAttempts) {
         alert("คุณไม่ผ่านครบตามจำนวนครั้ง ระบบจะเริ่มต้นใหม่จาก Module 1");
         await resetCourseProgress();
       }
@@ -762,6 +911,15 @@ export default function CourseRoom() {
   };
 
   const retryQuiz = () => {
+    const cooldownRemainingMs = currentLesson?.content?.isPosttest
+      ? getQuizCooldownRemainingMs(currentLesson.id)
+      : 0;
+
+    if (cooldownRemainingMs > 0) {
+      alert(`ยังไม่สามารถทำ post-test นี้ได้ ต้องรออีก ${formatCooldown(cooldownRemainingMs)}`);
+      return;
+    }
+
     if (currentLesson.content?.isPosttest) {
       setQuizQuestions(
         Array.isArray(currentLesson.content?.questions) && currentLesson.content.questions.length > 0
@@ -1009,6 +1167,16 @@ export default function CourseRoom() {
             onSave={saveModuleFourMission}
           />
         ) : null}
+        {currentLesson.activityType?.startsWith("module5_") ? (
+          <ModuleFiveMission
+            lesson={currentLesson}
+            savedResponse={currentMissionResponse}
+            allResponses={progressData.missionResponses}
+            isCompleted={completedSet.has(currentLesson.id)}
+            onDraftSave={saveModuleFiveDraft}
+            onSave={saveModuleFiveMission}
+          />
+        ) : null}
         {currentLesson.activityType?.startsWith("module2_") ? (
           <ModuleTwoMission
             lesson={currentLesson}
@@ -1029,16 +1197,29 @@ export default function CourseRoom() {
             onSave={saveModuleThreeMission}
           />
         ) : null}
+        {currentLesson.activityType === "final_platform_survey" ? (
+          <PlatformSurveyForm
+            savedResponse={currentMissionResponse}
+            isCompleted={completedSet.has(currentLesson.id)}
+            onDraftSave={saveFinalSurveyDraft}
+            onSave={saveFinalSurvey}
+          />
+        ) : null}
         {currentLesson.activityType === "swot_board" ? <SWOTBoard /> : null}
         {!currentLesson.activityType?.startsWith("module1_") &&
         !currentLesson.activityType?.startsWith("module4_") &&
+        !currentLesson.activityType?.startsWith("module5_") &&
         !currentLesson.activityType?.startsWith("module2_") &&
-        !currentLesson.activityType?.startsWith("module3_")
+        !currentLesson.activityType?.startsWith("module3_") &&
+        currentLesson.activityType !== "final_platform_survey"
           ? renderActionFooter("Submit mission", <PenTool size={16} />)
           : null}
       </div>
       {currentLesson.id === "m3-posttest" && moduleThreeReport ? (
         <ModuleThreeReportCard report={moduleThreeReport} />
+      ) : null}
+      {currentLesson.id === "m5-posttest" && moduleFiveReport ? (
+        <ModuleFiveReportCard report={moduleFiveReport} />
       ) : null}
     </div>
   );
@@ -1047,6 +1228,9 @@ export default function CourseRoom() {
     const isPosttest = currentLesson.content?.isPosttest;
     const isPassed = quizScore >= (currentLesson.content?.passScore || 0);
     const isCompleted = completedSet.has(currentLesson.id);
+    const attemptCount = getQuizAttemptCount(currentLesson.id);
+    const maxAttempts = currentLesson.content?.maxAttempts || 5;
+    const cooldownRemainingMs = isPosttest ? getQuizCooldownRemainingMs(currentLesson.id) : 0;
     const posttestMeta =
       currentLesson.id === "m1-posttest"
         ? {
@@ -1062,6 +1246,13 @@ export default function CourseRoom() {
               unlockMessage: "Report card พร้อมแล้ว และ Module 5 ถูกปลดล็อกให้เรียบร้อย",
               ReportCardComponent: ModuleFourReportCard,
             }
+          : currentLesson.id === "m5-posttest"
+            ? {
+                badge: MODULE_FIVE_BADGE,
+                report: moduleFiveReport,
+                unlockMessage: "Report card พร้อมแล้ว และ post-test ปลายคอร์สถูกปลดล็อกให้เรียบร้อย",
+                ReportCardComponent: ModuleFiveReportCard,
+              }
         : currentLesson.id === "m2-posttest"
           ? {
               badge: MODULE_TWO_BADGE,
@@ -1069,12 +1260,28 @@ export default function CourseRoom() {
               unlockMessage: "Report card พร้อมแล้ว และ Module 3 ถูกปลดล็อกให้เรียบร้อย",
               ReportCardComponent: ModuleTwoReportCard,
             }
+          : currentLesson.id === "posttest-exam"
+            ? {
+                badge: "InSPIRE360 Final Gate",
+                report: null,
+                unlockMessage: "ผ่านด่านปลายคอร์สแล้ว ไปต่อที่แบบประเมินความพึงพอใจเพื่อปลดล็อก Certificate of InSPIRE360",
+                ReportCardComponent: null,
+              }
           : null;
     const isSpecialPosttest = Boolean(posttestMeta);
+    const storedSpecialScore =
+      currentLesson.id === "posttest-exam"
+        ? progressData.score || quizScore
+        : posttestMeta?.report?.score || quizScore;
     const scoreValue =
-      quizSubmitted || !isSpecialPosttest ? quizScore : posttestMeta?.report?.score || quizScore;
-    const scoreMax = quizQuestions.length || posttestMeta?.report?.totalQuestions || 0;
+      quizSubmitted || !isSpecialPosttest ? quizScore : storedSpecialScore;
+    const scoreMax =
+      quizQuestions.length ||
+      posttestMeta?.report?.totalQuestions ||
+      currentLesson.content?.questionsCount ||
+      0;
     const ReportCardComponent = posttestMeta?.ReportCardComponent;
+    const showUnlockMessage = Boolean(posttestMeta?.unlockMessage) && (isPassed || isCompleted);
 
     if (quizSubmitted || isCompleted) {
       return (
@@ -1092,7 +1299,7 @@ export default function CourseRoom() {
                 ? "คุณผ่าน checkpoint นี้แล้ว"
                 : "ยังไม่ผ่านเกณฑ์ ลองทำใหม่ได้จากปุ่มด้านล่าง"}
             </p>
-            {isSpecialPosttest && posttestMeta?.report && (isPassed || isCompleted) ? (
+            {showUnlockMessage ? (
               <div className="mt-6 rounded-[28px] border border-primary/10 bg-primary/5 p-5 text-left">
                 <p className="text-sm font-semibold text-primary">{posttestMeta.badge}</p>
                 <p className="mt-2 text-base font-semibold text-ink">
@@ -1114,6 +1321,33 @@ export default function CourseRoom() {
       );
     }
 
+    if (isPosttest && cooldownRemainingMs > 0) {
+      return (
+        <div className="space-y-6">
+          {renderQuestBrief()}
+          <div className="brand-panel p-8 text-center">
+            <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-accent/10 text-accent">
+              <Lock size={44} />
+            </div>
+            <h2 className="mt-6 font-display text-3xl font-bold text-ink">
+              Cooldown active
+            </h2>
+            <p className="mt-3 text-sm leading-7 text-slate-500">
+              คุณใช้สิทธิ์ครบแล้วสำหรับรอบนี้ ระบบจะเปิดให้ทำใหม่อีกใน {formatCooldown(cooldownRemainingMs)}
+            </p>
+            <button
+              type="button"
+              onClick={retryQuiz}
+              className="brand-button-secondary mt-6"
+            >
+              <RotateCcw size={16} />
+              Check again
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="space-y-6">
         {renderQuestBrief()}
@@ -1122,8 +1356,13 @@ export default function CourseRoom() {
             <p className="text-sm font-semibold text-primary">{currentLesson.title}</p>
             <p className="mt-2 text-sm leading-7 text-slate-600">
               ตอบให้ครบ {quizQuestions.length} ข้อ
-              {isPosttest ? ` • attempt ${progressData.postTestAttempts + 1}/${currentLesson.content?.maxAttempts || 5}` : ""}
+              {isPosttest ? ` • attempt ${attemptCount + 1}/${maxAttempts}` : ""}
             </p>
+            {isPosttest && currentLesson.content?.cooldownHours ? (
+              <p className="mt-2 text-xs leading-6 text-slate-500">
+                หากไม่ผ่านครบ {maxAttempts} ครั้ง จะต้องรอ {currentLesson.content.cooldownHours} ชั่วโมงก่อนเริ่มรอบใหม่
+              </p>
+            ) : null}
           </div>
 
           <div className="mt-6 space-y-4">
@@ -1203,22 +1442,16 @@ export default function CourseRoom() {
               </button>
             </>
           ) : (
-            <>
-              <Award className="mx-auto text-primary" size={58} />
-              <h2 className="mt-6 font-display text-3xl font-bold text-ink">Certificate unlocked</h2>
-              <p className="mt-3 text-sm leading-7 text-slate-500">
-                คุณผ่านทุก checkpoint และพร้อมดาวน์โหลดใบรับรองแล้ว
-              </p>
-              <a
-                href={currentLesson.content?.certificateUrl || "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="brand-button-primary mt-6"
-              >
-                <Award size={16} />
-                {currentLesson.content?.certificateLabel || "Download certificate"}
-              </a>
-            </>
+            <div className="space-y-6">
+              <div>
+                <Award className="mx-auto text-primary" size={58} />
+                <h2 className="mt-6 font-display text-3xl font-bold text-ink">Certificate unlocked</h2>
+                <p className="mt-3 text-sm leading-7 text-slate-500">
+                  คุณผ่านทุก checkpoint แล้ว และสามารถดาวน์โหลด Certificate of InSPIRE360 ได้ทันที
+                </p>
+              </div>
+              <CourseCertificateCard certificate={courseCertificate} />
+            </div>
           )}
         </div>
       </div>

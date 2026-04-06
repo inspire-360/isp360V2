@@ -1,0 +1,286 @@
+import React, { useRef, useState } from "react";
+import {
+  Award,
+  FileImage,
+  FileText,
+  Loader2,
+  Sparkles,
+} from "lucide-react";
+
+const formatStamp = (value) => {
+  if (!value) return "Pending";
+  return new Intl.DateTimeFormat("th-TH", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+};
+
+export default function ModuleFiveReportCard({ report }) {
+  const exportRef = useRef(null);
+  const [downloading, setDownloading] = useState("");
+
+  if (!report) return null;
+
+  const captureCard = async () => {
+    const node = exportRef.current;
+    if (!node) return null;
+    const { default: html2canvas } = await import("html2canvas");
+    return html2canvas(node, {
+      backgroundColor: "#ffffff",
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      windowWidth: node.scrollWidth,
+      windowHeight: node.scrollHeight,
+    });
+  };
+
+  const exportImage = async () => {
+    setDownloading("image");
+    try {
+      const canvas = await captureCard();
+      if (!canvas) return;
+      const link = document.createElement("a");
+      link.href = canvas.toDataURL("image/png", 1);
+      link.download = `module5-report-${report.cardSerial || "reflection"}.png`;
+      link.click();
+    } finally {
+      setDownloading("");
+    }
+  };
+
+  const exportPdf = async () => {
+    setDownloading("pdf");
+    try {
+      const canvas = await captureCard();
+      if (!canvas) return;
+      const { jsPDF } = await import("jspdf");
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imageData = canvas.toDataURL("image/png", 1);
+      const imageWidth = pageWidth;
+      const imageHeight = (canvas.height * imageWidth) / canvas.width;
+
+      let heightLeft = imageHeight;
+      let position = 0;
+      pdf.addImage(imageData, "PNG", 0, position, imageWidth, imageHeight, undefined, "FAST");
+      heightLeft -= pageHeight;
+
+      while (heightLeft > 0) {
+        position = heightLeft - imageHeight;
+        pdf.addPage();
+        pdf.addImage(imageData, "PNG", 0, position, imageWidth, imageHeight, undefined, "FAST");
+        heightLeft -= pageHeight;
+      }
+
+      pdf.save(`module5-report-${report.cardSerial || "reflection"}.pdf`);
+    } finally {
+      setDownloading("");
+    }
+  };
+
+  const renderSection = (section) => {
+    const content = section.content || {};
+
+    if (section.kind === "implementation") {
+      return (
+        <section key={section.title} className="rounded-[30px] border border-slate-100 bg-white p-6">
+          <h4 className="font-display text-2xl font-bold text-ink">{section.title}</h4>
+          <div className="mt-5 grid gap-4 xl:grid-cols-2">
+            <article className="rounded-[24px] border border-slate-100 bg-slate-50/80 p-5">
+              <p className="text-sm font-semibold text-ink">Lesson / Innovation</p>
+              <p className="mt-3 text-sm leading-7 text-slate-700">{content.lessonPlanTitle || "-"}</p>
+            </article>
+            <article className="rounded-[24px] border border-slate-100 bg-slate-50/80 p-5">
+              <p className="text-sm font-semibold text-ink">Implemented On</p>
+              <p className="mt-3 text-sm leading-7 text-slate-700">{content.implementedDate || "-"}</p>
+            </article>
+            <article className="rounded-[24px] border border-slate-100 bg-slate-50/80 p-5">
+              <p className="text-sm font-semibold text-ink">Duration</p>
+              <p className="mt-3 text-sm leading-7 text-slate-700">
+                {content.durationMinutes ? `${content.durationMinutes} minutes` : "-"}
+              </p>
+            </article>
+            <article className="rounded-[24px] border border-slate-100 bg-slate-50/80 p-5">
+              <p className="text-sm font-semibold text-ink">Clip Link</p>
+              <p className="mt-3 break-all text-sm leading-7 text-slate-700">{content.clipLink || "-"}</p>
+            </article>
+          </div>
+          <div className="mt-4 grid gap-4 xl:grid-cols-2">
+            <article className="rounded-[24px] border border-primary/10 bg-primary/5 p-5">
+              <p className="text-sm font-semibold text-primary">Classroom Context</p>
+              <p className="mt-3 text-sm leading-7 text-slate-700">{content.classroomContext || "-"}</p>
+            </article>
+            <article className="rounded-[24px] border border-secondary/10 bg-secondary/5 p-5">
+              <p className="text-sm font-semibold text-secondary">Learning Focus</p>
+              <p className="mt-3 text-sm leading-7 text-slate-700">{content.learningFocus || "-"}</p>
+            </article>
+          </div>
+          <div className="mt-4 grid gap-4 xl:grid-cols-2">
+            <article className="rounded-[24px] border border-slate-100 bg-slate-50/80 p-5">
+              <p className="text-sm font-semibold text-ink">Evidence Note</p>
+              <p className="mt-3 text-sm leading-7 text-slate-700">{content.evidenceNote || "-"}</p>
+            </article>
+            <article className="rounded-[24px] border border-slate-100 bg-slate-50/80 p-5">
+              <p className="text-sm font-semibold text-ink">Question for DU</p>
+              <p className="mt-3 text-sm leading-7 text-slate-700">{content.duQuestion || "-"}</p>
+            </article>
+          </div>
+        </section>
+      );
+    }
+
+    if (section.kind === "reflection") {
+      return (
+        <section key={section.title} className="rounded-[30px] border border-slate-100 bg-white p-6">
+          <h4 className="font-display text-2xl font-bold text-ink">{section.title}</h4>
+          <div className="mt-5 grid gap-4 xl:grid-cols-2">
+            <article className="rounded-[24px] border border-slate-100 bg-slate-50/80 p-5">
+              <p className="text-sm font-semibold text-ink">What Happened</p>
+              <p className="mt-3 text-sm leading-7 text-slate-700">{content.whatHappened || "-"}</p>
+            </article>
+            <article className="rounded-[24px] border border-primary/10 bg-primary/5 p-5">
+              <p className="text-sm font-semibold text-primary">Proud Moment</p>
+              <p className="mt-3 text-sm leading-7 text-slate-700">{content.proudMoment || "-"}</p>
+            </article>
+          </div>
+          <div className="mt-4 grid gap-4 xl:grid-cols-2">
+            <article className="rounded-[24px] border border-slate-100 bg-slate-50/80 p-5">
+              <p className="text-sm font-semibold text-ink">Student Response</p>
+              <p className="mt-3 text-sm leading-7 text-slate-700">{content.studentResponse || "-"}</p>
+            </article>
+            <article className="rounded-[24px] border border-secondary/10 bg-secondary/5 p-5">
+              <p className="text-sm font-semibold text-secondary">Challenge Point</p>
+              <p className="mt-3 text-sm leading-7 text-slate-700">{content.challengePoint || "-"}</p>
+            </article>
+          </div>
+          <div className="mt-4 grid gap-4 xl:grid-cols-2">
+            <article className="rounded-[24px] border border-slate-100 bg-slate-50/80 p-5">
+              <p className="text-sm font-semibold text-ink">Evidence Collected</p>
+              <p className="mt-3 text-sm leading-7 text-slate-700">{content.evidenceCollected || "-"}</p>
+            </article>
+            <article className="rounded-[24px] border border-slate-100 bg-slate-50/80 p-5">
+              <p className="text-sm font-semibold text-ink">Teacher Reflection</p>
+              <p className="mt-3 text-sm leading-7 text-slate-700">{content.mentorReflection || "-"}</p>
+            </article>
+          </div>
+        </section>
+      );
+    }
+
+    return (
+      <section key={section.title} className="rounded-[30px] border border-slate-100 bg-white p-6">
+        <h4 className="font-display text-2xl font-bold text-ink">{section.title}</h4>
+        <div className="mt-5 grid gap-4 xl:grid-cols-2">
+          <article className="rounded-[24px] border border-primary/10 bg-primary/5 p-5">
+            <p className="text-sm font-semibold text-primary">Version 2.0</p>
+            <p className="mt-3 text-sm leading-7 text-slate-700">{content.versionNext || "-"}</p>
+          </article>
+          <article className="rounded-[24px] border border-slate-100 bg-slate-50/80 p-5">
+            <p className="text-sm font-semibold text-ink">Timeline</p>
+            <p className="mt-3 text-sm leading-7 text-slate-700">{content.nextTimeline || "-"}</p>
+          </article>
+          <article className="rounded-[24px] border border-slate-100 bg-slate-50/80 p-5">
+            <p className="text-sm font-semibold text-ink">Improvement Focus</p>
+            <p className="mt-3 text-sm leading-7 text-slate-700">{content.improvementFocus || "-"}</p>
+          </article>
+          <article className="rounded-[24px] border border-slate-100 bg-slate-50/80 p-5">
+            <p className="text-sm font-semibold text-ink">Success Indicator</p>
+            <p className="mt-3 text-sm leading-7 text-slate-700">{content.successIndicator || "-"}</p>
+          </article>
+        </div>
+        <div className="mt-4 grid gap-4 xl:grid-cols-2">
+          <article className="rounded-[24px] border border-secondary/10 bg-secondary/5 p-5">
+            <p className="text-sm font-semibold text-secondary">Support Needed</p>
+            <p className="mt-3 text-sm leading-7 text-slate-700">{content.supportNeeded || "-"}</p>
+          </article>
+          <article className="rounded-[24px] border border-slate-100 bg-slate-50/80 p-5">
+            <p className="text-sm font-semibold text-ink">Scale Plan</p>
+            <p className="mt-3 text-sm leading-7 text-slate-700">{content.scalePlan || "-"}</p>
+          </article>
+        </div>
+      </section>
+    );
+  };
+
+  return (
+    <div className="mt-8 space-y-6">
+      <div className="flex flex-wrap justify-end gap-3">
+        <button
+          type="button"
+          onClick={exportImage}
+          disabled={Boolean(downloading)}
+          className="brand-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {downloading === "image" ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <FileImage size={16} />
+          )}
+          Download PNG
+        </button>
+        <button
+          type="button"
+          onClick={exportPdf}
+          disabled={Boolean(downloading)}
+          className="brand-button-primary disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {downloading === "pdf" ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <FileText size={16} />
+          )}
+          Download PDF
+        </button>
+      </div>
+
+      <div ref={exportRef} className="space-y-6 bg-white">
+        <section className="rounded-[32px] border border-primary/10 bg-white p-6 shadow-[0_20px_60px_rgba(13,17,100,0.08)]">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <span className="brand-chip border-primary/10 bg-primary/5 text-primary">
+                <Award size={14} />
+                {report.badge}
+              </span>
+              <h3 className="mt-4 font-display text-3xl font-bold text-ink">Module 5 Report Card</h3>
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">
+                This reflection card captures the real classroom implementation, after-action reflection, and the version 2.0 growth plan from Module 5.
+              </p>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <div className="rounded-[22px] border border-slate-100 bg-slate-50/80 px-4 py-3 text-sm">
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Trainee</p>
+                  <p className="mt-2 font-semibold text-ink">{report.traineeName || "-"}</p>
+                  {report.traineeEmail ? <p className="mt-1 text-slate-500">{report.traineeEmail}</p> : null}
+                </div>
+                <div className="rounded-[22px] border border-slate-100 bg-slate-50/80 px-4 py-3 text-sm">
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Card Serial</p>
+                  <p className="mt-2 font-semibold text-ink">{report.cardSerial || "-"}</p>
+                  <p className="mt-1 text-slate-500">Generated {formatStamp(report.generatedAt)}</p>
+                </div>
+                <div className="rounded-[22px] border border-slate-100 bg-slate-50/80 px-4 py-3 text-sm">
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Post-test</p>
+                  <p className="mt-2 font-semibold text-ink">
+                    {report.score} / {report.totalQuestions}
+                  </p>
+                  <p className="mt-1 text-slate-500">Unlocked {report.unlockedModule}</p>
+                </div>
+              </div>
+            </div>
+            <div className="rounded-[28px] border border-secondary/10 bg-secondary/5 p-5 text-sm text-slate-700">
+              <p className="flex items-center gap-2 font-semibold text-secondary">
+                <Sparkles size={16} />
+                Reflection Status
+              </p>
+              <p className="mt-3 max-w-sm leading-7">
+                Classroom evidence is now captured. You are ready to move into the final post-test, satisfaction survey, and certificate stage of InSPIRE360.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {report.sections.map(renderSection)}
+      </div>
+    </div>
+  );
+}

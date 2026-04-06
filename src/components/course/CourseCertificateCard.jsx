@@ -1,0 +1,198 @@
+import React, { useRef, useState } from "react";
+import {
+  Award,
+  Download,
+  FileImage,
+  FileText,
+  Loader2,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
+
+const formatStamp = (value) => {
+  if (!value) return "Pending";
+  return new Intl.DateTimeFormat("th-TH", {
+    dateStyle: "medium",
+  }).format(new Date(value));
+};
+
+export default function CourseCertificateCard({ certificate }) {
+  const exportRef = useRef(null);
+  const [downloading, setDownloading] = useState("");
+
+  if (!certificate) return null;
+
+  const captureCard = async () => {
+    const node = exportRef.current;
+    if (!node) return null;
+    const { default: html2canvas } = await import("html2canvas");
+    return html2canvas(node, {
+      backgroundColor: "#ffffff",
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      windowWidth: node.scrollWidth,
+      windowHeight: node.scrollHeight,
+    });
+  };
+
+  const exportImage = async () => {
+    setDownloading("image");
+    try {
+      const canvas = await captureCard();
+      if (!canvas) return;
+      const link = document.createElement("a");
+      link.href = canvas.toDataURL("image/png", 1);
+      link.download = `certificate-${certificate.serialNumber || "inspire360"}.png`;
+      link.click();
+    } finally {
+      setDownloading("");
+    }
+  };
+
+  const exportPdf = async () => {
+    setDownloading("pdf");
+    try {
+      const canvas = await captureCard();
+      if (!canvas) return;
+      const { jsPDF } = await import("jspdf");
+      const pdf = new jsPDF("l", "mm", "a4");
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imageData = canvas.toDataURL("image/png", 1);
+      const ratio = Math.min(pageWidth / canvas.width, pageHeight / canvas.height);
+      const imageWidth = canvas.width * ratio;
+      const imageHeight = canvas.height * ratio;
+      const offsetX = (pageWidth - imageWidth) / 2;
+      const offsetY = (pageHeight - imageHeight) / 2;
+      pdf.addImage(imageData, "PNG", offsetX, offsetY, imageWidth, imageHeight, undefined, "FAST");
+      pdf.save(`certificate-${certificate.serialNumber || "inspire360"}.pdf`);
+    } finally {
+      setDownloading("");
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap justify-end gap-3">
+        <button
+          type="button"
+          onClick={exportImage}
+          disabled={Boolean(downloading)}
+          className="brand-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {downloading === "image" ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <FileImage size={16} />
+          )}
+          Download PNG
+        </button>
+        <button
+          type="button"
+          onClick={exportPdf}
+          disabled={Boolean(downloading)}
+          className="brand-button-primary disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {downloading === "pdf" ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <FileText size={16} />
+          )}
+          Download PDF
+        </button>
+      </div>
+
+      <div
+        ref={exportRef}
+        className="overflow-hidden rounded-[36px] border border-primary/15 bg-[radial-gradient(circle_at_top_left,_rgba(247,141,96,0.32),_transparent_36%),linear-gradient(135deg,#0D1164_0%,#640D5F_45%,#EA2264_78%,#F78D60_100%)] p-8 text-white shadow-[0_30px_120px_rgba(13,17,100,0.26)] md:p-12"
+      >
+        <div className="rounded-[30px] border border-white/20 bg-white/10 p-8 backdrop-blur-sm">
+          <div className="flex flex-wrap items-start justify-between gap-6">
+            <div>
+              <p className="text-xs uppercase tracking-[0.28em] text-white/65">InSPIRE360</p>
+              <h3 className="mt-4 font-display text-4xl font-bold md:text-5xl">
+                {certificate.title}
+              </h3>
+              <p className="mt-4 max-w-3xl text-sm leading-8 text-white/80 md:text-base">
+                This certifies that
+              </p>
+              <p className="mt-3 font-display text-4xl font-bold md:text-6xl">
+                {certificate.traineeName}
+              </p>
+              <p className="mt-4 max-w-3xl text-sm leading-8 text-white/80 md:text-base">
+                {certificate.statement}
+              </p>
+              <p className="mt-4 text-lg font-semibold text-white/92">{certificate.courseTitle}</p>
+            </div>
+
+            <div className="grid gap-3 text-sm md:min-w-[260px]">
+              <div className="rounded-[24px] border border-white/15 bg-white/10 px-4 py-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-white/55">Issued</p>
+                <p className="mt-2 font-semibold text-white">{formatStamp(certificate.issuedAt)}</p>
+              </div>
+              <div className="rounded-[24px] border border-white/15 bg-white/10 px-4 py-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-white/55">Serial</p>
+                <p className="mt-2 font-semibold text-white">{certificate.serialNumber}</p>
+              </div>
+              <div className="rounded-[24px] border border-white/15 bg-white/10 px-4 py-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-white/55">Email</p>
+                <p className="mt-2 font-semibold text-white">{certificate.traineeEmail || "-"}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-8 grid gap-4 xl:grid-cols-[1.3fr_1fr]">
+            <div className="rounded-[28px] border border-white/15 bg-white/10 p-5">
+              <p className="flex items-center gap-2 text-sm font-semibold text-white/88">
+                <Sparkles size={16} />
+                Completion Highlights
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {certificate.badges?.length ? (
+                  certificate.badges.map((badge) => (
+                    <span
+                      key={badge}
+                      className="rounded-full border border-white/15 bg-white/10 px-3 py-2 text-xs font-semibold text-white/88"
+                    >
+                      {badge}
+                    </span>
+                  ))
+                ) : (
+                  <span className="rounded-full border border-white/15 bg-white/10 px-3 py-2 text-xs font-semibold text-white/88">
+                    InSPIRE360 Graduate
+                  </span>
+                )}
+              </div>
+              {certificate.moduleTitles?.length ? (
+                <div className="mt-5 space-y-2 text-sm leading-7 text-white/80">
+                  {certificate.moduleTitles.map((title) => (
+                    <p key={title}>{title}</p>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="rounded-[28px] border border-white/15 bg-white/10 p-5">
+              <p className="flex items-center gap-2 text-sm font-semibold text-white/88">
+                <ShieldCheck size={16} />
+                Verification Note
+              </p>
+              <p className="mt-4 text-sm leading-7 text-white/80">
+                This certificate is generated from the learner's recorded completion data, final survey, and final assessment flow inside the InSPIRE360 platform.
+              </p>
+              <div className="mt-6 flex items-center gap-3 text-sm text-white/88">
+                <Award size={18} />
+                Ready for download in both PNG and PDF formats
+              </div>
+              <div className="mt-4 flex items-center gap-3 text-sm text-white/88">
+                <Download size={18} />
+                Keep the serial number for verification and portfolio use
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
