@@ -184,22 +184,36 @@ const hasPayloadContent = (payload) => {
   ].some(filled);
 };
 
+const ratingPalette = {
+  1: "border-slate-200 bg-slate-100 text-slate-600",
+  2: "border-warm/30 bg-warm/15 text-[#a24619]",
+  3: "border-secondary/25 bg-secondary/10 text-secondary",
+  4: "border-accent/25 bg-accent/10 text-accent",
+  5: "border-primary/25 bg-primary text-white",
+};
+
 const RatingButtons = ({ value, onSelect }) => (
-  <div className="mt-3 flex flex-wrap gap-2">
-    {[1, 2, 3, 4, 5].map((score) => (
-      <button
-        key={score}
-        type="button"
-        onClick={() => onSelect(score)}
-        className={`h-9 w-9 rounded-2xl border text-sm font-semibold transition ${
-          value === score
-            ? "border-primary bg-primary text-white"
-            : "border-slate-200 bg-white text-slate-500 hover:border-accent/25"
-        }`}
-      >
-        {score}
-      </button>
-    ))}
+  <div className="mt-3 space-y-3">
+    <div className="grid grid-cols-5 gap-2">
+      {[1, 2, 3, 4, 5].map((score) => (
+        <button
+          key={score}
+          type="button"
+          onClick={() => onSelect(score)}
+          className={`rounded-[18px] border px-2 py-3 text-sm font-semibold transition ${
+            value === score
+              ? ratingPalette[score]
+              : "border-slate-200 bg-white text-slate-500 hover:border-primary/20"
+          }`}
+        >
+          {score}
+        </button>
+      ))}
+    </div>
+    <div className="flex flex-wrap items-center gap-2 text-xs">
+      <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-slate-600">1 = น้อยมาก</span>
+      <span className="rounded-full border border-primary/10 bg-primary/5 px-3 py-1 text-primary">5 = สูงมาก</span>
+    </div>
   </div>
 );
 
@@ -270,7 +284,7 @@ export default function ModuleOneMission({
             ? savedResponse.strategies
             : lesson.content.starterSlots.map((slot, index) => ({
                 id: slot,
-                title: `Strategy ${index + 1}`,
+                title: `กลยุทธ์ ${index + 1}`,
                 strategyType: index === 0 ? "SO" : index === 1 ? "WO" : "ST",
                 internalSignal: "",
                 externalSignal: "",
@@ -335,16 +349,16 @@ export default function ModuleOneMission({
     const serialized = JSON.stringify(payload);
     if (serialized === lastPersistedPayloadRef.current) return undefined;
 
-    setAutosaveState("Saving draft...");
+    setAutosaveState("กำลังบันทึกคำตอบอัตโนมัติ...");
     const timeoutId = window.setTimeout(async () => {
       try {
         await onDraftSave(payload);
         lastPersistedPayloadRef.current = serialized;
-        setAutosaveState("Draft autosaved");
+        setAutosaveState("บันทึกคำตอบอัตโนมัติแล้ว");
         window.setTimeout(() => setAutosaveState(""), 1800);
       } catch (error) {
         console.error("Failed to autosave mission draft:", error);
-        setAutosaveState("Autosave pending");
+        setAutosaveState("ยังบันทึกอัตโนมัติไม่สำเร็จ");
       }
     }, 900);
 
@@ -356,8 +370,8 @@ export default function ModuleOneMission({
     try {
       await onSave(payload);
       lastPersistedPayloadRef.current = JSON.stringify(payload);
-      setAutosaveState("Draft autosaved");
-      setReward(lesson.content.aiMentor?.reward || "Mission saved");
+      setAutosaveState("บันทึกคำตอบอัตโนมัติแล้ว");
+      setReward(lesson.content.aiMentor?.reward || "บันทึกภารกิจเรียบร้อย");
       window.setTimeout(() => setReward(""), 2500);
     } finally {
       setSaving(false);
@@ -403,7 +417,7 @@ export default function ModuleOneMission({
                 token.lensCode,
                 token.weight,
               )}`}
-              title={`Use ${token.text}`}
+              title={`เติมคำว่า ${token.text}`}
             >
               <span className="rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                 {token.lensCode}
@@ -420,31 +434,34 @@ export default function ModuleOneMission({
     </div>
   );
 
-  const renderReward = () =>
-    reward ? (
-      <div className="mb-5 flex items-center gap-3 rounded-[24px] border border-accent/20 bg-accent/5 px-4 py-4 text-sm text-slate-700">
+  const renderReward = () => (
+    <div className="mb-5 min-h-[76px]">
+      {reward ? (
+        <div className="flex items-center gap-3 rounded-[24px] border border-accent/20 bg-accent/5 px-4 py-4 text-sm text-slate-700">
         <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-r from-primary via-secondary to-accent text-white">
           <Sparkles size={16} />
         </div>
         <div>
-          <p className="font-semibold text-ink">Micro-reward unlocked</p>
+          <p className="font-semibold text-ink">รางวัลใจมาแล้ว</p>
           <p className="mt-1">{reward}</p>
         </div>
-      </div>
-    ) : null;
+        </div>
+      ) : null}
+    </div>
+  );
 
   const renderStateBar = () => (
-    <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-slate-100 bg-slate-50/80 px-4 py-3 text-sm">
+    <div className="mb-5 min-h-[84px] rounded-[24px] border border-slate-100 bg-slate-50/80 px-4 py-3 text-sm">
+      <div className="flex h-full flex-wrap items-center justify-between gap-3">
       <div className="text-slate-600">
         {isCompleted
-          ? "Mission นี้ผ่านแล้ว แก้คำตอบและระบบจะบันทึกให้อัตโนมัติ"
-          : "ระบบจะบันทึกคำตอบให้อัตโนมัติระหว่างพิมพ์ และกดปุ่มเมื่อพร้อมส่งภารกิจ"}
+          ? "ภารกิจนี้ผ่านแล้ว คุณยังแก้คำตอบต่อได้ และระบบจะช่วยบันทึกให้อัตโนมัติ"
+          : "ระบบจะบันทึกคำตอบให้อัตโนมัติระหว่างพิมพ์ และค่อยกดปุ่มเมื่อพร้อมส่งภารกิจ"}
       </div>
-      {autosaveState ? (
         <span className="rounded-full border border-primary/10 bg-primary/5 px-3 py-1 font-medium text-primary">
-          {autosaveState}
+          {autosaveState || "ระบบกำลังดูแลการบันทึกคำตอบให้อัตโนมัติ"}
         </span>
-      ) : null}
+      </div>
     </div>
   );
 
@@ -498,9 +515,39 @@ export default function ModuleOneMission({
             </button>
           ))}
         </div>
+        <div className="mt-5 rounded-[24px] border border-primary/10 bg-primary/5 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-primary">กำลังทำ {currentPart.title}</p>
+              <p className="mt-1 text-sm leading-7 text-slate-600">{currentPart.description}</p>
+            </div>
+            <span className="rounded-full border border-white/80 bg-white px-3 py-2 text-sm font-semibold text-primary">
+              ช่วงที่ {partIndex + 1}/{parts.length}
+            </span>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {currentPart.questions.map((question, index) => {
+              const answered = filled(draft.answers?.[question.id]);
+              return (
+                <button
+                  key={question.id}
+                  type="button"
+                  onClick={() => document.getElementById(question.id)?.scrollIntoView({ behavior: "smooth", block: "center" })}
+                  className={`rounded-full border px-3 py-2 text-xs font-semibold transition ${
+                    answered
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : "border-white/90 bg-white text-slate-500 hover:border-primary/20"
+                  }`}
+                >
+                  ข้อ {index + 1}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         <div className="mt-5 space-y-4">
           {currentPart.questions.map((question, index) => (
-            <label key={question.id} className="block rounded-[26px] border border-slate-100 bg-white p-5">
+            <label id={question.id} key={question.id} className="block rounded-[26px] border border-slate-100 bg-white p-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
@@ -514,7 +561,7 @@ export default function ModuleOneMission({
               </div>
               <p className="mt-4 text-sm leading-7 text-slate-600">{question.prompt}</p>
               <textarea
-                rows={4}
+                rows={5}
                 value={draft.answers?.[question.id] || ""}
                 onChange={(event) =>
                   setDraft((previous) => ({
@@ -522,26 +569,26 @@ export default function ModuleOneMission({
                     answers: { ...previous.answers, [question.id]: event.target.value },
                   }))
                 }
-                className="mt-4 w-full rounded-[22px] border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm leading-7 outline-none transition focus:border-accent/30 focus:ring-4 focus:ring-accent/10"
-                placeholder="พิมพ์คำตอบของคุณครู"
+                className="mt-4 min-h-[168px] w-full resize-y rounded-[22px] border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm leading-7 outline-none transition focus:border-accent/30 focus:ring-4 focus:ring-accent/10"
+                placeholder="พิมพ์คำตอบของคุณครูตรงนี้ได้เลย ระบบจะช่วยบันทึกให้อัตโนมัติ"
               />
             </label>
           ))}
         </div>
         <label className="mt-5 block rounded-[26px] border border-slate-100 bg-white p-5">
-          <p className="text-sm font-semibold text-ink">AI Mentor Reflection</p>
+          <p className="text-sm font-semibold text-ink">สรุปสิ่งที่เห็นชัดขึ้นจาก Part นี้</p>
           <p className="mt-2 text-sm leading-7 text-slate-600">{lesson.content.aiMentor.probe}</p>
           <textarea
             rows={4}
             value={draft.summary || ""}
             onChange={(event) => setDraft((previous) => ({ ...previous, summary: event.target.value }))}
-            className="mt-4 w-full rounded-[22px] border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm leading-7 outline-none transition focus:border-accent/30 focus:ring-4 focus:ring-accent/10"
-            placeholder="สรุปว่าตอนนี้อะไรชัดขึ้นที่สุด"
+            className="mt-4 min-h-[144px] w-full resize-y rounded-[22px] border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm leading-7 outline-none transition focus:border-accent/30 focus:ring-4 focus:ring-accent/10"
+            placeholder="สรุปว่าตอนนี้คุณครูเห็นภาพจุดแข็ง จุดอ่อน หรือสิ่งที่ควรโฟกัสชัดขึ้นอย่างไร"
           />
         </label>
         {renderSaveButton(
           ready,
-          isCompleted ? "Update mission answers" : "Complete mission",
+          isCompleted ? "อัปเดตคำตอบภารกิจ" : "ส่งภารกิจนี้",
           () => buildDraftPayload({ lesson, draft, strategySource, selectedStrategy }),
         )}
       </div>
@@ -572,21 +619,21 @@ export default function ModuleOneMission({
         {renderReward()}
         {renderStateBar()}
         <div className="rounded-[26px] border border-secondary/10 bg-secondary/5 p-5">
-          <p className="text-sm font-semibold text-secondary">AI Mentor Guidance</p>
+          <p className="text-sm font-semibold text-secondary">AI Mentor ชวนคิด</p>
           <p className="mt-3 text-sm leading-7 text-slate-700">{lesson.content.aiMentor.intro}</p>
           <p className="mt-3 rounded-[20px] border border-white/70 bg-white/80 px-4 py-3 text-sm leading-7 text-slate-600">
             {lesson.content.aiMentor.probe}
           </p>
           <div className="mt-4 flex flex-wrap gap-3 text-xs uppercase tracking-[0.18em] text-slate-400">
-            <span>Click word cloud toเติมลงช่องที่กำลังโฟกัส</span>
+            <span>กดคำจาก word cloud เพื่อเติมลงในช่องที่กำลังเขียนอยู่</span>
             <span>
-              Active field:{" "}
+              ช่องที่กำลังโฟกัส:{" "}
               <span className="font-semibold text-primary">
                 {focusedField?.field === "internalSignal"
-                  ? "Internal Signal"
+                  ? "สัญญาณภายใน"
                   : focusedField?.field === "externalSignal"
-                    ? "External Signal"
-                    : "Auto assign"}
+                    ? "สัญญาณภายนอก"
+                    : "ระบบเลือกให้"}
               </span>
             </span>
           </div>
@@ -594,19 +641,19 @@ export default function ModuleOneMission({
 
         <div className="mt-5 grid gap-4 xl:grid-cols-3">
           {renderCloudGroup({
-            title: "Internal Signal Cloud",
+            title: "คลังสัญญาณภายใน",
             helper: "ดึงจาก Mission 1 เพื่อหยิบจุดแข็งหรือจุดอ่อนมาเป็นฐานคิดของกลยุทธ์",
             tokens: internalCloud,
-            emptyText: "ยังไม่มีคำตอบจาก Mission 1 มากพอสำหรับสร้าง internal cloud",
+            emptyText: "ยังไม่มีคำตอบจาก Mission 1 มากพอสำหรับสร้างคลังสัญญาณภายใน",
           })}
           {renderCloudGroup({
-            title: "Opportunity Cloud",
+            title: "คลังโอกาส",
             helper: "ดึงจาก Mission 2 เฉพาะคำตอบโอกาส เพื่อจับคู่ทำ SO หรือ WO strategy",
             tokens: opportunityCloud,
             emptyText: "ยังไม่มีคำตอบฝั่งโอกาสจาก Mission 2",
           })}
           {renderCloudGroup({
-            title: "Threat Cloud",
+            title: "คลังอุปสรรค",
             helper: "ดึงจาก Mission 2 เฉพาะคำตอบอุปสรรค เพื่อจับคู่ทำ ST หรือ WT strategy",
             tokens: threatCloud,
             emptyText: "ยังไม่มีคำตอบฝั่งอุปสรรคจาก Mission 2",
@@ -618,8 +665,8 @@ export default function ModuleOneMission({
             <article key={strategy.id} className="rounded-[28px] border border-slate-100 bg-white p-5">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Strategy Card {index + 1}</p>
-                  <p className="mt-2 text-xl font-semibold text-ink">{strategy.title || `Strategy ${index + 1}`}</p>
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">การ์ดกลยุทธ์ {index + 1}</p>
+                  <p className="mt-2 text-xl font-semibold text-ink">{strategy.title || `กลยุทธ์ ${index + 1}`}</p>
                 </div>
                 <select
                   value={strategy.strategyType || lesson.content.strategyTypes[index % lesson.content.strategyTypes.length]?.value}
@@ -641,9 +688,59 @@ export default function ModuleOneMission({
                 </select>
               </div>
 
+              <div className="mt-4 rounded-[22px] border border-primary/10 bg-primary/5 p-4">
+                <div className="flex flex-wrap gap-2">
+                  {(() => {
+                    const signalPairs =
+                      strategy.strategyType === "SO"
+                        ? [
+                            { field: "internalSignal", label: "S", tokens: internalCloud.filter((token) => token.lensCode === "S") },
+                            { field: "externalSignal", label: "O", tokens: opportunityCloud },
+                          ]
+                        : strategy.strategyType === "WO"
+                          ? [
+                              { field: "internalSignal", label: "W", tokens: internalCloud.filter((token) => token.lensCode === "W") },
+                              { field: "externalSignal", label: "O", tokens: opportunityCloud },
+                            ]
+                          : strategy.strategyType === "WT"
+                            ? [
+                                { field: "internalSignal", label: "W", tokens: internalCloud.filter((token) => token.lensCode === "W") },
+                                { field: "externalSignal", label: "T", tokens: threatCloud },
+                              ]
+                            : [
+                                { field: "internalSignal", label: "S", tokens: internalCloud.filter((token) => token.lensCode === "S") },
+                                { field: "externalSignal", label: "T", tokens: threatCloud },
+                              ];
+
+                    return signalPairs.map((group) => (
+                      <div key={`${strategy.id}-${group.field}`} className="flex-1 rounded-[18px] border border-white/80 bg-white p-3">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                          คำแนะนำเร็วฝั่ง {group.label}
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {group.tokens.slice(0, 5).map((token) => (
+                            <button
+                              key={`${strategy.id}-${group.field}-${token.id}`}
+                              type="button"
+                              onClick={() => injectCloudWord(strategy.id, group.field, token.text)}
+                              className={`rounded-full border px-3 py-2 text-xs font-semibold transition hover:-translate-y-0.5 ${getCloudTone(
+                                token.lensCode,
+                                token.weight,
+                              )}`}
+                            >
+                              {token.text}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              </div>
+
               <div className="mt-5 grid gap-4 lg:grid-cols-2">
                 <label className="rounded-[22px] border border-slate-100 bg-slate-50/80 p-4">
-                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Title</p>
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">ชื่อกลยุทธ์</p>
                   <input
                     value={strategy.title || ""}
                     onChange={(event) =>
@@ -659,7 +756,7 @@ export default function ModuleOneMission({
                   />
                 </label>
                 <label className="rounded-[22px] border border-slate-100 bg-slate-50/80 p-4">
-                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Success Signal</p>
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">สัญญาณความสำเร็จ</p>
                   <input
                     value={strategy.successSignal || ""}
                     onChange={(event) =>
@@ -685,7 +782,7 @@ export default function ModuleOneMission({
                   }`}
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold text-ink">Internal Signal</p>
+                    <p className="text-sm font-semibold text-ink">สัญญาณภายใน</p>
                     <span className="brand-chip border-slate-200 bg-white text-slate-500">S / W</span>
                   </div>
                   <p className="mt-2 text-sm leading-7 text-slate-500">
@@ -716,7 +813,7 @@ export default function ModuleOneMission({
                   }`}
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold text-ink">External Signal</p>
+                    <p className="text-sm font-semibold text-ink">สัญญาณภายนอก</p>
                     <span className="brand-chip border-slate-200 bg-white text-slate-500">O / T</span>
                   </div>
                   <p className="mt-2 text-sm leading-7 text-slate-500">
@@ -741,7 +838,7 @@ export default function ModuleOneMission({
               </div>
 
               <label className="mt-4 block rounded-[24px] border border-slate-100 bg-slate-50/80 p-4">
-                <p className="text-sm font-semibold text-ink">Strategy Statement</p>
+                <p className="text-sm font-semibold text-ink">ข้อความกลยุทธ์</p>
                 <p className="mt-2 text-sm leading-7 text-slate-500">
                   เขียนกลยุทธ์ที่เกิดจากการจับคู่ internal + external signal ให้ชัดว่าใครทำอะไร เปลี่ยนอะไร และเพราะอะไร
                 </p>
@@ -765,7 +862,7 @@ export default function ModuleOneMission({
         </div>
 
         <label className="mt-5 block rounded-[26px] border border-slate-100 bg-white p-5">
-          <p className="text-sm font-semibold text-ink">AI Mentor Reflection</p>
+          <p className="text-sm font-semibold text-ink">สรุปภาพรวมของ 3 กลยุทธ์</p>
           <p className="mt-2 text-sm leading-7 text-slate-600">{lesson.content.aiMentor.probe}</p>
           <textarea
             rows={4}
@@ -778,7 +875,7 @@ export default function ModuleOneMission({
 
         {renderSaveButton(
           ready,
-          isCompleted ? "Update strategy fusion" : "Lock 3 TOW strategies",
+          isCompleted ? "อัปเดตการจับคู่ TOW Matrix" : "ยืนยัน 3 กลยุทธ์ TOW Matrix",
           () => buildDraftPayload({ lesson, draft, strategySource, selectedStrategy }),
         )}
       </div>
@@ -826,7 +923,7 @@ export default function ModuleOneMission({
                     <p className="mt-2 text-sm leading-7 text-slate-600">{strategy.strategyText}</p>
                   </div>
                   <div className="rounded-[22px] border border-primary/10 bg-primary/5 px-4 py-3 text-right">
-                    <p className="text-xs uppercase tracking-[0.18em] text-primary/60">Total</p>
+                    <p className="text-xs uppercase tracking-[0.18em] text-primary/60">คะแนนรวม</p>
                     <p className="text-2xl font-bold text-primary">{total}</p>
                   </div>
                 </div>
@@ -868,7 +965,7 @@ export default function ModuleOneMission({
           })}
         </div>
         <label className="mt-5 block rounded-[26px] border border-slate-100 bg-white p-5">
-          <p className="text-sm font-semibold text-ink">Selection reason</p>
+          <p className="text-sm font-semibold text-ink">เหตุผลที่เลือกกลยุทธ์นี้เป็นลำดับแรก</p>
           <textarea
             rows={4}
             value={draft.selectionReason || ""}
@@ -881,7 +978,7 @@ export default function ModuleOneMission({
         </label>
         {renderSaveButton(
           ready,
-          isCompleted ? "Update selected strategy" : "Lock priority strategy",
+          isCompleted ? "อัปเดตกลยุทธ์หลัก" : "ยืนยันกลยุทธ์หลักที่ต้องทำก่อน",
           () => buildDraftPayload({ lesson, draft, strategySource, selectedStrategy }),
         )}
       </div>
@@ -902,7 +999,7 @@ export default function ModuleOneMission({
       {renderReward()}
       {renderStateBar()}
       <div className="rounded-[26px] border border-primary/10 bg-primary/5 p-5">
-        <p className="text-sm font-semibold text-primary">Selected strategy</p>
+        <p className="text-sm font-semibold text-primary">กลยุทธ์ที่เลือกไว้เพื่อทำ Action Plan</p>
         <p className="mt-3 text-xl font-semibold text-ink">
           {selectedStrategy?.title || draft.strategyTitle || "ยังไม่ได้เลือกกลยุทธ์หลัก"}
         </p>
@@ -954,7 +1051,7 @@ export default function ModuleOneMission({
       </div>
 
       <label className="mt-5 block rounded-[26px] border border-slate-100 bg-white p-5">
-        <p className="text-sm font-semibold text-ink">Support needed from DU / network</p>
+        <p className="text-sm font-semibold text-ink">แรงหนุนที่อยากได้จาก DU / เครือข่าย</p>
         <textarea
           rows={4}
           value={draft.supportNeeded || ""}
@@ -968,7 +1065,7 @@ export default function ModuleOneMission({
 
       {renderSaveButton(
         ready,
-        isCompleted ? "Update PDCA Action Plan" : "Save PDCA Action Plan",
+        isCompleted ? "อัปเดต Action Plan แบบ PDCA" : "บันทึก Action Plan แบบ PDCA",
         () => buildDraftPayload({ lesson, draft, strategySource, selectedStrategy }),
       )}
     </div>

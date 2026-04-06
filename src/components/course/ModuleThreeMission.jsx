@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { CheckCircle2, ExternalLink, Loader2, Sparkles } from "lucide-react";
+import { CheckCircle2, Loader2, Sparkles } from "lucide-react";
 
 const filled = (value) => Boolean(String(value || "").trim());
 
@@ -54,7 +54,7 @@ const hasContent = (payload) => JSON.stringify(payload).replace(/[\s":,{}\[\]]/g
 
 const SectionIntro = ({ intro, helper }) => (
   <div className="rounded-[24px] border border-secondary/10 bg-secondary/5 p-5">
-    <p className="text-sm font-semibold text-secondary">AI Mentor Guidance</p>
+    <p className="text-sm font-semibold text-secondary">AI Mentor ชวนคิด</p>
     <p className="mt-3 text-sm leading-7 text-slate-700">{intro}</p>
     {helper ? <p className="mt-3 text-sm leading-7 text-slate-600">{helper}</p> : null}
   </div>
@@ -159,16 +159,16 @@ export default function ModuleThreeMission({
     const serialized = JSON.stringify(payload);
     if (serialized === lastPayloadRef.current) return undefined;
 
-    setAutosaveState("Saving draft...");
+    setAutosaveState("กำลังบันทึกคำตอบอัตโนมัติ...");
     const timeoutId = window.setTimeout(async () => {
       try {
         await onDraftSave(payload);
         lastPayloadRef.current = serialized;
-        setAutosaveState("Draft autosaved");
+        setAutosaveState("บันทึกคำตอบอัตโนมัติแล้ว");
         window.setTimeout(() => setAutosaveState(""), 1800);
       } catch (error) {
         console.error("Failed to autosave Module 3 draft:", error);
-        setAutosaveState("Autosave pending");
+        setAutosaveState("ยังบันทึกอัตโนมัติไม่สำเร็จ");
       }
     }, 900);
 
@@ -181,8 +181,8 @@ export default function ModuleThreeMission({
       const payload = buildPayload(lesson, draft);
       await onSave(payload);
       lastPayloadRef.current = JSON.stringify(payload);
-      setAutosaveState("Draft autosaved");
-      setReward(lesson.content.aiMentor?.reward || "Mission saved");
+      setAutosaveState("บันทึกคำตอบอัตโนมัติแล้ว");
+      setReward(lesson.content.aiMentor?.reward || "บันทึกภารกิจเรียบร้อย");
       window.setTimeout(() => setReward(""), 2200);
     } finally {
       setSaving(false);
@@ -198,11 +198,11 @@ export default function ModuleThreeMission({
       ) : null}
       <div className="mb-4 flex flex-wrap items-center gap-3 text-sm">
         <span className="rounded-full border border-primary/10 bg-primary/5 px-3 py-2 text-primary">
-          {autosaveState || "Autosave active"}
+          {autosaveState || "ระบบกำลังดูแลการบันทึกคำตอบให้อัตโนมัติ"}
         </span>
         {isCompleted ? (
           <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-700">
-            Mission completed
+            ภารกิจนี้ผ่านแล้ว
           </span>
         ) : null}
       </div>
@@ -215,7 +215,7 @@ export default function ModuleThreeMission({
       {isCompleted ? (
         <div className="flex items-center gap-2 rounded-full border border-primary/10 bg-primary/5 px-4 py-2 text-sm font-semibold text-primary">
           <CheckCircle2 size={16} />
-          Completed
+          ทำภารกิจนี้เสร็จแล้ว
         </div>
       ) : (
         <button
@@ -225,7 +225,7 @@ export default function ModuleThreeMission({
           className="brand-button-primary disabled:cursor-not-allowed disabled:opacity-60"
         >
           {saving ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-          Complete mission
+          บันทึกภารกิจ
         </button>
       )}
     </div>
@@ -233,79 +233,68 @@ export default function ModuleThreeMission({
 
   if (lesson.activityType === "module3_idea_billboard") {
     const ready =
-      [draft.projectName, draft.painPoint, draft.solution, draft.adviceRequest].every(filled) &&
-      [draft.boardEvidence, draft.screenshotEvidence].some(filled);
+      [draft.projectName, draft.painPoint, draft.solution, draft.adviceRequest, draft.screenshotEvidence].every(filled);
 
     return (
       <div>
         {renderTop(
-          "Turn your 30-day plan into a short, clear council post so other teachers can quickly understand the idea and help you improve it.",
+          "ย่อแผน 30 วันของคุณให้เป็นโพสต์สั้น ชัด และน่าอ่านบน Padlet ด้านล่าง จากนั้นส่งลิงก์ภาพแคปหน้าจอเพียงอย่างเดียวเพื่อยืนยันการร่วมวง PLC",
         )}
         {moduleTwoSmart?.commitment ? (
           <div className="mt-5 rounded-[24px] border border-primary/10 bg-primary/5 px-4 py-4 text-sm leading-7 text-slate-700">
-            SMART promise from Module 2: {moduleTwoSmart.commitment}
+            SMART Objective จาก Module 2: {moduleTwoSmart.commitment}
           </div>
         ) : null}
         <div className="mt-5 rounded-[28px] border border-slate-100 bg-white p-5">
-          <Field label="Project Name">
+          <Field label="ชื่อโปรเจกต์">
             <Input
               value={draft.projectName}
               onChange={(event) => setDraft((previous) => ({ ...previous, projectName: event.target.value }))}
-              placeholder="Name the 30-day project you want to post"
+              placeholder="ชื่อแผนหรือโปรเจกต์ 30 วันที่จะนำไปโพสต์"
             />
           </Field>
-          <Field label="Pain Point" helper="State the problem in 1-2 short lines.">
+          <Field label="Pain Point" helper="สรุปปัญหาที่อยากแก้สั้น ๆ 1-2 บรรทัด">
             <TextArea
               value={draft.painPoint}
               onChange={(event) => setDraft((previous) => ({ ...previous, painPoint: event.target.value }))}
-              placeholder="What classroom pain point are you trying to solve?"
+              placeholder="อธิบายปัญหาหลักที่อยากแก้ในห้องเรียน"
               rows={4}
             />
           </Field>
-          <Field label="Solution" helper="Summarize the 30-day action you plan to run.">
+          <Field label="ไอเดียที่จะทำ" helper="สรุปแผน 30 วันที่คุณตั้งใจจะทำ">
             <TextArea
               value={draft.solution}
               onChange={(event) => setDraft((previous) => ({ ...previous, solution: event.target.value }))}
-              placeholder="Describe the core idea and what you will do in the next 30 days"
+              placeholder="เล่าว่าจะทำอะไรบ้าง และคาดหวังความเปลี่ยนแปลงแบบไหน"
               rows={5}
             />
           </Field>
-          <Field label="What help do you want from the council?">
+          <Field label="อยากให้เพื่อนครูช่วยแนะนำเรื่องอะไร">
             <TextArea
               value={draft.adviceRequest}
               onChange={(event) => setDraft((previous) => ({ ...previous, adviceRequest: event.target.value }))}
-              placeholder="What advice or ideas do you want peers to suggest?"
+              placeholder="เช่น อยากได้ไอเดียกระตุ้นผู้เรียน หรือแนวทางรับมือความกังวลบางอย่าง"
               rows={4}
             />
           </Field>
         </div>
+        <div className="mt-5 overflow-hidden rounded-[28px] border border-slate-100 bg-white">
+          <iframe
+            src={lesson.content.padletEmbedUrl}
+            title="Padlet Idea Billboard"
+            className="h-[620px] w-full border-0"
+            loading="lazy"
+            allow="camera;microphone;geolocation;display-capture;clipboard-write"
+          />
+        </div>
         <div className="mt-5 rounded-[28px] border border-slate-100 bg-white p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm font-semibold text-ink">Post evidence</p>
-            <a
-              href={lesson.content.boardUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="brand-button-secondary"
-            >
-              Open Padlet
-              <ExternalLink size={16} />
-            </a>
-          </div>
-          <Field label="Padlet post link">
-            <Input
-              value={draft.boardEvidence}
-              onChange={(event) => setDraft((previous) => ({ ...previous, boardEvidence: event.target.value }))}
-              placeholder="Paste the link to your Padlet post"
-            />
-          </Field>
-          <Field label="Screenshot evidence link">
+          <Field label="ลิงก์ภาพแคปหน้าจอการโพสต์">
             <Input
               value={draft.screenshotEvidence}
               onChange={(event) =>
                 setDraft((previous) => ({ ...previous, screenshotEvidence: event.target.value }))
               }
-              placeholder="Paste a Drive link or image link for your screenshot"
+              placeholder="แนบลิงก์ภาพแคปหน้าจอจาก Google Drive หรือพื้นที่เก็บไฟล์อื่น"
             />
           </Field>
         </div>
@@ -315,16 +304,7 @@ export default function ModuleThreeMission({
   }
 
   if (lesson.activityType === "module3_mastermind_comments") {
-    const ready = [
-      draft.commentOneRole,
-      draft.commentOneTarget,
-      draft.commentOneText,
-      draft.commentOneEvidence,
-      draft.commentTwoRole,
-      draft.commentTwoTarget,
-      draft.commentTwoText,
-      draft.commentTwoEvidence,
-    ].every(filled);
+    const ready = [draft.commentOneRole, draft.commentOneEvidence, draft.commentTwoRole, draft.commentTwoEvidence].every(filled);
 
     const renderRolePicker = (value, onPick) => (
       <div className="mt-3 grid gap-3 md:grid-cols-3">
@@ -347,13 +327,13 @@ export default function ModuleThreeMission({
     );
 
     return (
-      <div>
-        {renderTop(
-          "Step into the council as a constructive peer, not a judge. Choose a role, leave helpful comments, and widen the project owner's perspective.",
-        )}
-        <div className="mt-5 overflow-hidden rounded-[28px] border border-slate-100 bg-white">
-          <iframe
-            src={lesson.content.padletEmbedUrl}
+        <div>
+          {renderTop(
+            "เลือกบทบาทในการคอมเมนต์ 2 ครั้ง แล้วส่งลิงก์ภาพแคปหน้าจอของแต่ละคอมเมนต์ก็เพียงพอ ไม่ต้องกรอกข้อความซ้ำในระบบอีก",
+          )}
+          <div className="mt-5 overflow-hidden rounded-[28px] border border-slate-100 bg-white">
+            <iframe
+              src={lesson.content.padletEmbedUrl}
             title="Padlet PLC Council"
             className="h-[620px] w-full border-0"
             loading="lazy"
@@ -366,54 +346,22 @@ export default function ModuleThreeMission({
 
             return (
               <article key={slot} className="rounded-[28px] border border-slate-100 bg-white p-5">
-                <h3 className="text-xl font-semibold text-ink">Comment {slot}</h3>
+                <h3 className="text-xl font-semibold text-ink">คอมเมนต์ครั้งที่ {slot === "One" ? "1" : "2"}</h3>
                 {renderRolePicker(draft[`${key}Role`], (roleId) =>
                   setDraft((previous) => ({ ...previous, [`${key}Role`]: roleId })),
                 )}
-                <Field label="Which post did you comment on?">
-                  <Input
-                    value={draft[`${key}Target`]}
-                    onChange={(event) =>
-                      setDraft((previous) => ({ ...previous, [`${key}Target`]: event.target.value }))
-                    }
-                    placeholder="Name the teacher or post title"
-                  />
-                </Field>
-                <Field label="Comment text">
-                  <TextArea
-                    value={draft[`${key}Text`]}
-                    onChange={(event) =>
-                      setDraft((previous) => ({ ...previous, [`${key}Text`]: event.target.value }))
-                    }
-                    placeholder="Paste or summarize the comment you actually posted"
-                    rows={5}
-                  />
-                </Field>
-                <Field label="Screenshot evidence">
+                <Field label="ลิงก์ภาพแคปหน้าจอคอมเมนต์">
                   <Input
                     value={draft[`${key}Evidence`]}
                     onChange={(event) =>
                       setDraft((previous) => ({ ...previous, [`${key}Evidence`]: event.target.value }))
                     }
-                    placeholder="Paste a Drive link or image link for the screenshot"
+                    placeholder="แนบลิงก์ภาพแคปหน้าจอคอมเมนต์ใน Padlet"
                   />
                 </Field>
               </article>
             );
           })}
-        </div>
-        <div className="mt-5 rounded-[26px] border border-secondary/10 bg-secondary/5 p-5">
-          <Field
-            label="Vibe Check"
-            helper="What new perspective or feeling did you get from joining the PLC exchange?"
-          >
-            <TextArea
-              value={draft.vibeReflection}
-              onChange={(event) => setDraft((previous) => ({ ...previous, vibeReflection: event.target.value }))}
-              placeholder="Describe the energy, insight, or shift you noticed from the exchange"
-              rows={4}
-            />
-          </Field>
         </div>
         {renderSubmit(ready)}
       </div>
@@ -434,72 +382,100 @@ export default function ModuleThreeMission({
     return (
       <div>
         {renderTop(
-          "Use the feedback from the council to sharpen your project story, then condense it into a 60-second pitch that makes people want to support the idea immediately.",
+          "เลือกประเด็นตั้งต้นจาก Roadmap หรือไอเดียที่ตกผลึกจากวง PLC แล้วเรียบเรียงเป็นสคริปต์ภาษาไทยที่ขายไอเดียได้ภายใน 1 นาที",
         )}
+        <div className="mt-5 grid gap-4 xl:grid-cols-2">
+          {moduleTwoRoadmap?.northStar ? (
+            <article className="rounded-[24px] border border-primary/10 bg-primary/5 p-5">
+              <p className="text-sm font-semibold text-primary">ประเด็นจาก Roadmap</p>
+              <p className="mt-3 text-sm leading-7 text-slate-700">{moduleTwoRoadmap.northStar}</p>
+            </article>
+          ) : null}
+          {allResponses["m3-mission-2"]?.commentOneRole || allResponses["m3-mission-2"]?.commentTwoRole ? (
+            <article className="rounded-[24px] border border-secondary/10 bg-secondary/5 p-5">
+              <p className="text-sm font-semibold text-secondary">ไอเดียจากบอร์ด PLC</p>
+              <p className="mt-3 text-sm leading-7 text-slate-700">
+                ใช้ข้อคิดเห็นที่ได้จากบทบาทต่าง ๆ ใน Mission 2 มาปรับให้สคริปต์ของคุณคมขึ้นและตอบคำถามเพื่อนได้ชัดขึ้น
+              </p>
+            </article>
+          ) : null}
+        </div>
         <div className="mt-5 rounded-[28px] border border-slate-100 bg-white p-5">
-          <Field label="Project Name">
+          <Field label="ชื่อโปรเจกต์หรือประเด็นที่กำลังจะ Pitch">
             <Input
               value={draft.projectName}
               onChange={(event) => setDraft((previous) => ({ ...previous, projectName: event.target.value }))}
-              placeholder="Name the project you want to pitch"
+              placeholder="ระบุหัวข้อที่กำลังจะเล่าในคลิป 60 วินาที"
             />
           </Field>
           <Field
-            label="Feedback Applied"
-            helper="Capture the most useful feedback from Mission 2 and explain how it changed your plan."
+            label="Feedback ที่หยิบมาใช้"
+            helper="สรุปว่าข้อคิดเห็นจากเพื่อนครูช่วยให้แผนของคุณชัดขึ้นหรือเปลี่ยนไปอย่างไร"
           >
             <TextArea
               value={draft.feedbackApplied}
               onChange={(event) => setDraft((previous) => ({ ...previous, feedbackApplied: event.target.value }))}
-              placeholder="Summarize the peer feedback that improved your project"
+              placeholder="เช่น ได้ไอเดียเพิ่มกิจกรรมสำหรับเด็กกลุ่มอ่อน หรือปรับวิธีสื่อสารกับผู้เรียน"
               rows={4}
             />
           </Field>
         </div>
         <div className="mt-5 grid gap-4 xl:grid-cols-2">
           <article className="rounded-[28px] border border-slate-100 bg-white p-5">
-            <Field label="Hook (10 sec)">
+            <Field
+              label="Hook (10 วินาที)"
+              helper="ประโยคเปิดที่ทำให้ผู้ฟังหยุดฟังทันที เช่น คำถามชวนคิด ตัวเลขน่าตกใจ หรือภาพจำจากห้องเรียน"
+            >
               <TextArea
                 value={draft.hook}
                 onChange={(event) => setDraft((previous) => ({ ...previous, hook: event.target.value }))}
-                placeholder="Open with a sentence that grabs attention right away"
+                placeholder="เช่น รู้ไหมว่าเด็กในห้องของเราหลายคนยังไม่กล้าพูดในชั้นเรียนเลย..."
                 rows={4}
               />
             </Field>
-            <Field label="Pain Point (15 sec)">
+            <Field
+              label="Pain Point (15 วินาที)"
+              helper="บอกปัญหาหลักที่พบให้ชัดว่าทำไมเรื่องนี้สำคัญและควรรีบแก้"
+            >
               <TextArea
                 value={draft.painPoint}
                 onChange={(event) => setDraft((previous) => ({ ...previous, painPoint: event.target.value }))}
-                placeholder="Describe the core pain point clearly and quickly"
+                placeholder="สรุปปัญหาเดิมที่เจอในห้องเรียนอย่างกระชับ"
                 rows={4}
               />
             </Field>
           </article>
           <article className="rounded-[28px] border border-slate-100 bg-white p-5">
-            <Field label="Solution (20 sec)">
+            <Field
+              label="Solution (20 วินาที)"
+              helper="เล่าแนวทางหรือกิจกรรมที่คุณจะทำจริง โดยเชื่อมกับแผน 30 วันหรือข้อคิดเห็นจากเพื่อนครู"
+            >
               <TextArea
                 value={draft.solution}
                 onChange={(event) => setDraft((previous) => ({ ...previous, solution: event.target.value }))}
-                placeholder="Explain the improved 30-day project after feedback"
+                placeholder="อธิบายวิธีแก้ปัญหาที่คุณเลือกใช้หลังได้ feedback"
                 rows={4}
               />
             </Field>
-            <Field label="Impact (15 sec)">
+            <Field
+              label="Impact (15 วินาที)"
+              helper="ปิดท้ายด้วยผลลัพธ์ที่อยากเห็นกับผู้เรียน ชุมชน หรือบริบทพื้นที่อย่างเป็นรูปธรรม"
+            >
               <TextArea
                 value={draft.impact}
                 onChange={(event) => setDraft((previous) => ({ ...previous, impact: event.target.value }))}
-                placeholder="Describe the impact for learners, school, community, or SEZ/OECD goals"
+                placeholder="บอกว่าจะเกิดประโยชน์อะไรกับเด็ก โรงเรียน ชุมชน หรือพื้นที่"
                 rows={4}
               />
             </Field>
           </article>
         </div>
         <div className="mt-5 rounded-[26px] border border-slate-100 bg-white p-5">
-          <Field label="Audio / Video Link">
+          <Field label="ลิงก์ไฟล์เสียงหรือวิดีโอ">
             <Input
               value={draft.pitchLink}
               onChange={(event) => setDraft((previous) => ({ ...previous, pitchLink: event.target.value }))}
-              placeholder="Paste a Google Drive, YouTube Unlisted, TikTok, or other media link"
+              placeholder="แนบลิงก์ Google Drive, YouTube แบบไม่เป็นสาธารณะ หรือแพลตฟอร์มอื่น"
             />
           </Field>
         </div>
@@ -513,14 +489,14 @@ export default function ModuleThreeMission({
   return (
     <div>
       {renderTop(
-        "Pause and look back at how the network strengthened the project. Name the insight or power you discovered from the PLC exchange before moving on to Module 4.",
+        "หยุดมองย้อนกลับอีกนิดครับ วง PLC ครั้งนี้เติมพลังหรือมุมมองใหม่อะไรให้โปรเจกต์ของคุณ แล้วสิ่งนั้นช่วยให้แผนมีโอกาสเกิดขึ้นจริงมากขึ้นอย่างไร",
       )}
       <div className="mt-5 rounded-[28px] border border-slate-100 bg-white p-5">
         <Field label="Reflection Mirror" helper={lesson.content.question}>
           <TextArea
             value={draft.reflectionAnswer}
             onChange={(event) => setDraft((previous) => ({ ...previous, reflectionAnswer: event.target.value }))}
-            placeholder="Reflect on the new perspective or support you discovered from the teacher network"
+            placeholder="เล่าว่าคุณได้พลังวิเศษหรือมุมมองใหม่อะไรจากเครือข่ายครู และมันช่วยให้โปรเจกต์สมบูรณ์ขึ้นอย่างไร"
             rows={7}
           />
         </Field>

@@ -73,7 +73,7 @@ const TextArea = ({ value, onChange, placeholder, rows = 5 }) => (
 
 const SectionIntro = ({ intro, helper }) => (
   <div className="rounded-[24px] border border-secondary/10 bg-secondary/5 p-5">
-    <p className="text-sm font-semibold text-secondary">AI Mentor Guidance</p>
+    <p className="text-sm font-semibold text-secondary">AI Mentor ชวนคิด</p>
     <p className="mt-3 text-sm leading-7 text-slate-700">{intro}</p>
     {helper ? <p className="mt-3 text-sm leading-7 text-slate-600">{helper}</p> : null}
   </div>
@@ -155,16 +155,16 @@ export default function ModuleFiveMission({
     const serialized = JSON.stringify(payload);
     if (serialized === lastPayloadRef.current) return undefined;
 
-    setAutosaveState("Saving draft...");
+    setAutosaveState("กำลังบันทึกคำตอบอัตโนมัติ...");
     const timeoutId = window.setTimeout(async () => {
       try {
         await onDraftSave(payload);
         lastPayloadRef.current = serialized;
-        setAutosaveState("Draft autosaved");
+        setAutosaveState("บันทึกคำตอบอัตโนมัติแล้ว");
         window.setTimeout(() => setAutosaveState(""), 1800);
       } catch (error) {
         console.error("Failed to autosave Module 5 draft:", error);
-        setAutosaveState("Autosave pending");
+        setAutosaveState("ยังบันทึกอัตโนมัติไม่สำเร็จ");
       }
     }, 900);
 
@@ -177,8 +177,8 @@ export default function ModuleFiveMission({
       const payload = buildPayload(lesson, draft);
       await onSave(payload);
       lastPayloadRef.current = JSON.stringify(payload);
-      setAutosaveState("Draft autosaved");
-      setReward(lesson.content.aiMentor?.reward || "Mission saved");
+      setAutosaveState("บันทึกคำตอบอัตโนมัติแล้ว");
+      setReward(lesson.content.aiMentor?.reward || "บันทึกภารกิจเรียบร้อย");
       window.setTimeout(() => setReward(""), 2200);
     } finally {
       setSaving(false);
@@ -194,11 +194,11 @@ export default function ModuleFiveMission({
       ) : null}
       <div className="mb-4 flex flex-wrap items-center gap-3 text-sm">
         <span className="rounded-full border border-primary/10 bg-primary/5 px-3 py-2 text-primary">
-          {autosaveState || "Autosave active"}
+          {autosaveState || "ระบบกำลังดูแลการบันทึกคำตอบให้อัตโนมัติ"}
         </span>
         {isCompleted ? (
           <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-700">
-            Mission completed
+            ภารกิจนี้ผ่านแล้ว
           </span>
         ) : null}
       </div>
@@ -211,7 +211,7 @@ export default function ModuleFiveMission({
       {isCompleted ? (
         <div className="flex items-center gap-2 rounded-full border border-primary/10 bg-primary/5 px-4 py-2 text-sm font-semibold text-primary">
           <CheckCircle2 size={16} />
-          Completed
+          ทำภารกิจนี้เสร็จแล้ว
         </div>
       ) : (
         <button
@@ -221,7 +221,7 @@ export default function ModuleFiveMission({
           className="brand-button-primary disabled:cursor-not-allowed disabled:opacity-60"
         >
           {saving ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-          Submit mission
+          บันทึกภารกิจ
         </button>
       )}
     </div>

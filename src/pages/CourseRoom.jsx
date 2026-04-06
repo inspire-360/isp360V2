@@ -1004,14 +1004,14 @@ export default function CourseRoom() {
             <p className="mt-2 text-xl font-semibold">{currentGamification.xp}</p>
           </div>
           <div className="rounded-[24px] border border-white/[0.12] bg-white/[0.10] p-4">
-            <p className="text-xs uppercase tracking-[0.18em] text-white/[0.50]">Difficulty</p>
+            <p className="text-xs uppercase tracking-[0.18em] text-white/[0.50]">ระดับภารกิจ</p>
             <p className="mt-2 text-xl font-semibold">{currentGamification.difficulty}</p>
           </div>
         </div>
 
         {currentGamification.deliverable ? (
           <p className="mt-5 rounded-[24px] border border-white/[0.12] bg-white/[0.10] px-4 py-3 text-sm leading-7 text-white/[0.80]">
-            Deliverable: {currentGamification.deliverable}
+            สิ่งที่ต้องส่ง: {currentGamification.deliverable}
           </p>
         ) : null}
 
@@ -1040,7 +1040,7 @@ export default function CourseRoom() {
       {completedSet.has(currentLesson.id) ? (
         <div className="flex items-center gap-2 rounded-full border border-primary/10 bg-primary/5 px-4 py-2 text-sm font-semibold text-primary">
           <CheckCircle2 size={16} />
-          Completed
+          เสร็จแล้ว
         </div>
       ) : (
         <button type="button" onClick={markLessonComplete} className="brand-button-primary">
@@ -1081,7 +1081,7 @@ export default function CourseRoom() {
               </div>
               {isCanvaEmbed ? (
                 <div className="mt-4 rounded-[24px] border border-primary/10 bg-primary/5 px-4 py-4 text-sm leading-7 text-slate-600">
-                  Canva lesson is embedded with the requested `watch?embed` URL. ถ้ายังเจอข้อจำกัดจากเบราว์เซอร์หรือเครือข่ายของโรงเรียน สามารถเปิดแท็บใหม่จากปุ่มด้านล่างได้ทันที
+                  บทเรียน Canva ถูกฝังด้วยลิงก์ `view?embed` ตามที่กำหนดแล้ว ถ้ายังเจอข้อจำกัดจากเบราว์เซอร์หรือเครือข่ายของโรงเรียน สามารถเปิดแท็บใหม่จากปุ่มด้านล่างได้ทันที
                 </div>
               ) : null}
             </>
@@ -1095,11 +1095,11 @@ export default function CourseRoom() {
             rel="noopener noreferrer"
             className="brand-button-secondary mt-4"
           >
-            Open lesson in new tab
+            เปิดบทเรียนในแท็บใหม่
             <ArrowRight size={16} />
           </a>
         ) : null}
-        {renderActionFooter("Mark as completed", <PlayCircle size={16} />)}
+        {renderActionFooter("ทำบทเรียนนี้เสร็จแล้ว", <PlayCircle size={16} />)}
       </div>
     </div>
   );
@@ -1112,7 +1112,7 @@ export default function CourseRoom() {
 
         {Array.isArray(currentLesson.content?.resources) && currentLesson.content.resources.length > 0 ? (
           <div className="mt-6 rounded-[28px] border border-primary/10 bg-primary/5 p-5">
-            <p className="text-sm font-semibold text-primary">Resources</p>
+            <p className="text-sm font-semibold text-primary">แหล่งข้อมูลเพิ่มเติม</p>
             <div className="mt-3 space-y-2 text-sm leading-7 text-slate-600">
               {currentLesson.content.resources.map((resource) => (
                 <p key={resource}>{resource}</p>
@@ -1124,7 +1124,7 @@ export default function CourseRoom() {
         {currentLesson.id === "final-survey" ? (
           <div className="mt-6 rounded-[28px] border border-secondary/10 bg-secondary/5 p-6">
             <p className="text-base leading-8 text-slate-600">
-              เมื่อทำแบบสอบถามแล้ว ให้กลับมากด completed เพื่อปลดล็อก certificate vault
+              เมื่อทำแบบสอบถามแล้ว ให้กลับมากดเสร็จแล้ว เพื่อปลดล็อกคลัง Certificate
             </p>
             <a
               href={currentLesson.content?.surveyUrl || "#"}
@@ -1138,7 +1138,7 @@ export default function CourseRoom() {
           </div>
         ) : null}
 
-        {renderActionFooter("Complete this brief", <CheckCircle2 size={16} />)}
+        {renderActionFooter("ทำเนื้อหานี้เสร็จแล้ว", <CheckCircle2 size={16} />)}
       </div>
     </div>
   );
@@ -1212,7 +1212,7 @@ export default function CourseRoom() {
         !currentLesson.activityType?.startsWith("module2_") &&
         !currentLesson.activityType?.startsWith("module3_") &&
         currentLesson.activityType !== "final_platform_survey"
-          ? renderActionFooter("Submit mission", <PenTool size={16} />)
+          ? renderActionFooter("ส่งภารกิจ", <PenTool size={16} />)
           : null}
       </div>
       {currentLesson.id === "m3-posttest" && moduleThreeReport ? (
@@ -1236,28 +1236,28 @@ export default function CourseRoom() {
         ? {
             badge: MODULE_ONE_BADGE,
             report: moduleOneReport,
-            unlockMessage: "Report card พร้อมแล้ว และ Module 2 ถูกปลดล็อกให้เรียบร้อย",
+            unlockMessage: "รายงานสรุปพร้อมแล้ว และ Module 2 ถูกปลดล็อกให้เรียบร้อย",
             ReportCardComponent: ModuleOneReportCard,
           }
         : currentLesson.id === "m4-posttest"
           ? {
               badge: MODULE_FOUR_BADGE,
               report: moduleFourReport,
-              unlockMessage: "Report card พร้อมแล้ว และ Module 5 ถูกปลดล็อกให้เรียบร้อย",
+              unlockMessage: "รายงานสรุปพร้อมแล้ว และ Module 5 ถูกปลดล็อกให้เรียบร้อย",
               ReportCardComponent: ModuleFourReportCard,
             }
           : currentLesson.id === "m5-posttest"
             ? {
                 badge: MODULE_FIVE_BADGE,
                 report: moduleFiveReport,
-                unlockMessage: "Report card พร้อมแล้ว และ post-test ปลายคอร์สถูกปลดล็อกให้เรียบร้อย",
+                unlockMessage: "รายงานสรุปพร้อมแล้ว และ post-test ปลายคอร์สถูกปลดล็อกให้เรียบร้อย",
                 ReportCardComponent: ModuleFiveReportCard,
               }
         : currentLesson.id === "m2-posttest"
           ? {
               badge: MODULE_TWO_BADGE,
               report: moduleTwoReport,
-              unlockMessage: "Report card พร้อมแล้ว และ Module 3 ถูกปลดล็อกให้เรียบร้อย",
+              unlockMessage: "รายงานสรุปพร้อมแล้ว และ Module 3 ถูกปลดล็อกให้เรียบร้อย",
               ReportCardComponent: ModuleTwoReportCard,
             }
           : currentLesson.id === "posttest-exam"
@@ -1292,7 +1292,7 @@ export default function CourseRoom() {
               {isPassed || isCompleted ? <Award size={44} /> : <RotateCcw size={44} />}
             </div>
             <h2 className="mt-6 font-display text-3xl font-bold text-ink">
-              {isCompleted && !isSpecialPosttest ? "Checkpoint cleared" : `${scoreValue} / ${scoreMax}`}
+              {isCompleted && !isSpecialPosttest ? "ผ่านด่านแล้ว" : `${scoreValue} / ${scoreMax}`}
             </h2>
             <p className="mt-3 text-sm leading-7 text-slate-500">
               {isPassed || isCompleted
@@ -1310,7 +1310,7 @@ export default function CourseRoom() {
             {!isPassed && !isCompleted ? (
               <button type="button" onClick={retryQuiz} className="brand-button-secondary mt-6">
                 <RotateCcw size={16} />
-                Retry quiz
+                ทำแบบทดสอบอีกครั้ง
               </button>
             ) : null}
           </div>
@@ -1330,7 +1330,7 @@ export default function CourseRoom() {
               <Lock size={44} />
             </div>
             <h2 className="mt-6 font-display text-3xl font-bold text-ink">
-              Cooldown active
+              อยู่ในช่วงรอทำใหม่
             </h2>
             <p className="mt-3 text-sm leading-7 text-slate-500">
               คุณใช้สิทธิ์ครบแล้วสำหรับรอบนี้ ระบบจะเปิดให้ทำใหม่อีกใน {formatCooldown(cooldownRemainingMs)}
@@ -1341,7 +1341,7 @@ export default function CourseRoom() {
               className="brand-button-secondary mt-6"
             >
               <RotateCcw size={16} />
-              Check again
+              ตรวจสอบอีกครั้ง
             </button>
           </div>
         </div>
@@ -1395,7 +1395,7 @@ export default function CourseRoom() {
               className="brand-button-primary disabled:cursor-not-allowed disabled:opacity-60"
             >
               <CheckSquare size={16} />
-              Submit answers
+              ส่งคำตอบ
             </button>
           </div>
         </div>
@@ -1414,17 +1414,17 @@ export default function CourseRoom() {
           {!isPostTestPassed ? (
             <>
               <Lock className="mx-auto text-slate-300" size={58} />
-              <h2 className="mt-6 font-display text-3xl font-bold text-ink">Post-test required</h2>
+              <h2 className="mt-6 font-display text-3xl font-bold text-ink">ต้องผ่าน post-test ก่อน</h2>
               <p className="mt-3 text-sm leading-7 text-slate-500">
-                ผ่าน post-test ก่อนจึงจะเปิด certificate vault ได้
+                ผ่าน post-test ก่อนจึงจะเปิดคลังใบประกาศได้
               </p>
             </>
           ) : !isSurveyDone ? (
             <>
               <Trophy className="mx-auto text-warm" size={58} />
-              <h2 className="mt-6 font-display text-3xl font-bold text-ink">Almost there</h2>
+              <h2 className="mt-6 font-display text-3xl font-bold text-ink">เกือบถึงแล้ว</h2>
               <p className="mt-3 text-sm leading-7 text-slate-500">
-                ทำ reflection survey ให้เสร็จก่อน เพื่อปลดล็อก certificate
+                ทำแบบสะท้อนผลให้เสร็จก่อน เพื่อปลดล็อกใบประกาศ
               </p>
               <button
                 type="button"
@@ -1437,7 +1437,7 @@ export default function CourseRoom() {
                 }}
                 className="brand-button-secondary mt-6"
               >
-                ไปที่ survey
+                ไปที่แบบประเมิน
                 <ArrowRight size={16} />
               </button>
             </>
@@ -1445,7 +1445,7 @@ export default function CourseRoom() {
             <div className="space-y-6">
               <div>
                 <Award className="mx-auto text-primary" size={58} />
-                <h2 className="mt-6 font-display text-3xl font-bold text-ink">Certificate unlocked</h2>
+                <h2 className="mt-6 font-display text-3xl font-bold text-ink">Certificate พร้อมดาวน์โหลด</h2>
                 <p className="mt-3 text-sm leading-7 text-slate-500">
                   คุณผ่านทุก checkpoint แล้ว และสามารถดาวน์โหลด Certificate of InSPIRE360 ได้ทันที
                 </p>
@@ -1467,7 +1467,7 @@ export default function CourseRoom() {
   }
 
   if (!currentModule || !currentLesson) {
-    return <div className="p-8 text-center">Data error: lesson not found</div>;
+    return <div className="p-8 text-center">ไม่พบข้อมูลบทเรียนที่ต้องการเปิด</div>;
   }
 
   return (
@@ -1477,7 +1477,7 @@ export default function CourseRoom() {
           <div className="flex h-full flex-col rounded-[30px] border border-white/[0.12] bg-gradient-to-b from-primary via-secondary to-[#220f3f] p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-white/[0.45]">Quest room</p>
+                <p className="text-xs uppercase tracking-[0.2em] text-white/[0.45]">ห้องภารกิจ</p>
                 <h2 className="mt-1 font-display text-2xl font-bold">InSPIRE 360°</h2>
               </div>
               <button type="button" onClick={() => navigate("/dashboard")} className="rounded-2xl border border-white/[0.12] bg-white/[0.10] p-2 text-white/[0.72]">
@@ -1486,7 +1486,7 @@ export default function CourseRoom() {
             </div>
 
             <div className="mt-5 rounded-[28px] border border-white/[0.12] bg-white/[0.10] p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-white/[0.45]">Course progress</p>
+              <p className="text-xs uppercase tracking-[0.18em] text-white/[0.45]">ความก้าวหน้าของคอร์ส</p>
               <p className="mt-3 text-3xl font-bold">{courseProgressPercent}%</p>
               <div className="mt-4 h-2 rounded-full bg-white/[0.12]">
                 <div className="h-full rounded-full bg-gradient-to-r from-warm via-accent to-white" style={{ width: `${courseProgressPercent}%` }} />
@@ -1513,7 +1513,7 @@ export default function CourseRoom() {
                       <div>
                         <p className="text-[11px] uppercase tracking-[0.18em] text-white/[0.45]">{module.campaignName}</p>
                         <p className="mt-1 text-sm font-semibold text-white">{module.title}</p>
-                        <p className="mt-2 text-xs text-white/[0.55]">{moduleProgress}% complete</p>
+                        <p className="mt-2 text-xs text-white/[0.55]">สำเร็จแล้ว {moduleProgress}%</p>
                       </div>
                       {isLocked ? <Lock size={16} className="text-white/[0.45]" /> : expandedModules[moduleIndex] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                     </button>
@@ -1570,7 +1570,7 @@ export default function CourseRoom() {
               </span>
               <span className="brand-chip border-primary/10 bg-primary/5 text-primary">
                 <Trophy size={14} />
-                {completedMissionCount}/{totalMissionCount} missions
+                {completedMissionCount}/{totalMissionCount} ภารกิจ
               </span>
             </div>
           </header>
@@ -1579,17 +1579,17 @@ export default function CourseRoom() {
             <div className="mx-auto max-w-6xl space-y-6">
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="brand-panel p-5">
-                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Current rank</p>
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">อันดับปัจจุบัน</p>
                   <p className="mt-3 text-2xl font-bold text-ink">{getRankLabel(earnedXp)}</p>
                 </div>
                 <div className="brand-panel p-5">
-                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Mission XP</p>
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">XP ของภารกิจนี้</p>
                   <p className="mt-3 text-2xl font-bold text-ink">{getLessonXp(currentLesson)}</p>
                 </div>
                 <div className="brand-panel p-5">
-                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Status</p>
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">สถานะ</p>
                   <p className="mt-3 text-2xl font-bold text-ink">
-                    {completedSet.has(currentLesson.id) ? "Completed" : "In progress"}
+                    {completedSet.has(currentLesson.id) ? "เสร็จแล้ว" : "กำลังทำอยู่"}
                   </p>
                 </div>
               </div>

@@ -211,13 +211,13 @@ export const moduleThreeLessons = [
   },
   {
     id: "m3-lesson-brief",
-    title: "3.1 P-PLC Lesson Brief",
+    title: "3.1 บทเรียน P-PLC",
     type: "video",
     iconName: "PlayCircle",
     content: {
-      videoUrl: "https://www.canva.com/design/DAHFglrceqA/WbTYzz93vBYgo8m30raOQg/watch?embed",
+      videoUrl: "https://www.canva.com/design/DAHFglrceqA/WbTYzz93vBYgo8m30raOQg/view?embed",
       frameLabel: "P-PLC Lesson Deck",
-      externalUrl: "https://www.canva.com/design/DAHFglrceqA/WbTYzz93vBYgo8m30raOQg/watch?embed",
+      externalUrl: "https://www.canva.com/design/DAHFglrceqA/WbTYzz93vBYgo8m30raOQg/view?embed",
       description:
         "ดูบทเรียนเปิดทางของ Module 3 หลังจบ pre-test เพื่อเข้าใจแนวคิด PLC แบบ asynchronous ก่อนเริ่มโพสต์ แลกเปลี่ยน feedback และฝึก pitch",
       campaignStep: 1,
@@ -243,7 +243,8 @@ export const moduleThreeLessons = [
       campaignStep: 1,
       campaignStages: moduleThreeStages,
       aiMentor: moduleThreeMentor.missionOne,
-      boardUrl: "https://padlet.com/g91ytl0xhuk8qx3a",
+      boardUrl: "https://padlet.com/y6l9haw09rxarlg5",
+      padletEmbedUrl: "https://padlet.com/embed/y6l9haw09rxarlg5",
       gamification: missionProfile({
         arc: "Idea Billboard",
         xp: 190,
@@ -252,7 +253,7 @@ export const moduleThreeLessons = [
         objective:
           "นำแผน 30 วันจาก Module 2 ไปโพสต์บนกระดานสภาเวทมนตร์ ให้เครือข่ายได้รับรู้และพร้อมช่วยมองต่อ",
         deliverable:
-          "โพสต์ 1 ชิ้นที่มี Pain Point, Solution และคำถามขอคำแนะนำ พร้อมลิงก์โพสต์หรือหลักฐานการเผยแพร่",
+          "โพสต์ 1 ชิ้นที่มี Pain Point, Solution และคำถามขอคำแนะนำ พร้อมลิงก์ภาพแคปหน้าจอการโพสต์",
         duSignal:
           "DU จะเห็นจุดตั้งต้นของโปรเจกต์แต่ละคนอย่างกระชับ และรู้ว่าควรส่งแรงหนุนหรือผู้เชี่ยวชาญเข้าไปในประเด็นใด",
         checkpoints: [
@@ -274,7 +275,7 @@ export const moduleThreeLessons = [
       campaignStep: 2,
       campaignStages: moduleThreeStages,
       aiMentor: moduleThreeMentor.missionTwo,
-      padletEmbedUrl: "https://padlet.com/embed/g91ytl0xhuk8qx3a",
+      padletEmbedUrl: "https://padlet.com/embed/y6l9haw09rxarlg5",
       roles: plcRoles,
       gamification: missionProfile({
         arc: "Mastermind Chamber",
@@ -284,7 +285,7 @@ export const moduleThreeLessons = [
         objective:
           "เลือกอ่านโพสต์เพื่อนอย่างน้อย 2 โพสต์ แล้วให้ feedback แบบสร้างสรรค์ผ่านบทบาทสมมติ เพื่อให้เกิด PLC โดยไม่ต้องนัดเวลา",
         deliverable:
-          "หลักฐานการคอมเมนต์ 2 โพสต์ พร้อมบทบาทที่ใช้ มุมมองที่เสนอ และภาพ Screenshot การมีส่วนร่วม",
+          "หลักฐานลิงก์ภาพแคปหน้าจอคอมเมนต์ 2 โพสต์ พร้อมบทบาทที่เลือกใช้",
         duSignal:
           "DU จะเห็นคุณภาพของการแลกเปลี่ยนในเครือข่าย ไม่ใช่แค่จำนวนโพสต์ ว่าครูกำลังหนุนกันในลักษณะใด",
         checkpoints: [

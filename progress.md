@@ -109,3 +109,15 @@ to update Module 4 [Module-4 Detail : ...]
 - Added `ModuleFourReportCard.jsx` with PNG/PDF export, innovation formula summary, prototype evidence sections, post-test score, trainee identity, card serial, `In-Innovation Badge`, and Module 5 unlock summary.
 - Wired Module 4 into `teacherCourse.js` and `CourseRoom.jsx`, including mission rendering, post-test report generation, badge awarding, and stay-on-page report display after completion.
 - Updated teacher course catalog lesson and mission counts to reflect the expanded Module 4 footprint.
+
+Original prompt:
+ปรับปรุงหลังจากตรวจครบ 5 module ...
+
+- Updated all embedded lesson links in Modules 1-5 from the older `watch?embed` form to the requested `view?embed` form so Canva lessons align with the new delivery links.
+- Improved Module 1 UX by stabilizing autosave/reward bars, making Mission 1-2 part navigation friendlier, reducing scroll friction in Mission 3 with in-card quick word injectors, and turning Mission 4 ratings into a more visual color-based score flow.
+- Reworked Module 2 content/config so the single Dream Lab selection, timeline roadmap, mission summaries, SMART handoff, and checklist-style Mission 6 all align with the new guided UX.
+- Updated Module 3 Padlet flows and submission expectations so Mission 1 uses the new board, Mission 2 focuses on role selection plus screenshot-link evidence, and Mission 3 better explains Thai pitching structure.
+- Improved Module 4 mission content and reporting flow with stronger Thai labels, more guided blueprint/crafting steps, Padlet beta test embedding, and clearer innovation formula language.
+- Polished Module 1-5 report exports and the course certificate for A4-friendly PDF/image output with cleaner labels, Thai-first wording, and consistent trainee/serial metadata presentation.
+- Localized more of the visible Course Room, report card, and certificate UI into Thai, including progress, deliverable, unlock, and certificate-gate messaging.
+- Verified the full app with `npm run build`; production build passed after the UX, localization, and export updates.

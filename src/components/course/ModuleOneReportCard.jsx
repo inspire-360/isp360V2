@@ -2,7 +2,7 @@ import React, { useRef, useState } from "react";
 import { Award, CheckCircle2, Download, FileImage, FileText, Loader2, Sparkles } from "lucide-react";
 
 const formatStamp = (value) => {
-  if (!value) return "Pending";
+  if (!value) return "รอสร้าง";
   return new Intl.DateTimeFormat("th-TH", {
     dateStyle: "medium",
     timeStyle: "short",
@@ -66,21 +66,22 @@ export default function ModuleOneReportCard({ report }) {
       const pdf = new jsPDF("p", "mm", "a4");
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 10;
       const imageData = canvas.toDataURL("image/png", 1);
-      const imageWidth = pageWidth;
+      const imageWidth = pageWidth - margin * 2;
       const imageHeight = (canvas.height * imageWidth) / canvas.width;
 
       let heightLeft = imageHeight;
-      let position = 0;
+      let position = margin;
 
-      pdf.addImage(imageData, "PNG", 0, position, imageWidth, imageHeight, undefined, "FAST");
-      heightLeft -= pageHeight;
+      pdf.addImage(imageData, "PNG", margin, position, imageWidth, imageHeight, undefined, "FAST");
+      heightLeft -= pageHeight - margin * 2;
 
       while (heightLeft > 0) {
-        position = heightLeft - imageHeight;
+        position = margin - (imageHeight - heightLeft);
         pdf.addPage();
-        pdf.addImage(imageData, "PNG", 0, position, imageWidth, imageHeight, undefined, "FAST");
-        heightLeft -= pageHeight;
+        pdf.addImage(imageData, "PNG", margin, position, imageWidth, imageHeight, undefined, "FAST");
+        heightLeft -= pageHeight - margin * 2;
       }
 
       pdf.save(`${downloadBaseName}.pdf`);
@@ -99,7 +100,7 @@ export default function ModuleOneReportCard({ report }) {
           className="brand-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
         >
           {downloading === "image" ? <Loader2 size={16} className="animate-spin" /> : <FileImage size={16} />}
-          Download PNG
+          ดาวน์โหลด PNG
         </button>
         <button
           type="button"
@@ -108,11 +109,11 @@ export default function ModuleOneReportCard({ report }) {
           className="brand-button-primary disabled:cursor-not-allowed disabled:opacity-60"
         >
           {downloading === "pdf" ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
-          Download PDF
+          ดาวน์โหลด PDF
         </button>
       </div>
 
-      <div ref={exportRef} className="space-y-6 bg-white">
+      <div ref={exportRef} className="mx-auto w-full max-w-[210mm] space-y-6 bg-white p-[10mm]">
         <section className="rounded-[32px] border border-primary/10 bg-white p-6 shadow-[0_20px_60px_rgba(13,17,100,0.08)]">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -120,27 +121,27 @@ export default function ModuleOneReportCard({ report }) {
                 <Award size={14} />
                 {report.badge}
               </span>
-              <h3 className="mt-4 font-display text-3xl font-bold text-ink">Module 1 Report Card</h3>
+              <h3 className="mt-4 font-display text-3xl font-bold text-ink">รายงานสรุป Module 1</h3>
               <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">
                 สรุปคำตอบทั้งหมดของ Module 1 พร้อมกลยุทธ์ที่เลือก Action Plan แบบ PDCA และการปลดล็อกไปยัง {report.unlockedModule}
               </p>
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 <div className="rounded-[22px] border border-slate-100 bg-slate-50/80 px-4 py-3 text-sm">
-                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Trainee</p>
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">ผู้เข้าอบรม</p>
                   <p className="mt-2 font-semibold text-ink">{report.traineeName || "-"}</p>
                   {report.traineeEmail ? <p className="mt-1 text-slate-500">{report.traineeEmail}</p> : null}
                 </div>
                 <div className="rounded-[22px] border border-slate-100 bg-slate-50/80 px-4 py-3 text-sm">
-                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Card Serial</p>
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">หมายเลข Serial Card</p>
                   <p className="mt-2 font-semibold text-ink">{report.cardSerial || "-"}</p>
-                  <p className="mt-1 text-slate-500">Generated {formatStamp(report.generatedAt)}</p>
+                  <p className="mt-1 text-slate-500">สร้างเมื่อ {formatStamp(report.generatedAt)}</p>
                 </div>
               </div>
             </div>
             <div className="flex flex-wrap gap-3">
               <ScorePill value={report.score} max={report.totalQuestions} />
               <div className="rounded-[24px] border border-accent/10 bg-accent/5 px-4 py-3 text-right">
-                <p className="text-xs uppercase tracking-[0.18em] text-accent/70">Unlocked</p>
+                <p className="text-xs uppercase tracking-[0.18em] text-accent/70">ปลดล็อกแล้ว</p>
                 <p className="text-lg font-bold text-accent">{report.unlockedModule}</p>
               </div>
             </div>
@@ -150,7 +151,7 @@ export default function ModuleOneReportCard({ report }) {
             <div className="mt-6 rounded-[26px] border border-secondary/10 bg-secondary/5 p-5">
               <div className="flex items-center gap-3 text-secondary">
                 <Sparkles size={18} />
-                <p className="text-sm font-semibold">Priority strategy</p>
+                  <p className="text-sm font-semibold">กลยุทธ์หลักที่เลือก</p>
               </div>
               <p className="mt-3 text-lg font-semibold text-ink">{report.focusStrategy}</p>
             </div>
@@ -203,9 +204,9 @@ export default function ModuleOneReportCard({ report }) {
                       <p className="mt-4 text-lg font-semibold text-ink">{item.title}</p>
                       <p className="mt-3 text-sm leading-7 text-slate-600">{item.strategyText}</p>
                       <div className="mt-4 space-y-2 text-sm text-slate-500">
-                        <p>Internal: {item.internalSignal}</p>
-                        <p>External: {item.externalSignal}</p>
-                        <p>Success signal: {item.successSignal}</p>
+                        <p>สัญญาณภายใน: {item.internalSignal}</p>
+                        <p>สัญญาณภายนอก: {item.externalSignal}</p>
+                        <p>สัญญาณความสำเร็จ: {item.successSignal}</p>
                       </div>
                     </article>
                   ))}
@@ -222,7 +223,7 @@ export default function ModuleOneReportCard({ report }) {
                   <div className="mt-5 rounded-[24px] border border-primary/10 bg-primary/5 p-5">
                     <div className="flex items-center gap-3 text-primary">
                       <CheckCircle2 size={18} />
-                      <p className="text-sm font-semibold">Selected strategy</p>
+                      <p className="text-sm font-semibold">กลยุทธ์ที่เลือก</p>
                     </div>
                     <p className="mt-3 text-lg font-semibold text-ink">{section.selectedStrategy.title}</p>
                     {section.selectionReason ? (
@@ -265,21 +266,21 @@ export default function ModuleOneReportCard({ report }) {
               </div>
               <div className="mt-5 grid gap-4 md:grid-cols-3">
                 <div className="rounded-[22px] border border-slate-100 bg-slate-50/80 p-4 text-sm">
-                  <p className="text-slate-400">Strategy</p>
+                  <p className="text-slate-400">กลยุทธ์</p>
                   <p className="mt-2 font-semibold text-ink">{section.actionPlan?.strategyTitle || "-"}</p>
                 </div>
                 <div className="rounded-[22px] border border-slate-100 bg-slate-50/80 p-4 text-sm">
-                  <p className="text-slate-400">Start</p>
+                  <p className="text-slate-400">วันเริ่มต้น</p>
                   <p className="mt-2 font-semibold text-ink">{section.actionPlan?.startDate || "-"}</p>
                 </div>
                 <div className="rounded-[22px] border border-slate-100 bg-slate-50/80 p-4 text-sm">
-                  <p className="text-slate-400">Review</p>
+                  <p className="text-slate-400">วันทบทวนผล</p>
                   <p className="mt-2 font-semibold text-ink">{section.actionPlan?.reviewDate || "-"}</p>
                 </div>
               </div>
               {section.actionPlan?.supportNeeded ? (
                 <div className="mt-5 rounded-[22px] border border-secondary/10 bg-secondary/5 px-4 py-4 text-sm leading-7 text-slate-700">
-                  DU / Network support: {section.actionPlan.supportNeeded}
+                  แรงหนุนจาก DU / เครือข่าย: {section.actionPlan.supportNeeded}
                 </div>
               ) : null}
             </section>
@@ -289,7 +290,7 @@ export default function ModuleOneReportCard({ report }) {
 
       <div className="flex items-center justify-end gap-2 text-sm text-slate-500">
         <Download size={14} />
-        Export this report card as image or PDF
+        ดาวน์โหลดรายงานนี้เป็นไฟล์ภาพหรือ PDF
       </div>
     </div>
   );

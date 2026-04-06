@@ -89,16 +89,16 @@ export default function PlatformSurveyForm({
     const serialized = JSON.stringify(payload);
     if (serialized === lastPayloadRef.current) return undefined;
 
-    setAutosaveState("Saving draft...");
+    setAutosaveState("กำลังบันทึกคำตอบอัตโนมัติ...");
     const timeoutId = window.setTimeout(async () => {
       try {
         await onDraftSave(payload);
         lastPayloadRef.current = serialized;
-        setAutosaveState("Draft autosaved");
+        setAutosaveState("บันทึกคำตอบอัตโนมัติแล้ว");
         window.setTimeout(() => setAutosaveState(""), 1800);
       } catch (error) {
         console.error("Failed to autosave final survey:", error);
-        setAutosaveState("Autosave pending");
+        setAutosaveState("ยังบันทึกอัตโนมัติไม่สำเร็จ");
       }
     }, 900);
 
@@ -118,8 +118,8 @@ export default function PlatformSurveyForm({
       const payload = buildPayload(draft);
       await onSave(payload);
       lastPayloadRef.current = JSON.stringify(payload);
-      setAutosaveState("Draft autosaved");
-      setReward("Survey submitted");
+      setAutosaveState("บันทึกคำตอบอัตโนมัติแล้ว");
+      setReward("ส่งแบบประเมินเรียบร้อย");
       window.setTimeout(() => setReward(""), 2200);
     } finally {
       setSaving(false);
@@ -136,11 +136,11 @@ export default function PlatformSurveyForm({
 
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <span className="rounded-full border border-primary/10 bg-primary/5 px-3 py-2 text-primary">
-          {autosaveState || "Autosave active"}
+          {autosaveState || "ระบบกำลังดูแลการบันทึกคำตอบให้อัตโนมัติ"}
         </span>
         {isCompleted ? (
           <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-700">
-            Survey completed
+            ส่งแบบประเมินแล้ว
           </span>
         ) : null}
       </div>
@@ -228,7 +228,7 @@ export default function PlatformSurveyForm({
         {isCompleted ? (
           <div className="flex items-center gap-2 rounded-full border border-primary/10 bg-primary/5 px-4 py-2 text-sm font-semibold text-primary">
             <CheckCircle2 size={16} />
-            Completed
+            ทำแบบประเมินเสร็จแล้ว
           </div>
         ) : (
           <button
@@ -238,7 +238,7 @@ export default function PlatformSurveyForm({
             className="brand-button-primary disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saving ? <Loader2 size={16} className="animate-spin" /> : <MessageSquareHeart size={16} />}
-            Submit survey
+            ส่งแบบประเมิน
           </button>
         )}
       </div>

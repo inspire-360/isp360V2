@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 
 const formatStamp = (value) => {
-  if (!value) return "Pending";
+  if (!value) return "รอออกใบประกาศ";
   return new Intl.DateTimeFormat("th-TH", {
     dateStyle: "medium",
   }).format(new Date(value));
@@ -59,8 +59,9 @@ export default function CourseCertificateCard({ certificate }) {
       const pdf = new jsPDF("l", "mm", "a4");
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 12;
       const imageData = canvas.toDataURL("image/png", 1);
-      const ratio = Math.min(pageWidth / canvas.width, pageHeight / canvas.height);
+      const ratio = Math.min((pageWidth - margin * 2) / canvas.width, (pageHeight - margin * 2) / canvas.height);
       const imageWidth = canvas.width * ratio;
       const imageHeight = canvas.height * ratio;
       const offsetX = (pageWidth - imageWidth) / 2;
@@ -86,7 +87,7 @@ export default function CourseCertificateCard({ certificate }) {
           ) : (
             <FileImage size={16} />
           )}
-          Download PNG
+          ดาวน์โหลด PNG
         </button>
         <button
           type="button"
@@ -99,13 +100,13 @@ export default function CourseCertificateCard({ certificate }) {
           ) : (
             <FileText size={16} />
           )}
-          Download PDF
+          ดาวน์โหลด PDF
         </button>
       </div>
 
       <div
         ref={exportRef}
-        className="overflow-hidden rounded-[36px] border border-primary/15 bg-[radial-gradient(circle_at_top_left,_rgba(247,141,96,0.32),_transparent_36%),linear-gradient(135deg,#0D1164_0%,#640D5F_45%,#EA2264_78%,#F78D60_100%)] p-8 text-white shadow-[0_30px_120px_rgba(13,17,100,0.26)] md:p-12"
+        className="mx-auto w-full max-w-[297mm] overflow-hidden rounded-[36px] border border-primary/15 bg-[radial-gradient(circle_at_top_left,_rgba(247,141,96,0.32),_transparent_36%),linear-gradient(135deg,#0D1164_0%,#640D5F_45%,#EA2264_78%,#F78D60_100%)] p-8 text-white shadow-[0_30px_120px_rgba(13,17,100,0.26)] md:p-12"
       >
         <div className="rounded-[30px] border border-white/20 bg-white/10 p-8 backdrop-blur-sm">
           <div className="flex flex-wrap items-start justify-between gap-6">
@@ -115,7 +116,7 @@ export default function CourseCertificateCard({ certificate }) {
                 {certificate.title}
               </h3>
               <p className="mt-4 max-w-3xl text-sm leading-8 text-white/80 md:text-base">
-                This certifies that
+                ขอรับรองว่า
               </p>
               <p className="mt-3 font-display text-4xl font-bold md:text-6xl">
                 {certificate.traineeName}
@@ -128,15 +129,15 @@ export default function CourseCertificateCard({ certificate }) {
 
             <div className="grid gap-3 text-sm md:min-w-[260px]">
               <div className="rounded-[24px] border border-white/15 bg-white/10 px-4 py-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-white/55">Issued</p>
+                <p className="text-xs uppercase tracking-[0.18em] text-white/55">วันที่ออก</p>
                 <p className="mt-2 font-semibold text-white">{formatStamp(certificate.issuedAt)}</p>
               </div>
               <div className="rounded-[24px] border border-white/15 bg-white/10 px-4 py-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-white/55">Serial</p>
+                <p className="text-xs uppercase tracking-[0.18em] text-white/55">เลขที่ใบประกาศ</p>
                 <p className="mt-2 font-semibold text-white">{certificate.serialNumber}</p>
               </div>
               <div className="rounded-[24px] border border-white/15 bg-white/10 px-4 py-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-white/55">Email</p>
+                <p className="text-xs uppercase tracking-[0.18em] text-white/55">อีเมล</p>
                 <p className="mt-2 font-semibold text-white">{certificate.traineeEmail || "-"}</p>
               </div>
             </div>
@@ -146,7 +147,7 @@ export default function CourseCertificateCard({ certificate }) {
             <div className="rounded-[28px] border border-white/15 bg-white/10 p-5">
               <p className="flex items-center gap-2 text-sm font-semibold text-white/88">
                 <Sparkles size={16} />
-                Completion Highlights
+                หมุดหมายความสำเร็จ
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 {certificate.badges?.length ? (
@@ -160,7 +161,7 @@ export default function CourseCertificateCard({ certificate }) {
                   ))
                 ) : (
                   <span className="rounded-full border border-white/15 bg-white/10 px-3 py-2 text-xs font-semibold text-white/88">
-                    InSPIRE360 Graduate
+                    ผู้จบ InSPIRE360
                   </span>
                 )}
               </div>
@@ -176,18 +177,18 @@ export default function CourseCertificateCard({ certificate }) {
             <div className="rounded-[28px] border border-white/15 bg-white/10 p-5">
               <p className="flex items-center gap-2 text-sm font-semibold text-white/88">
                 <ShieldCheck size={16} />
-                Verification Note
+                หมายเหตุการตรวจสอบ
               </p>
               <p className="mt-4 text-sm leading-7 text-white/80">
-                This certificate is generated from the learner's recorded completion data, final survey, and final assessment flow inside the InSPIRE360 platform.
+                ใบประกาศฉบับนี้ถูกสร้างจากข้อมูลการเรียนรู้จริง แบบประเมินความพึงพอใจ และผลการประเมินปลายคอร์สภายในระบบ InSPIRE360
               </p>
               <div className="mt-6 flex items-center gap-3 text-sm text-white/88">
                 <Award size={18} />
-                Ready for download in both PNG and PDF formats
+                พร้อมดาวน์โหลดได้ทั้งไฟล์ PNG และ PDF
               </div>
               <div className="mt-4 flex items-center gap-3 text-sm text-white/88">
                 <Download size={18} />
-                Keep the serial number for verification and portfolio use
+                โปรดเก็บหมายเลข Serial ไว้สำหรับการตรวจสอบและใช้อ้างอิงผลงาน
               </div>
             </div>
           </div>

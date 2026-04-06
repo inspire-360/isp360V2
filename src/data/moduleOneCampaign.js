@@ -52,25 +52,25 @@ export const moduleOneStages = [
   {
     step: 1,
     label: "Step 1",
-    title: "Open Eyes",
+    title: "เปิดตา",
     helper: "มองให้ลึกเข้าไปในห้องเรียนของเรา",
   },
   {
     step: 2,
     label: "Step 2",
-    title: "Open Wide",
+    title: "มองให้กว้าง",
     helper: "ถอยออกมามองแรงกระทบจากโลกภายนอก",
   },
   {
     step: 3,
     label: "Step 3",
-    title: "Fuse Strategy",
+    title: "จับคู่กลยุทธ์",
     helper: "จับคู่ SWOT แล้วคัดกลยุทธ์ที่คุ้มแรงที่สุด",
   },
   {
     step: 4,
     label: "Step 4",
-    title: "Launch Plan",
+    title: "วางแผนลงมือทำ",
     helper: "ออกแบบแผนลงมือทำและผ่านด่านสุดท้าย",
   },
 ];
@@ -282,7 +282,7 @@ const missionOneParts = [
 const missionTwoParts = [
   {
     id: "m2-part-opportunities",
-    title: "Part 1: Opportunity Radar",
+    title: "Part 1: เรดาร์โอกาส",
     description: "เก็บโอกาสจากภายนอกให้ครบทั้ง PESTEL เพื่อหาลมใต้ปีกของห้องเรียนเรา",
     rewardLabel: "Wind Map",
     lensCode: "O",
@@ -300,7 +300,7 @@ const missionTwoParts = [
   },
   {
     id: "m2-part-threats",
-    title: "Part 2: Threat Radar",
+    title: "Part 2: เรดาร์อุปสรรค",
     description: "มองพายุที่กระทบการสอนตรงๆ เพื่อเตรียมเกมรับอย่างมีสติ",
     rewardLabel: "Storm Sense",
     lensCode: "T",
@@ -419,15 +419,15 @@ export const moduleOneModuleMeta = {
 export const moduleOneLessons = [
   {
     id: "m1-lesson-brief",
-    title: "1.0 In-Sight Lesson Brief",
+    title: "1.0 บทเรียน In-Sight",
     type: "video",
     iconName: "PlayCircle",
     content: {
       videoUrl:
-        "https://www.canva.com/design/DAHFgpFnz8E/VXANS3zHrTRdvU7XGSIG8Q/watch?embed",
+        "https://www.canva.com/design/DAHFgpFnz8E/VXANS3zHrTRdvU7XGSIG8Q/view?embed",
       frameLabel: "In-Sight Lesson Deck",
       externalUrl:
-        "https://www.canva.com/design/DAHFgpFnz8E/VXANS3zHrTRdvU7XGSIG8Q/watch?embed",
+        "https://www.canva.com/design/DAHFgpFnz8E/VXANS3zHrTRdvU7XGSIG8Q/view?embed",
       description:
         "บทเรียนเตรียมมุมมองสำหรับ Module 1 หลังจบ pre-test ให้ดูภาพรวมนี้ก่อน แล้วค่อยเข้าสู่ภารกิจสำรวจภายใน ภายนอก และการออกแบบแผนลงมือทำ",
       campaignStep: 1,

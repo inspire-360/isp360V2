@@ -59,19 +59,19 @@ export const moduleFiveStages = [
   {
     step: 1,
     label: "Step 1",
-    title: "Teach for Real",
+    title: "สอนจริง",
     helper: "Take the designed plan into the real classroom and capture evidence from authentic practice.",
   },
   {
     step: 2,
     label: "Step 2",
-    title: "Reflect",
+    title: "สะท้อนผล",
     helper: "Write the reflection log after teaching so the lesson learns from the classroom too.",
   },
   {
     step: 3,
     label: "Step 3",
-    title: "Refine",
+    title: "ต่อยอด",
     helper: "Choose the next improvement path and decide what version 2.0 should become.",
   },
   {
@@ -191,32 +191,32 @@ export const moduleFivePostTestQuestions = [
 const moduleFiveMentor = {
   pretest: {
     intro:
-      "AI Mentor: Module 5 is where your work becomes evidence. We are no longer imagining the classroom. We are looking at what really happened, what changed, and what should evolve next.",
+      "AI Mentor: Module 5 คือช่วงที่ผลงานของคุณกลายเป็นหลักฐานครับ เราจะไม่จินตนาการห้องเรียนอีกต่อไป แต่จะมองจากสิ่งที่เกิดขึ้นจริง อะไรเปลี่ยน และอะไรควรพัฒนาต่อ",
     reward: "Reflection gate cleared",
   },
   briefing: {
     intro:
-      "AI Mentor: Watch this lesson deck as a debrief before the final reflection sprint. Capture what happened in the real room, honor the progress, and turn the next move into a practical upgrade plan.",
+      "AI Mentor: ดูบทเรียนนี้เหมือนการตั้งหลักก่อนสปรินต์สะท้อนผลรอบสุดท้ายครับ เก็บสิ่งที่เกิดขึ้นจริงในห้องเรียน เห็นคุณค่าของความก้าวหน้า และเปลี่ยนมันให้เป็นแผนพัฒนารอบถัดไป",
     reward: "Reflection brief unlocked",
   },
   missionOne: {
     intro:
-      "AI Mentor: Start with the evidence from real practice. The clip is not just proof of action, it is the doorway to seeing your classroom with fresh eyes.",
+      "AI Mentor: เริ่มจากหลักฐานการสอนจริงก่อนครับ คลิปนี้ไม่ใช่แค่หลักฐานว่าได้ลงมือทำ แต่เป็นหน้าต่างที่จะช่วยให้คุณมองห้องเรียนของตัวเองด้วยสายตาใหม่",
     reward: "Teaching evidence logged",
   },
   missionTwo: {
     intro:
-      "AI Mentor: Reflection becomes powerful when it is concrete. Name the moment you are proud of, the challenge that stretched you, and what the learners made visible.",
+      "AI Mentor: การสะท้อนผลจะมีพลังเมื่อจับต้องได้ครับ ลองตั้งชื่อช่วงเวลาที่ภูมิใจ ความท้าทายที่ได้เจอ และสิ่งที่ผู้เรียนทำให้เราเห็นชัดขึ้น",
     reward: "Reflection journal saved",
   },
   missionThree: {
     intro:
-      "AI Mentor: Version 2.0 does not need to be dramatic. Choose the next improvement that matters most, then define the support and timeline that will make it real.",
+      "AI Mentor: เวอร์ชัน 2.0 ไม่จำเป็นต้องเปลี่ยนทุกอย่างครับ เลือกจุดพัฒนาที่สำคัญที่สุด แล้วกำหนดทั้งตัวช่วยและกรอบเวลาให้มันเกิดขึ้นจริง",
     reward: "Growth path mapped",
   },
   posttest: {
     intro:
-      "AI Mentor: This final module check confirms that you can move from implementation to reflection and from reflection to a better next cycle. Finish this and the course post-test opens for you.",
+      "AI Mentor: ด่านสุดท้ายของโมดูลนี้จะยืนยันว่าคุณพาแผนจากการลงมือทำไปสู่การสะท้อนผล และต่อยอดไปสู่รอบพัฒนาถัดไปได้จริง เมื่อผ่านแล้ว post-test ปลายคอร์สจะเปิดให้ทันที",
     reward: "Reflection badge ready",
   },
 };
@@ -260,15 +260,15 @@ export const moduleFiveLessons = [
   },
   {
     id: "m5-lesson-brief",
-    title: "5.1 RE-Reflection Lesson Brief",
+    title: "5.1 บทเรียน RE-Reflection",
     type: "video",
     iconName: "PlayCircle",
     content: {
       videoUrl:
-        "https://www.canva.com/design/DAHFgqmbbOo/SOLFw8FFKEblrDUr3_1UQg/view",
+        "https://www.canva.com/design/DAHFgqmbbOo/SOLFw8FFKEblrDUr3_1UQg/view?embed",
       frameLabel: "RE-Reflection Lesson Deck",
       externalUrl:
-        "https://www.canva.com/design/DAHFgqmbbOo/SOLFw8FFKEblrDUr3_1UQg/view",
+        "https://www.canva.com/design/DAHFgqmbbOo/SOLFw8FFKEblrDUr3_1UQg/view?embed",
       description:
         "ทบทวนบทเรียน Module 5 หลัง pre-test แล้วเดินเข้าสู่ 3 ภารกิจ ได้แก่ การใช้แผนจริง การบันทึกหลังสอน และการออกแบบแนวทางพัฒนารอบถัดไป",
       campaignStep: 1,

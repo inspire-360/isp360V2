@@ -60,31 +60,31 @@ export const moduleFourStages = [
     step: 1,
     label: "Step 1",
     title: "Innovation Lab",
-    helper: "Mix one tool with one active-learning move to create a stronger innovation formula.",
+    helper: "จับคู่ 1 เครื่องมือกับ 1 วิธีจัดการเรียนรู้ เพื่อสร้างสูตรนวัตกรรมที่ตอบโจทย์จริง",
   },
   {
     step: 2,
     label: "Step 2",
     title: "Blueprint",
-    helper: "Turn the idea into a lean one-page lesson flow with Hook, Action, and Reflect.",
+    helper: "เปลี่ยนไอเดียให้เป็นแผนการสอนหน้าเดียวที่เห็น Hook, Action และ Reflection ชัดเจน",
   },
   {
     step: 3,
     label: "Step 3",
     title: "Crafting",
-    helper: "Build the real classroom asset that will carry the innovation into practice.",
+    helper: "สร้างชิ้นงานจริงที่จะนำไปใช้กับผู้เรียนได้ทันที",
   },
   {
     step: 4,
     label: "Step 4",
     title: "Beta Test",
-    helper: "Test the prototype with a small audience and capture what works and what to improve.",
+    helper: "ทดลองกับกลุ่มเล็กก่อน แล้วเก็บจุดเด่นและจุดที่ควรอัปเกรดให้ชัด",
   },
   {
     step: 5,
     label: "Step 5",
     title: "Post-test",
-    helper: "Confirm readiness, lock in the evidence, and unlock the reflection module.",
+    helper: "ทบทวนความเข้าใจ ปิดด่านนวัตกรรม และปลดล็อก Module 5",
   },
 ];
 
@@ -140,22 +140,22 @@ export const moduleFourPreTestQuestions = [
 ];
 
 export const innovationToolOptions = [
-  { id: "canva", label: "Canva / Presentation Studio" },
-  { id: "quiz-app", label: "Quiz App / Instant Response Tool" },
-  { id: "video-clip", label: "Short Video / Story Clip" },
-  { id: "podcast", label: "Podcast / Audio Story" },
-  { id: "worksheet", label: "Interactive Worksheet" },
-  { id: "board-game", label: "Handmade Board Game" },
-  { id: "qr-station", label: "QR / Learning Station Set" },
+  { id: "canva", label: "Canva / สตูดิโอสร้างสไลด์" },
+  { id: "quiz-app", label: "แอปตอบคำถาม / Instant Response Tool" },
+  { id: "video-clip", label: "คลิปวิดีโอสั้น / Story Clip" },
+  { id: "podcast", label: "พอดแคสต์ / เสียงเล่าเรื่อง" },
+  { id: "worksheet", label: "ใบงานอินเทอร์แอคทีฟ" },
+  { id: "board-game", label: "บอร์ดเกมทำมือ" },
+  { id: "qr-station", label: "ชุดฐานการเรียนรู้แบบ QR" },
   { id: "ai-assistant", label: "AI Assistant / Prompt Tool" },
-  { id: "community-kit", label: "Community Artifact / Local Resource Kit" },
+  { id: "community-kit", label: "ชุดทรัพยากรจากชุมชน" },
 ];
 
 export const activeLearningOptions = [
-  { id: "roleplay", label: "Roleplay" },
+  { id: "roleplay", label: "Roleplay / การสวมบทบาท" },
   { id: "project-based", label: "Project-Based Learning" },
   { id: "problem-based", label: "Problem-Based Learning" },
-  { id: "gamification", label: "Gamification" },
+  { id: "gamification", label: "Gamification / เกมมิฟิเคชัน" },
   { id: "inquiry", label: "Inquiry-Based Learning" },
   { id: "station-rotation", label: "Station Rotation" },
   { id: "discussion", label: "Discussion / Debate" },
@@ -165,37 +165,37 @@ export const activeLearningOptions = [
 const moduleFourMentor = {
   pretest: {
     intro:
-      "AI Mentor: Before we open the innovation forge, let's check your readiness. This module is about turning ideas into prototype-ready classroom innovation, not just collecting flashy tools.",
+      "AI Mentor: ก่อนเปิดโรงประดิษฐ์นวัตกรรม ลองเช็กความพร้อมกันก่อนนะครับ โมดูลนี้ไม่ได้เน้นแค่เครื่องมือเท่ ๆ แต่เน้นการออกแบบนวัตกรรมที่ใช้ได้จริงในห้องเรียนของเรา",
     reward: "Innovation gate cleared",
   },
   briefing: {
     intro:
-      "AI Mentor: Great innovation is not technology alone. It comes from matching the right tool with the right learning move so the classroom experience feels purposeful, active, and possible in your real context.",
+      "AI Mentor: นวัตกรรมที่ดีไม่ใช่เทคโนโลยีล้ำอย่างเดียวครับ แต่คือการจับคู่เครื่องมือให้เข้ากับวิธีเรียนรู้ จนเกิดคาบเรียนที่มีความหมายและใช้ได้จริงในบริบทของเรา",
     reward: "Forge map unlocked",
   },
   missionOne: {
     intro:
-      "AI Mentor: Start with a clear formula. Pick one tool and one pedagogy move, then name the innovation so people can remember it and immediately see why it matters.",
+      "AI Mentor: เริ่มจากสูตรที่ชัดก่อนครับ เลือก 1 เครื่องมือและ 1 วิธีจัดการเรียนรู้ แล้วตั้งชื่อนวัตกรรมให้คนฟังแล้วเห็นภาพทันทีว่าทำไมสิ่งนี้ถึงสำคัญ",
     reward: "Formula forged",
   },
   missionTwo: {
     intro:
-      "AI Mentor: Keep the blueprint lean. If another teacher can read it in one glance and picture the lesson flow, your plan is clear enough to build from.",
+      "AI Mentor: พิมพ์เขียวที่ดีควรอ่านแล้วเห็นคาบเรียนทั้งคาบในหน้าเดียวครับ ถ้าครูอีกคนอ่านแล้วนึกภาพการสอนได้ แปลว่าแผนนี้พร้อมนำไปสร้างต่อ",
     reward: "Blueprint framed",
   },
   missionThree: {
     intro:
-      "AI Mentor: This is where the idea becomes tangible. Build the real asset and make sure you can explain exactly how it supports learners during the lesson.",
+      "AI Mentor: ตรงนี้คือจุดที่ไอเดียกลายเป็นของจริงครับ สร้างชิ้นงานให้จับต้องได้ และอธิบายให้ชัดว่าสื่อชิ้นนี้ช่วยผู้เรียนตรงไหนในคาบ",
     reward: "Artifact crafted",
   },
   missionFour: {
     intro:
-      "AI Mentor: Test early, improve early. A small beta test gives you fast evidence about what already works and what needs a Version 2.0 before the full classroom launch.",
+      "AI Mentor: ทดลองเร็ว ปรับเร็วครับ การทดสอบกับกลุ่มเล็กจะช่วยให้เห็นทั้งจุดที่ดีอยู่แล้ว และจุดที่ควรอัปเกรดเป็นเวอร์ชัน 2.0 ก่อนใช้จริงเต็มรูปแบบ",
     reward: "Prototype tuned",
   },
   posttest: {
     intro:
-      "AI Mentor: Finish strong. The post-test confirms that your innovation is now structured, testable, and ready to move into evidence-based reflection in the next module.",
+      "AI Mentor: ปิดด่านนี้ให้สวยนะครับ เมื่อผ่าน post-test จะเท่ากับว่านวัตกรรมของคุณมีโครงสร้าง มีหลักฐานรองรับ และพร้อมเข้าสู่การสะท้อนผลใน Module 5",
     reward: "Innovation badge ready",
   },
 };
@@ -233,15 +233,15 @@ export const moduleFourLessons = [
   },
   {
     id: "m4-lesson-brief",
-    title: "4.1 I-Innovation Lesson Brief",
+    title: "4.1 บทเรียน I-Innovation",
     type: "video",
     iconName: "PlayCircle",
     content: {
       videoUrl:
-        "https://www.canva.com/design/DAHFgi56U6Q/zlELbaa9zOznNXxcgepZdQ//watch?embed",
+        "https://www.canva.com/design/DAHFgi56U6Q/zlELbaa9zOznNXxcgepZdQ/view?embed",
       frameLabel: "I-Innovation Lesson Deck",
       externalUrl:
-        "https://www.canva.com/design/DAHFgi56U6Q/zlELbaa9zOznNXxcgepZdQ//watch?embed",
+        "https://www.canva.com/design/DAHFgi56U6Q/zlELbaa9zOznNXxcgepZdQ/view?embed",
       description:
         "Review the innovation lesson deck after the pre-test, then move into formula design, blueprinting, crafting, and beta testing.",
       campaignStep: 1,
@@ -360,6 +360,7 @@ export const moduleFourLessons = [
       campaignStep: 4,
       campaignStages: moduleFourStages,
       aiMentor: moduleFourMentor.missionFour,
+      padletEmbedUrl: "https://padlet.com/embed/9nbud6e16s6xlapg",
       gamification: missionProfile({
         arc: "Beta Test",
         xp: 200,
