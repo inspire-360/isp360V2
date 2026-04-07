@@ -108,6 +108,81 @@ const defaultProgressData = {
   earnedBadges: [],
 };
 
+const courseId = "course-teacher";
+const currentCourse = teacherCourseData;
+const totalCourseLessons = currentCourse.modules.reduce(
+  (sum, module) => sum + module.lessons.length,
+  0,
+);
+
+const getFirstPendingLessonIndex = (moduleIndex, completedLessons) => {
+  const lessonIndex = currentCourse.modules[moduleIndex]?.lessons.findIndex(
+    (lesson) => !completedLessons.includes(lesson.id),
+  );
+  return lessonIndex === -1 ? 0 : lessonIndex;
+};
+
+const getSafeModuleIndex = (index) =>
+  Math.min(Math.max(index ?? 0, 0), Math.max(currentCourse.modules.length - 1, 0));
+
+const getSafeLessonIndex = (moduleIndex, lessonIndex) => {
+  const safeModuleIndex = getSafeModuleIndex(moduleIndex);
+  const lessons = currentCourse.modules[safeModuleIndex]?.lessons || [];
+  if (lessons.length === 0) return 0;
+  return Math.min(Math.max(lessonIndex ?? 0, 0), lessons.length - 1);
+};
+
+const getUnlockedModuleIndexFromLessons = (completedLessons = []) => {
+  let unlockedIndex = 0;
+
+  for (let moduleIndex = 0; moduleIndex < currentCourse.modules.length - 1; moduleIndex += 1) {
+    const moduleLessons = currentCourse.modules[moduleIndex]?.lessons || [];
+    const isModuleComplete =
+      moduleLessons.length > 0 &&
+      moduleLessons.every((lesson) => completedLessons.includes(lesson.id));
+
+    if (!isModuleComplete) {
+      return getSafeModuleIndex(moduleIndex);
+    }
+
+    unlockedIndex = moduleIndex + 1;
+  }
+
+  return getSafeModuleIndex(unlockedIndex);
+};
+
+const buildEnrollmentMeta = ({
+  completedLessons = [],
+  unlockedModuleIndex = 0,
+  activeModule = 0,
+  activeLesson = 0,
+} = {}) => {
+  const safeModuleIndex = getSafeModuleIndex(activeModule);
+  const safeLessonIndex = getSafeLessonIndex(safeModuleIndex, activeLesson);
+  const activeModuleData = currentCourse.modules[safeModuleIndex];
+  const activeLessonData = activeModuleData?.lessons?.[safeLessonIndex];
+  const completedCount = completedLessons.length;
+  const progressPercent = totalCourseLessons
+    ? Math.min(100, Math.round((completedCount / totalCourseLessons) * 100))
+    : 0;
+
+  return {
+    courseId,
+    courseTitle: currentCourse.title,
+    completedLessonsCount: completedCount,
+    lessonCount: totalCourseLessons,
+    moduleCount: currentCourse.modules.length,
+    progressPercent,
+    currentModuleIndex: getSafeModuleIndex(unlockedModuleIndex),
+    activeModuleIndex: safeModuleIndex,
+    activeLessonIndex: safeLessonIndex,
+    activeModuleTitle: activeModuleData?.title || "",
+    activeLessonId: activeLessonData?.id || "",
+    activeLessonTitle: activeLessonData?.title || "",
+    status: completedCount >= totalCourseLessons ? "completed" : "active",
+  };
+};
+
 export default function CourseRoom() {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
@@ -124,9 +199,6 @@ export default function CourseRoom() {
   const [quizScore, setQuizScore] = useState(0);
   const [currentTime, setCurrentTime] = useState(Date.now());
 
-  const courseId = "course-teacher";
-  const currentCourse = teacherCourseData;
-
   const lessonMap = useMemo(() => {
     const nextMap = new Map();
     currentCourse.modules.forEach((module, moduleIndex) => {
@@ -135,14 +207,14 @@ export default function CourseRoom() {
       });
     });
     return nextMap;
-  }, [currentCourse.modules]);
+  }, []);
 
   const allLessons = useMemo(
     () =>
       currentCourse.modules.flatMap((module) =>
         module.lessons.map((lesson) => ({ module, lesson })),
       ),
-    [currentCourse.modules],
+    [],
   );
 
   const currentModule = currentCourse.modules?.[activeModuleIndex];
@@ -200,23 +272,6 @@ export default function CourseRoom() {
   );
   const courseProgressPercent = Math.round((progressData.completedLessons.length / allLessons.length) * 100) || 0;
 
-  const getFirstPendingLessonIndex = (moduleIndex, completedLessons) => {
-    const lessonIndex = currentCourse.modules[moduleIndex]?.lessons.findIndex(
-      (lesson) => !completedLessons.includes(lesson.id),
-    );
-    return lessonIndex === -1 ? 0 : lessonIndex;
-  };
-
-  const getSafeModuleIndex = (index) =>
-    Math.min(Math.max(index ?? 0, 0), Math.max(currentCourse.modules.length - 1, 0));
-
-  const getSafeLessonIndex = (moduleIndex, lessonIndex) => {
-    const safeModuleIndex = getSafeModuleIndex(moduleIndex);
-    const lessons = currentCourse.modules[safeModuleIndex]?.lessons || [];
-    if (lessons.length === 0) return 0;
-    return Math.min(Math.max(lessonIndex ?? 0, 0), lessons.length - 1);
-  };
-
   const getQuizAttemptCount = (lessonId) =>
     progressData.quizAttempts?.[lessonId] ??
     (lessonId === "posttest-exam" ? progressData.postTestAttempts || 0 : 0);
@@ -241,57 +296,6 @@ export default function CourseRoom() {
     if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
     if (hours > 0) return `${hours}h`;
     return `${minutes}m`;
-  };
-
-  const getUnlockedModuleIndexFromLessons = (completedLessons = []) => {
-    let unlockedIndex = 0;
-
-    for (let moduleIndex = 0; moduleIndex < currentCourse.modules.length - 1; moduleIndex += 1) {
-      const moduleLessons = currentCourse.modules[moduleIndex]?.lessons || [];
-      const isModuleComplete =
-        moduleLessons.length > 0 &&
-        moduleLessons.every((lesson) => completedLessons.includes(lesson.id));
-
-      if (!isModuleComplete) {
-        return getSafeModuleIndex(moduleIndex);
-      }
-
-      unlockedIndex = moduleIndex + 1;
-    }
-
-    return getSafeModuleIndex(unlockedIndex);
-  };
-
-  const buildEnrollmentMeta = ({
-    completedLessons = progressData.completedLessons,
-    unlockedModuleIndex = progressData.currentModuleIndex,
-    activeModule = activeModuleIndex,
-    activeLesson = activeLessonIndex,
-  } = {}) => {
-    const safeModuleIndex = getSafeModuleIndex(activeModule);
-    const safeLessonIndex = getSafeLessonIndex(safeModuleIndex, activeLesson);
-    const activeModuleData = currentCourse.modules[safeModuleIndex];
-    const activeLessonData = activeModuleData?.lessons?.[safeLessonIndex];
-    const completedCount = completedLessons.length;
-    const progressPercent = allLessons.length
-      ? Math.min(100, Math.round((completedCount / allLessons.length) * 100))
-      : 0;
-
-    return {
-      courseId,
-      courseTitle: currentCourse.title,
-      completedLessonsCount: completedCount,
-      lessonCount: allLessons.length,
-      moduleCount: currentCourse.modules.length,
-      progressPercent,
-      currentModuleIndex: getSafeModuleIndex(unlockedModuleIndex),
-      activeModuleIndex: safeModuleIndex,
-      activeLessonIndex: safeLessonIndex,
-      activeModuleTitle: activeModuleData?.title || "",
-      activeLessonId: activeLessonData?.id || "",
-      activeLessonTitle: activeLessonData?.title || "",
-      status: completedCount >= allLessons.length ? "completed" : "active",
-    };
   };
 
   useEffect(() => {
@@ -425,6 +429,8 @@ export default function CourseRoom() {
         doc(db, "users", currentUser.uid, "enrollments", courseId),
         {
           ...buildEnrollmentMeta({
+            completedLessons: progressData.completedLessons,
+            unlockedModuleIndex: progressData.currentModuleIndex,
             activeModule: moduleIndex,
             activeLesson: lessonIndex,
           }),

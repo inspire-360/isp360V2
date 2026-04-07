@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Loader2, Sparkles } from "lucide-react";
 
+const EMPTY_RESPONSE = Object.freeze({});
+
 const filled = (value) => Boolean(String(value || "").trim());
 
 const choiceValue = (selected, custom) => selected || custom || "";
@@ -132,7 +134,7 @@ const ChoiceGrid = ({ options, value, onSelect }) => (
 export default function ModuleFourMission({
   lesson,
   savedResponse,
-  allResponses = {},
+  allResponses = EMPTY_RESPONSE,
   isCompleted,
   onSave,
   onDraftSave,
@@ -141,16 +143,23 @@ export default function ModuleFourMission({
   const [saving, setSaving] = useState(false);
   const [reward, setReward] = useState("");
   const [autosaveState, setAutosaveState] = useState("");
+  const hydratedLessonRef = useRef("");
   const lastPayloadRef = useRef("");
 
-  const moduleThreeBillboard = allResponses["m3-mission-1"] || {};
-  const moduleThreePitch = allResponses["m3-mission-3"] || {};
-  const moduleTwoSmart = allResponses["m2-mission-5"] || {};
-  const moduleFourInnovation = allResponses["m4-mission-1"] || {};
-  const moduleFourBlueprint = allResponses["m4-mission-2"] || {};
-  const moduleFourCraft = allResponses["m4-mission-3"] || {};
+  const moduleThreeBillboard = allResponses["m3-mission-1"] ?? EMPTY_RESPONSE;
+  const moduleThreePitch = allResponses["m3-mission-3"] ?? EMPTY_RESPONSE;
+  const moduleTwoSmart = allResponses["m2-mission-5"] ?? EMPTY_RESPONSE;
+  const moduleFourInnovation = allResponses["m4-mission-1"] ?? EMPTY_RESPONSE;
+  const moduleFourBlueprint = allResponses["m4-mission-2"] ?? EMPTY_RESPONSE;
+  const moduleFourCraft = allResponses["m4-mission-3"] ?? EMPTY_RESPONSE;
 
   useEffect(() => {
+    if (hydratedLessonRef.current === lesson.id) return;
+
+    hydratedLessonRef.current = lesson.id;
+    setReward("");
+    setAutosaveState("");
+
     if (lesson.activityType === "module4_innovation_lab") {
       setDraft({
         innovationName: savedResponse?.innovationName || moduleThreePitch?.projectName || "",
@@ -215,6 +224,8 @@ export default function ModuleFourMission({
   ]);
 
   useEffect(() => {
+    if (!onDraftSave) return undefined;
+
     const payload = buildPayload(lesson, draft);
     if (!hasContent(payload)) return undefined;
 

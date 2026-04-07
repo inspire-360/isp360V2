@@ -1,5 +1,7 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Loader2, Sparkles } from "lucide-react";
+
+const EMPTY_RESPONSE = Object.freeze({});
 
 const filled = (value) => Boolean(String(value || "").trim());
 
@@ -91,7 +93,7 @@ const TextArea = ({ value, onChange, placeholder, rows = 5 }) => (
 export default function ModuleThreeMission({
   lesson,
   savedResponse,
-  allResponses = {},
+  allResponses = EMPTY_RESPONSE,
   isCompleted,
   onSave,
   onDraftSave,
@@ -100,27 +102,29 @@ export default function ModuleThreeMission({
   const [saving, setSaving] = useState(false);
   const [reward, setReward] = useState("");
   const [autosaveState, setAutosaveState] = useState("");
+  const hydratedLessonRef = useRef("");
   const lastPayloadRef = useRef("");
 
-  const moduleTwoRoadmap = allResponses["m2-mission-3"] || {};
-  const moduleTwoPitch = allResponses["m2-mission-4"] || {};
-  const moduleTwoSmart = allResponses["m2-mission-5"] || {};
+  const moduleTwoRoadmap = allResponses["m2-mission-3"] ?? EMPTY_RESPONSE;
+  const moduleTwoPitch = allResponses["m2-mission-4"] ?? EMPTY_RESPONSE;
+  const moduleTwoSmart = allResponses["m2-mission-5"] ?? EMPTY_RESPONSE;
 
   useEffect(() => {
+    if (hydratedLessonRef.current === lesson.id) return;
+
+    let nextDraft;
+
     if (lesson.activityType === "module3_idea_billboard") {
-      setDraft({
+      nextDraft = {
         projectName: savedResponse?.projectName || moduleTwoPitch?.projectName || "",
         painPoint: savedResponse?.painPoint || "",
         solution: savedResponse?.solution || moduleTwoRoadmap?.northStar || "",
         adviceRequest: savedResponse?.adviceRequest || "",
         boardEvidence: savedResponse?.boardEvidence || "",
         screenshotEvidence: savedResponse?.screenshotEvidence || "",
-      });
-      return;
-    }
-
-    if (lesson.activityType === "module3_mastermind_comments") {
-      setDraft({
+      };
+    } else if (lesson.activityType === "module3_mastermind_comments") {
+      nextDraft = {
         commentOneRole: savedResponse?.commentOneRole || "",
         commentOneTarget: savedResponse?.commentOneTarget || "",
         commentOneText: savedResponse?.commentOneText || "",
@@ -130,12 +134,9 @@ export default function ModuleThreeMission({
         commentTwoText: savedResponse?.commentTwoText || "",
         commentTwoEvidence: savedResponse?.commentTwoEvidence || "",
         vibeReflection: savedResponse?.vibeReflection || "",
-      });
-      return;
-    }
-
-    if (lesson.activityType === "module3_spell_pitch") {
-      setDraft({
+      };
+    } else if (lesson.activityType === "module3_spell_pitch") {
+      nextDraft = {
         projectName: savedResponse?.projectName || moduleTwoPitch?.projectName || "",
         feedbackApplied: savedResponse?.feedbackApplied || "",
         hook: savedResponse?.hook || "",
@@ -143,17 +144,24 @@ export default function ModuleThreeMission({
         solution: savedResponse?.solution || moduleTwoSmart?.commitment || "",
         impact: savedResponse?.impact || "",
         pitchLink: savedResponse?.pitchLink || "",
-      });
-      return;
+      };
+    } else {
+      nextDraft = {
+        reflectionAnswer: savedResponse?.reflectionAnswer || "",
+      };
     }
 
-    setDraft({
-      reflectionAnswer: savedResponse?.reflectionAnswer || "",
-    });
+    hydratedLessonRef.current = lesson.id;
+    lastPayloadRef.current = JSON.stringify(buildPayload(lesson, nextDraft));
+    setReward("");
+    setAutosaveState("");
+    setDraft(nextDraft);
   }, [lesson, moduleTwoPitch, moduleTwoRoadmap, moduleTwoSmart, savedResponse]);
 
+  const payload = useMemo(() => buildPayload(lesson, draft), [draft, lesson]);
+
   useEffect(() => {
-    const payload = buildPayload(lesson, draft);
+    if (!onDraftSave) return undefined;
     if (!hasContent(payload)) return undefined;
 
     const serialized = JSON.stringify(payload);
@@ -173,12 +181,11 @@ export default function ModuleThreeMission({
     }, 900);
 
     return () => window.clearTimeout(timeoutId);
-  }, [draft, lesson, onDraftSave]);
+  }, [onDraftSave, payload]);
 
   const persist = async () => {
     setSaving(true);
     try {
-      const payload = buildPayload(lesson, draft);
       await onSave(payload);
       lastPayloadRef.current = JSON.stringify(payload);
       setAutosaveState("บันทึกคำตอบอัตโนมัติแล้ว");

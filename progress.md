@@ -121,3 +121,17 @@ Original prompt:
 - Polished Module 1-5 report exports and the course certificate for A4-friendly PDF/image output with cleaner labels, Thai-first wording, and consistent trainee/serial metadata presentation.
 - Localized more of the visible Course Room, report card, and certificate UI into Thai, including progress, deliverable, unlock, and certificate-gate messaging.
 - Verified the full app with `npm run build`; production build passed after the UX, localization, and export updates.
+
+Original prompt:
+[$develop-web-game](C:\\Users\\401ms\\.codex\\skills\\develop-web-game\\SKILL.md) [$frontend-skill](C:\\Users\\401ms\\.codex\\skills\\frontend-skill\\SKILL.md) [$screenshot](C:\\Users\\401ms\\.codex\\skills\\screenshot\\SKILL.md) [$imagegen](C:\\Users\\401ms\\.codex\\skills\\.system\\imagegen\\SKILL.md) [$skill-creator](C:\\Users\\401ms\\.codex\\skills\\.system\\skill-creator\\SKILL.md) [$skill-installer](C:\\Users\\401ms\\.codex\\skills\\.system\\skill-installer\\SKILL.md) การทำงานยังไม่สมบูรณ์และยังไม่เสถียร ขอให้คุณเข้าไปแก้ไข ปรับปรุง และพัฒนา ให้ดีขึ้นกว่าเดิม
+
+- Loaded the named skills for this turn. `skill-installer`, `skill-creator`, and `imagegen` were reviewed for applicability, but no skill installation, skill authoring, or bitmap generation changes were needed for this stability-focused pass.
+- Hardened Module 2-5 mission flows by replacing unstable inline `{}` fallbacks with shared empty references so prerequisite-response dependencies stop changing on every render when upstream answers are absent.
+- Updated mission hydration/autosave behavior so each lesson seeds its local draft once per opened lesson instead of reinitializing from snapshot churn while the learner is typing, which reduces accidental draft resets and duplicate autosave loops.
+- Added small defensive resets around reward/autosave banners when changing lessons, so UI state from one mission no longer leaks into the next mission panel.
+- Moved `CourseRoom.jsx` enrollment-navigation helpers to module scope and switched lesson-change metadata writes to explicit arguments, removing stale-closure risk and cleaning up the hook dependency graph.
+- Verified with `npm run lint`; the previous React hook warnings are now gone.
+- Verified with `npm run build`; production build passed after the stability refactor.
+- Ran local browser checks with the `develop-web-game` Playwright client and visually reviewed the public landing surface plus the login screen reached through in-app navigation from the landing page; both rendered correctly after the refactor.
+- Directly opening `/login` against `python -m http.server dist` returns a static-server 404, but this is not an app routing bug; Firebase hosting already has SPA rewrites configured in `firebase.json`, and the actual client-side route worked when navigated inside the app.
+- Remaining TODO: authenticated flows (`CourseRoom`, `SOS to DU`, `DU Admin`) still need a signed-in browser session for full end-to-end validation.

@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { CheckCircle2, Loader2, Sparkles } from "lucide-react";
 
+const EMPTY_RESPONSE = Object.freeze({});
+
 const buildPayload = (lesson, draft) => {
   if (lesson.activityType === "module5_real_classroom") {
     return {
@@ -82,7 +84,7 @@ const SectionIntro = ({ intro, helper }) => (
 export default function ModuleFiveMission({
   lesson,
   savedResponse,
-  allResponses = {},
+  allResponses = EMPTY_RESPONSE,
   isCompleted,
   onSave,
   onDraftSave,
@@ -91,14 +93,21 @@ export default function ModuleFiveMission({
   const [saving, setSaving] = useState(false);
   const [reward, setReward] = useState("");
   const [autosaveState, setAutosaveState] = useState("");
+  const hydratedLessonRef = useRef("");
   const lastPayloadRef = useRef("");
 
-  const moduleFourInnovation = allResponses["m4-mission-1"] || {};
-  const moduleFourBlueprint = allResponses["m4-mission-2"] || {};
-  const moduleFourCraft = allResponses["m4-mission-3"] || {};
-  const moduleTwoSmart = allResponses["m2-mission-5"] || {};
+  const moduleFourInnovation = allResponses["m4-mission-1"] ?? EMPTY_RESPONSE;
+  const moduleFourBlueprint = allResponses["m4-mission-2"] ?? EMPTY_RESPONSE;
+  const moduleFourCraft = allResponses["m4-mission-3"] ?? EMPTY_RESPONSE;
+  const moduleTwoSmart = allResponses["m2-mission-5"] ?? EMPTY_RESPONSE;
 
   useEffect(() => {
+    if (hydratedLessonRef.current === lesson.id) return;
+
+    hydratedLessonRef.current = lesson.id;
+    setReward("");
+    setAutosaveState("");
+
     const fallbackTitle =
       savedResponse?.lessonPlanTitle ||
       moduleFourInnovation?.innovationName ||
@@ -149,6 +158,8 @@ export default function ModuleFiveMission({
   }, [lesson, moduleFourBlueprint, moduleFourCraft, moduleFourInnovation, moduleTwoSmart, savedResponse]);
 
   useEffect(() => {
+    if (!onDraftSave) return undefined;
+
     const payload = buildPayload(lesson, draft);
     if (!hasContent(payload)) return undefined;
 

@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Loader2, Sparkles } from "lucide-react";
 
+const EMPTY_RESPONSE = Object.freeze({});
+
 const filled = (value) => Boolean(String(value || "").trim());
 
 const summarizePhrase = (text = "") => {
@@ -181,19 +183,46 @@ const ChecklistToggle = ({ value, onChange }) => (
   </div>
 );
 
-export default function ModuleTwoMission({ lesson, savedResponse, allResponses, isCompleted, onSave, onDraftSave }) {
+export default function ModuleTwoMission({
+  lesson,
+  savedResponse,
+  allResponses = EMPTY_RESPONSE,
+  isCompleted,
+  onSave,
+  onDraftSave,
+}) {
   const [draft, setDraft] = useState({});
   const [saving, setSaving] = useState(false);
   const [reward, setReward] = useState("");
   const [autosaveState, setAutosaveState] = useState("");
+  const hydratedLessonRef = useRef("");
   const lastPayloadRef = useRef("");
 
-  const strengthCloud = useMemo(() => buildCloudNodes(collectInsights(allResponses["m1-mission-1"], ["S"])), [allResponses]);
-  const weaknessCloud = useMemo(() => buildCloudNodes(collectInsights(allResponses["m1-mission-1"], ["W"])), [allResponses]);
-  const opportunityCloud = useMemo(() => buildCloudNodes(collectInsights(allResponses["m1-mission-2"], ["O"])), [allResponses]);
-  const threatCloud = useMemo(() => buildCloudNodes(collectInsights(allResponses["m1-mission-2"], ["T"])), [allResponses]);
+  const moduleOneMissionOne = allResponses["m1-mission-1"] ?? EMPTY_RESPONSE;
+  const moduleOneMissionTwo = allResponses["m1-mission-2"] ?? EMPTY_RESPONSE;
+
+  const strengthCloud = useMemo(
+    () => buildCloudNodes(collectInsights(moduleOneMissionOne, ["S"])),
+    [moduleOneMissionOne],
+  );
+  const weaknessCloud = useMemo(
+    () => buildCloudNodes(collectInsights(moduleOneMissionOne, ["W"])),
+    [moduleOneMissionOne],
+  );
+  const opportunityCloud = useMemo(
+    () => buildCloudNodes(collectInsights(moduleOneMissionTwo, ["O"])),
+    [moduleOneMissionTwo],
+  );
+  const threatCloud = useMemo(
+    () => buildCloudNodes(collectInsights(moduleOneMissionTwo, ["T"])),
+    [moduleOneMissionTwo],
+  );
 
   useEffect(() => {
+    if (hydratedLessonRef.current === lesson.id) return;
+
+    let nextDraft;
+
     if (lesson.activityType === "module2_dream_lab") {
       const strategies =
         savedResponse?.strategies?.length
@@ -206,74 +235,63 @@ export default function ModuleTwoMission({ lesson, savedResponse, allResponses, 
         strategies[0]?.id ||
         "";
 
-      setDraft({ strategies, sparkNote: savedResponse?.sparkNote || "", selectedStrategyId });
-      return;
-    }
-
-    if (lesson.activityType === "module2_vibe_check") {
-      setDraft({
+      nextDraft = { strategies, sparkNote: savedResponse?.sparkNote || "", selectedStrategyId };
+    } else if (lesson.activityType === "module2_vibe_check") {
+      nextDraft = {
         senses:
           savedResponse?.senses?.length
             ? savedResponse.senses
             : lesson.content.senses.map((item) => ({ ...item, answer: "" })),
         moodLine: savedResponse?.moodLine || "",
-      });
-      return;
-    }
-
-    if (lesson.activityType === "module2_roadmap") {
-      setDraft({
+      };
+    } else if (lesson.activityType === "module2_roadmap") {
+      nextDraft = {
         weeks:
           savedResponse?.weeks?.length
             ? savedResponse.weeks
             : lesson.content.weeks.map((item) => ({ ...item, quickWin: "", plan: "", evidence: "" })),
         northStar: savedResponse?.northStar || "",
-      });
-      return;
-    }
-
-    if (lesson.activityType === "module2_pitch_deck") {
-      setDraft({
+      };
+    } else if (lesson.activityType === "module2_pitch_deck") {
+      nextDraft = {
         projectName: savedResponse?.projectName || "",
         teaser: savedResponse?.teaser || "",
         cards:
           savedResponse?.cards?.length
             ? savedResponse.cards
             : lesson.content.prompts.map((item) => ({ ...item, answer: "" })),
-      });
-      return;
-    }
-
-    if (lesson.activityType === "module2_smart_objective") {
+      };
+    } else if (lesson.activityType === "module2_smart_objective") {
       const criteria =
         savedResponse?.criteria?.length
           ? savedResponse.criteria
           : lesson.content.criteria.map((item) => ({ ...item, answer: "" }));
-      setDraft({
+      nextDraft = {
         commitment: savedResponse?.commitment || "",
         polishedSummary: savedResponse?.polishedSummary || "",
         criteria,
-      });
-      return;
+      };
+    } else {
+      nextDraft = {
+        alignmentNote: savedResponse?.alignmentNote || "",
+        lenses:
+          savedResponse?.lenses?.length
+            ? savedResponse.lenses
+            : lesson.content.lenses.map((lens) => ({
+                ...lens,
+                items: (lens.items || []).map((item) => ({ ...item, value: "" })),
+              })),
+      };
     }
 
-    setDraft({
-      alignmentNote: savedResponse?.alignmentNote || "",
-      lenses:
-        savedResponse?.lenses?.length
-          ? savedResponse.lenses
-          : lesson.content.lenses.map((lens) => ({
-              ...lens,
-              items: (lens.items || []).map((item) => ({ ...item, value: "" })),
-            })),
-    });
+    hydratedLessonRef.current = lesson.id;
+    lastPayloadRef.current = JSON.stringify(buildPayload(lesson, nextDraft));
+    setReward("");
+    setAutosaveState("");
+    setDraft(nextDraft);
   }, [lesson, savedResponse]);
 
   const payload = useMemo(() => buildPayload(lesson, draft), [draft, lesson]);
-
-  useEffect(() => {
-    lastPayloadRef.current = JSON.stringify(payload);
-  }, [lesson.id]);
 
   useEffect(() => {
     if (!onDraftSave) return undefined;
@@ -297,15 +315,15 @@ export default function ModuleTwoMission({ lesson, savedResponse, allResponses, 
   }, [onDraftSave, payload]);
 
   const dreamLabResponse =
-    lesson.activityType === "module2_dream_lab" ? payload : allResponses["m2-mission-1"] || {};
+    lesson.activityType === "module2_dream_lab" ? payload : allResponses["m2-mission-1"] ?? EMPTY_RESPONSE;
   const vibeResponse =
-    lesson.activityType === "module2_vibe_check" ? payload : allResponses["m2-mission-2"] || {};
+    lesson.activityType === "module2_vibe_check" ? payload : allResponses["m2-mission-2"] ?? EMPTY_RESPONSE;
   const roadmapResponse =
-    lesson.activityType === "module2_roadmap" ? payload : allResponses["m2-mission-3"] || {};
+    lesson.activityType === "module2_roadmap" ? payload : allResponses["m2-mission-3"] ?? EMPTY_RESPONSE;
   const pitchResponse =
-    lesson.activityType === "module2_pitch_deck" ? payload : allResponses["m2-mission-4"] || {};
+    lesson.activityType === "module2_pitch_deck" ? payload : allResponses["m2-mission-4"] ?? EMPTY_RESPONSE;
   const smartResponse =
-    lesson.activityType === "module2_smart_objective" ? payload : allResponses["m2-mission-5"] || {};
+    lesson.activityType === "module2_smart_objective" ? payload : allResponses["m2-mission-5"] ?? EMPTY_RESPONSE;
 
   const selectedDream = useMemo(() => {
     const strategies = dreamLabResponse.strategies || [];
