@@ -181,3 +181,17 @@ Original prompt:
 - Ran local browser checks with the `develop-web-game` Playwright client and visually reviewed the public landing surface plus the login screen reached through in-app navigation from the landing page; both rendered correctly after the refactor.
 - Directly opening `/login` against `python -m http.server dist` returns a static-server 404, but this is not an app routing bug; Firebase hosting already has SPA rewrites configured in `firebase.json`, and the actual client-side route worked when navigated inside the app.
 - Remaining TODO: authenticated flows (`CourseRoom`, `SOS to DU`, `DU Admin`) still need a signed-in browser session for full end-to-end validation.
+Original prompt:
+1. Add a complete button on the certificate page so the learner explicitly confirms finishing and reaches 100%.
+2. Make DU Console line up with learner progress and aggregate pain points from learner answers into a word-cloud style view.
+3. Fix the SOS to DU flow because submit still fails in testing.
+
+- Reworked `CourseRoom.jsx` so certificate completion is now a real final-step confirmation instead of an automatic virtual completion: progress, XP, sidebar lesson state, and enrollment metadata now stay below 100% until the learner clicks the new `Complete Course` button on the certificate screen.
+- Added a dedicated confirmation card on the certificate page with a success state after completion, so the learner can download the certificate first and then explicitly mark the final certificate lesson complete.
+- Refactored `AdminConsole.jsx` to derive progress from tracked lesson completion counts before falling back to stored percentage fields, which keeps the DU view aligned with actual learner completion data.
+- Added per-learner enrollment progress cards inside `Member Control`, including lesson counts, current module/lesson context, and completion state for each enrolled course.
+- Added a new pain-point word-cloud style panel in `AdminConsole.jsx` that extracts recurring phrases from mission responses such as `painPoint`, `challengePoint`, `supportNeeded`, `adviceRequest`, `duQuestion`, and `improvementFocus`.
+- Enriched SOS queue cards in `AdminConsole.jsx` with learner context from course progress plus the learner's top pain-point chips, so DU can triage cases with learning-state context instead of reading the SOS text alone.
+- Improved `SOSCenter.jsx` submit messaging so partial-sync cases are explained clearly and `permission-denied` failures now surface as Firestore-rules problems instead of a vague generic retry error.
+- Re-verified the repo after these changes with `npm run lint` and `npm run build`; both passed on April 8, 2026.
+- The code path for SOS is now clearer and safer in-app, but the live Firebase project still needs the latest `firestore.rules` deployed before a real learner account can submit SOS successfully against production data.

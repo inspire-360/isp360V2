@@ -114,23 +114,6 @@ const totalCourseLessons = currentCourse.modules.reduce(
   (sum, module) => sum + module.lessons.length,
   0,
 );
-const certificateLessonIds = currentCourse.modules.flatMap((module) =>
-  module.lessons
-    .filter((lesson) => lesson.type === "certificate")
-    .map((lesson) => lesson.id),
-);
-
-const getEffectiveCompletedLessons = (completedLessons = []) => {
-  const effectiveSet = new Set(completedLessons);
-  const isCertificateUnlocked =
-    effectiveSet.has("posttest-exam") && effectiveSet.has("final-survey");
-
-  if (isCertificateUnlocked) {
-    certificateLessonIds.forEach((lessonId) => effectiveSet.add(lessonId));
-  }
-
-  return Array.from(effectiveSet);
-};
 
 const isResettableMissionLesson = (lesson) =>
   Boolean(
@@ -184,8 +167,7 @@ const buildEnrollmentMeta = ({
   const safeLessonIndex = getSafeLessonIndex(safeModuleIndex, activeLesson);
   const activeModuleData = currentCourse.modules[safeModuleIndex];
   const activeLessonData = activeModuleData?.lessons?.[safeLessonIndex];
-  const effectiveCompletedLessons = getEffectiveCompletedLessons(completedLessons);
-  const completedCount = effectiveCompletedLessons.length;
+  const completedCount = completedLessons.length;
   const progressPercent = totalCourseLessons
     ? Math.min(100, Math.round((completedCount / totalCourseLessons) * 100))
     : 0;
@@ -256,14 +238,6 @@ export default function CourseRoom() {
     () => new Set(progressData.completedLessons),
     [progressData.completedLessons],
   );
-  const effectiveCompletedLessons = useMemo(
-    () => getEffectiveCompletedLessons(progressData.completedLessons),
-    [progressData.completedLessons],
-  );
-  const effectiveCompletedSet = useMemo(
-    () => new Set(effectiveCompletedLessons),
-    [effectiveCompletedLessons],
-  );
   const courseCertificate = useMemo(() => {
     if (!completedSet.has("posttest-exam") || !completedSet.has("final-survey")) return null;
 
@@ -290,11 +264,11 @@ export default function CourseRoom() {
   );
   const earnedXp = useMemo(
     () =>
-      effectiveCompletedLessons.reduce((sum, lessonId) => {
+      progressData.completedLessons.reduce((sum, lessonId) => {
         const entry = lessonMap.get(lessonId);
         return sum + (entry ? getLessonXp(entry.lesson) : 0);
       }, 0),
-    [effectiveCompletedLessons, lessonMap],
+    [lessonMap, progressData.completedLessons],
   );
   const completedMissionCount = useMemo(
     () => allLessons.filter((item) => isMissionLesson(item.lesson) && completedSet.has(item.lesson.id)).length,
@@ -305,7 +279,7 @@ export default function CourseRoom() {
     [allLessons],
   );
   const courseProgressPercent =
-    Math.round((effectiveCompletedLessons.length / allLessons.length) * 100) || 0;
+    Math.round((progressData.completedLessons.length / allLessons.length) * 100) || 0;
 
   const getQuizAttemptCount = (lessonId) =>
     progressData.quizAttempts?.[lessonId] ??
@@ -1536,6 +1510,7 @@ export default function CourseRoom() {
   const renderCertificate = () => {
     const isPostTestPassed = completedSet.has("posttest-exam");
     const isSurveyDone = completedSet.has("final-survey");
+    const isCertificateCompleted = completedSet.has(currentLesson.id);
 
     return (
       <div className="space-y-6">
@@ -1571,20 +1546,47 @@ export default function CourseRoom() {
                 <ArrowRight size={16} />
               </button>
             </>
-          ) : (
-            <div className="space-y-6">
-              <div>
-                <Award className="mx-auto text-primary" size={58} />
-                <h2 className="mt-6 font-display text-3xl font-bold text-ink">Certificate พร้อมดาวน์โหลด</h2>
+            ) : (
+              <div className="space-y-6">
+                <div>
+                  <Award className="mx-auto text-primary" size={58} />
+                  <h2 className="mt-6 font-display text-3xl font-bold text-ink">Certificate พร้อมดาวน์โหลด</h2>
                 <p className="mt-3 text-sm leading-7 text-slate-500">
-                  คุณผ่านทุก checkpoint แล้ว และสามารถดาวน์โหลด Certificate of InSPIRE360 ได้ทันที
-                </p>
+                    คุณผ่านทุก checkpoint แล้ว และสามารถดาวน์โหลด Certificate of InSPIRE360 ได้ทันที
+                  </p>
+                </div>
+                <CourseCertificateCard certificate={courseCertificate} />
+                <div className="rounded-[28px] border border-primary/10 bg-primary/5 p-5 text-left">
+                  <p className="text-xs uppercase tracking-[0.18em] text-primary/60">Final step</p>
+                  <h3 className="mt-3 text-xl font-semibold text-ink">ยืนยันการรับ Certificate เพื่อปิดคอร์ส</h3>
+                  <p className="mt-2 text-sm leading-7 text-slate-600">
+                    กด complete ที่นี่เพื่อยืนยันว่ารับ certificate แล้ว ระบบจะบันทึกบทสุดท้ายเป็นสำเร็จและอัปเดตความก้าวหน้าเป็น 100%
+                  </p>
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                    {isCertificateCompleted ? (
+                      <div className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700">
+                        <CheckCircle2 size={16} />
+                        รับ Certificate และปิดคอร์สเรียบร้อยแล้ว
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => markLessonComplete({ stayOnLesson: true })}
+                        className="brand-button-primary"
+                      >
+                        <CheckSquare size={16} />
+                        Complete Course
+                      </button>
+                    )}
+                    <p className="text-sm font-medium text-slate-500">
+                      ความก้าวหน้าปัจจุบัน {courseProgressPercent}%
+                    </p>
+                  </div>
+                </div>
               </div>
-              <CourseCertificateCard certificate={courseCertificate} />
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
     );
   };
 
@@ -1627,11 +1629,11 @@ export default function CourseRoom() {
               </div>
             </div>
 
-            <div className="mt-5 flex-1 space-y-2 overflow-y-auto pr-1">
-              {currentCourse.modules.map((module, moduleIndex) => {
-                const isLocked = moduleIndex > progressData.currentModuleIndex;
-            const completedInModule = module.lessons.filter((lesson) => effectiveCompletedSet.has(lesson.id)).length;
-                const moduleProgress = Math.round((completedInModule / module.lessons.length) * 100);
+              <div className="mt-5 flex-1 space-y-2 overflow-y-auto pr-1">
+                {currentCourse.modules.map((module, moduleIndex) => {
+                  const isLocked = moduleIndex > progressData.currentModuleIndex;
+                  const completedInModule = module.lessons.filter((lesson) => completedSet.has(lesson.id)).length;
+                  const moduleProgress = Math.round((completedInModule / module.lessons.length) * 100);
 
                 return (
                   <div key={module.id} className={`rounded-[26px] border border-white/10 bg-white/[0.06] ${isLocked ? "opacity-55" : ""}`}>
@@ -1648,12 +1650,12 @@ export default function CourseRoom() {
                       {isLocked ? <Lock size={16} className="text-white/[0.45]" /> : expandedModules[moduleIndex] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                     </button>
 
-                    {!isLocked && expandedModules[moduleIndex] ? (
-                      <div className="space-y-2 px-3 pb-3">
-                        {module.lessons.map((lesson, lessonIndex) => {
-                          const isActive = moduleIndex === activeModuleIndex && lessonIndex === activeLessonIndex;
-                          const isCompleted = effectiveCompletedSet.has(lesson.id);
-                          const xp = getLessonXp(lesson);
+                      {!isLocked && expandedModules[moduleIndex] ? (
+                        <div className="space-y-2 px-3 pb-3">
+                          {module.lessons.map((lesson, lessonIndex) => {
+                            const isActive = moduleIndex === activeModuleIndex && lessonIndex === activeLessonIndex;
+                            const isCompleted = completedSet.has(lesson.id);
+                            const xp = getLessonXp(lesson);
 
                           return (
                             <button
@@ -1716,12 +1718,12 @@ export default function CourseRoom() {
                   <p className="text-xs uppercase tracking-[0.18em] text-slate-400">XP ของภารกิจนี้</p>
                   <p className="mt-3 text-2xl font-bold text-ink">{getLessonXp(currentLesson)}</p>
                 </div>
-                <div className="brand-panel p-5">
-                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">สถานะ</p>
-                  <p className="mt-3 text-2xl font-bold text-ink">
-                    {effectiveCompletedSet.has(currentLesson.id) ? "เสร็จแล้ว" : "กำลังทำอยู่"}
-                  </p>
-                </div>
+                  <div className="brand-panel p-5">
+                    <p className="text-xs uppercase tracking-[0.18em] text-slate-400">สถานะ</p>
+                    <p className="mt-3 text-2xl font-bold text-ink">
+                      {completedSet.has(currentLesson.id) ? "เสร็จแล้ว" : "กำลังทำอยู่"}
+                    </p>
+                  </div>
               </div>
 
               {currentLesson.type === "video" ? renderVideo() : null}

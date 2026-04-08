@@ -10,7 +10,6 @@ import {
   Clock3,
   Filter,
   Loader2,
-  PencilLine,
   RadioTower,
   RefreshCcw,
   Save,
@@ -20,7 +19,6 @@ import {
   UserCog,
   Users,
   Wifi,
-  WifiOff,
 } from "lucide-react";
 import {
   arrayUnion,
@@ -58,21 +56,58 @@ import {
 import { PRESENCE_COLLECTION, PRESENCE_TICK_MS, resolvePresenceMeta } from "../utils/presenceStatus";
 import { getRoleLabel, normalizeUserRole, userRoleOptions } from "../utils/userRoles";
 
-const resolveProgressPercent = (enrollment) => {
-  if (typeof enrollment.progressPercent === "number") return enrollment.progressPercent;
-  if (typeof enrollment.progress === "number") return Math.round(enrollment.progress);
+const resolveCourseMeta = (courseId) =>
+  courseCatalog.find((item) => item.id === courseId) || null;
 
+const resolveCompletedLessonsCount = (enrollment = {}) => {
+  if (typeof enrollment.completedLessonsCount === "number") return enrollment.completedLessonsCount;
+  if (Array.isArray(enrollment.completedLessons)) return enrollment.completedLessons.length;
+  return 0;
+};
+
+const resolveLessonCount = (enrollment = {}) => {
+  if (typeof enrollment.lessonCount === "number" && enrollment.lessonCount > 0) {
+    return enrollment.lessonCount;
+  }
   const courseId = enrollment.courseId || enrollment.id;
-  const course = courseCatalog.find((item) => item.id === courseId);
-  const completedLessonsCount =
-    enrollment.completedLessonsCount ||
-    (Array.isArray(enrollment.completedLessons) ? enrollment.completedLessons.length : 0);
+  return resolveCourseMeta(courseId)?.lessonCount || 0;
+};
 
-  if (course?.lessonCount) {
-    return Math.min(100, Math.round((completedLessonsCount / course.lessonCount) * 100));
+const hasTrackedCompletionCount = (enrollment = {}) =>
+  typeof enrollment.completedLessonsCount === "number" || Array.isArray(enrollment.completedLessons);
+
+const resolveProgressPercent = (enrollment = {}) => {
+  const lessonCount = resolveLessonCount(enrollment);
+
+  if (lessonCount > 0 && hasTrackedCompletionCount(enrollment)) {
+    return Math.min(100, Math.round((resolveCompletedLessonsCount(enrollment) / lessonCount) * 100));
   }
 
+  if (enrollment.status === "completed") return 100;
+  if (typeof enrollment.progressPercent === "number") return Math.max(0, Math.min(100, Math.round(enrollment.progressPercent)));
+  if (typeof enrollment.progress === "number") return Math.max(0, Math.min(100, Math.round(enrollment.progress)));
   return 0;
+};
+
+const buildEnrollmentInsight = (enrollment = {}) => {
+  const courseId = enrollment.courseId || enrollment.id || "";
+  const courseMeta = resolveCourseMeta(courseId);
+  const completedLessonsCount = resolveCompletedLessonsCount(enrollment);
+  const lessonCount = resolveLessonCount(enrollment);
+  const progressPercent = resolveProgressPercent(enrollment);
+
+  return {
+    ...enrollment,
+    courseId,
+    courseTitle: courseMeta?.title || courseId || "Untitled course",
+    completedLessonsCount,
+    lessonCount,
+    progressPercent,
+    activeModuleTitle: enrollment.activeModuleTitle || "",
+    activeLessonTitle: enrollment.activeLessonTitle || "",
+    activeLessonId: enrollment.activeLessonId || "",
+    status: enrollment.status || (progressPercent >= 100 ? "completed" : "active"),
+  };
 };
 
 const resolveDisplayName = (user = {}) =>
@@ -127,6 +162,88 @@ const formatLastSeen = (value) => {
   if (diff < 3_600_000) return `${Math.max(1, Math.round(diff / 60_000))} min ago`;
   if (diff < 86_400_000) return `${Math.max(1, Math.round(diff / 3_600_000))} hr ago`;
   return formatDateTime(value);
+};
+
+const painPointFields = [
+  "painPoint",
+  "challengePoint",
+  "supportNeeded",
+  "adviceRequest",
+  "duQuestion",
+  "improvementFocus",
+];
+
+const normalizePainFragment = (value = "") =>
+  value
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/^[\s"'`~!@#$%^&*()_+\-=[\]{};:,.<>/?|\\]+|[\s"'`~!@#$%^&*()_+\-=[\]{};:,.<>/?|\\]+$/g, "")
+    .trim();
+
+const splitPainPointFragments = (value) => {
+  if (typeof value !== "string") return [];
+
+  return value
+    .split(/[\n\r,;|/]+/g)
+    .map((fragment) => fragment.replace(/\s+/g, " ").trim())
+    .filter((fragment) => fragment.length >= 6)
+    .map((fragment) => (fragment.length > 60 ? `${fragment.slice(0, 57)}...` : fragment));
+};
+
+const collectPainPointSignals = (enrollmentRows = []) => {
+  const signals = [];
+
+  enrollmentRows.forEach((enrollment) => {
+    const missionResponses = enrollment.missionResponses || {};
+
+    Object.values(missionResponses).forEach((response) => {
+      painPointFields.forEach((field) => {
+        splitPainPointFragments(response?.[field]).forEach((fragment) => {
+          signals.push({
+            text: fragment,
+            field,
+            userId: enrollment.userId || "",
+            courseId: enrollment.courseId || enrollment.id || "",
+          });
+        });
+      });
+    });
+  });
+
+  return signals;
+};
+
+const buildPainPointCloud = (signals = [], limit = 18) => {
+  const phraseMap = new Map();
+
+  signals.forEach((signal) => {
+    const key = normalizePainFragment(signal.text);
+    if (!key || key.length < 6) return;
+
+    const current = phraseMap.get(key) || {
+      text: signal.text.trim(),
+      count: 0,
+      users: new Set(),
+      fields: new Set(),
+    };
+
+    current.count += 1;
+    if (signal.userId) current.users.add(signal.userId);
+    if (signal.field) current.fields.add(signal.field);
+    if (signal.text.trim().length < current.text.length) current.text = signal.text.trim();
+
+    phraseMap.set(key, current);
+  });
+
+  return [...phraseMap.values()]
+    .map((item) => ({
+      text: item.text,
+      count: item.count,
+      userCount: item.users.size,
+      weight: item.users.size * 2 + item.count,
+    }))
+    .sort((left, right) => right.weight - left.weight || right.userCount - left.userCount || right.count - left.count || left.text.localeCompare(right.text))
+    .slice(0, limit);
 };
 
 export default function AdminConsole() {
@@ -252,6 +369,37 @@ export default function AdminConsole() {
 
   const loading = Object.values(loadingState).some(Boolean);
   const cases = useMemo(() => mergeSosCases(userCaseCache, rootCaseCache), [rootCaseCache, userCaseCache]);
+  const enrollmentInsights = useMemo(
+    () => enrollments.map((item) => buildEnrollmentInsight(item)),
+    [enrollments],
+  );
+  const enrollmentsByUser = useMemo(() => {
+    const nextMap = new Map();
+
+    enrollmentInsights.forEach((item) => {
+      const bucket = nextMap.get(item.userId) || [];
+      bucket.push(item);
+      nextMap.set(item.userId, bucket);
+    });
+
+    nextMap.forEach((items, userId) => {
+      nextMap.set(
+        userId,
+        [...items].sort((left, right) => {
+          const teacherPriority =
+            Number((right.courseId || right.id) === "course-teacher") -
+            Number((left.courseId || left.id) === "course-teacher");
+          if (teacherPriority !== 0) return teacherPriority;
+          if (left.progressPercent !== right.progressPercent) {
+            return right.progressPercent - left.progressPercent;
+          }
+          return left.courseTitle.localeCompare(right.courseTitle);
+        }),
+      );
+    });
+
+    return nextMap;
+  }, [enrollmentInsights]);
   const presenceMap = useMemo(
     () => new Map(presenceRows.map((item) => [item.uid || item.id, item])),
     [presenceRows],
@@ -329,18 +477,14 @@ export default function AdminConsole() {
     return usersData
       .map((user) => {
         const presenceRecord = presenceMap.get(user.id) || {};
-        const userEnrollments = enrollments.filter((item) => item.userId === user.id);
+        const userEnrollments = enrollmentsByUser.get(user.id) || [];
         const spotlightEnrollment =
-          userEnrollments.find((item) => (item.courseId || item.id) === "course-teacher") ||
-          userEnrollments[0] ||
-          null;
+          userEnrollments.find((item) => (item.courseId || item.id) === "course-teacher") || userEnrollments[0] || null;
         const averageProgress = userEnrollments.length
           ? Math.round(
-              userEnrollments.reduce((sum, item) => sum + resolveProgressPercent(item), 0) /
-                userEnrollments.length,
+              userEnrollments.reduce((sum, item) => sum + item.progressPercent, 0) / userEnrollments.length,
             )
           : 0;
-        const spotlightCourseId = spotlightEnrollment?.courseId || spotlightEnrollment?.id || "";
 
         return {
           ...user,
@@ -354,10 +498,11 @@ export default function AdminConsole() {
           activePath: presenceRecord.activePath || "",
           enrollmentsCount: userEnrollments.length,
           averageProgress,
-          spotlightCourse: spotlightEnrollment
-            ? courseCatalog.find((course) => course.id === spotlightCourseId)?.title || spotlightCourseId
-            : "No course yet",
-          spotlightProgress: spotlightEnrollment ? resolveProgressPercent(spotlightEnrollment) : 0,
+          spotlightCourse: spotlightEnrollment?.courseTitle || "No course yet",
+          spotlightProgress: spotlightEnrollment?.progressPercent || 0,
+          spotlightCompletedLessonsCount: spotlightEnrollment?.completedLessonsCount || 0,
+          spotlightLessonCount: spotlightEnrollment?.lessonCount || 0,
+          spotlightStatus: spotlightEnrollment?.status || "active",
           activeModuleTitle: spotlightEnrollment?.activeModuleTitle || "",
           activeLessonTitle: spotlightEnrollment?.activeLessonTitle || "",
         };
@@ -370,7 +515,7 @@ export default function AdminConsole() {
         if (left.averageProgress !== right.averageProgress) return right.averageProgress - left.averageProgress;
         return left.name.localeCompare(right.name);
       });
-  }, [enrollments, now, presenceMap, usersData]);
+  }, [enrollmentsByUser, now, presenceMap, usersData]);
 
   const filteredMembers = useMemo(() => {
     const keyword = memberSearch.trim().toLowerCase();
@@ -400,8 +545,34 @@ export default function AdminConsole() {
   );
   const selectedUserDraft = userDrafts[selectedUserId] || buildUserDraft(selectedUser || {});
   const selectedUserEnrollments = useMemo(
-    () => enrollments.filter((item) => item.userId === selectedUserId),
-    [enrollments, selectedUserId],
+    () => enrollmentsByUser.get(selectedUserId) || [],
+    [enrollmentsByUser, selectedUserId],
+  );
+  const memberMap = useMemo(
+    () => new Map(memberRows.map((user) => [user.id, user])),
+    [memberRows],
+  );
+  const painPointSignals = useMemo(
+    () => collectPainPointSignals(enrollmentInsights),
+    [enrollmentInsights],
+  );
+  const painPointCloud = useMemo(
+    () => buildPainPointCloud(painPointSignals, 18),
+    [painPointSignals],
+  );
+  const painPointCloudByUser = useMemo(() => {
+    const nextMap = new Map();
+
+    enrollmentsByUser.forEach((items, userId) => {
+      nextMap.set(userId, buildPainPointCloud(collectPainPointSignals(items), 8));
+    });
+
+    return nextMap;
+  }, [enrollmentsByUser]);
+  const selectedUserPainPointCloud = painPointCloudByUser.get(selectedUserId) || [];
+  const painPointContributorCount = useMemo(
+    () => new Set(painPointSignals.map((item) => item.userId).filter(Boolean)).size,
+    [painPointSignals],
   );
 
   const stats = useMemo(() => {
@@ -417,28 +588,27 @@ export default function AdminConsole() {
       totalUsers: usersData.length,
       onlineNow: presenceSummary.online,
       awayNow: presenceSummary.away,
-      totalEnrollments: enrollments.length,
-      enrolledUsers: new Set(enrollments.map((item) => item.userId).filter(Boolean)).size,
+      totalEnrollments: enrollmentInsights.length,
+      enrolledUsers: new Set(enrollmentInsights.map((item) => item.userId).filter(Boolean)).size,
       pendingReview: cases.filter((item) => (item.approvalState || "pending_review") === "pending_review").length,
       approved: cases.filter((item) => item.approvalState === "approved").length,
       resolvedCases: cases.filter((item) => item.status === "resolved").length,
       openCases: cases.filter((item) => item.status !== "resolved").length,
-      averageProgress: enrollments.length
+      averageProgress: enrollmentInsights.length
         ? Math.round(
-            enrollments.reduce((sum, item) => sum + resolveProgressPercent(item), 0) / enrollments.length,
+            enrollmentInsights.reduce((sum, item) => sum + item.progressPercent, 0) / enrollmentInsights.length,
           )
         : 0,
     };
-  }, [cases, enrollments, memberRows, usersData.length]);
+  }, [cases, enrollmentInsights, memberRows, usersData.length]);
 
   const coursePulse = useMemo(
     () =>
       courseCatalog.map((course) => {
-        const relatedEnrollments = enrollments.filter((item) => (item.courseId || item.id) === course.id);
+        const relatedEnrollments = enrollmentInsights.filter((item) => (item.courseId || item.id) === course.id);
         const averageProgress = relatedEnrollments.length
           ? Math.round(
-              relatedEnrollments.reduce((sum, item) => sum + resolveProgressPercent(item), 0) /
-                relatedEnrollments.length,
+              relatedEnrollments.reduce((sum, item) => sum + item.progressPercent, 0) / relatedEnrollments.length,
             )
           : 0;
 
@@ -448,42 +618,30 @@ export default function AdminConsole() {
           averageProgress,
         };
       }),
-    [enrollments],
+    [enrollmentInsights],
   );
 
   const progressDistribution = useMemo(
     () => [
-      { label: "0%", count: enrollments.filter((item) => resolveProgressPercent(item) === 0).length },
+      { label: "0%", count: enrollmentInsights.filter((item) => item.progressPercent === 0).length },
       {
         label: "1-25%",
-        count: enrollments.filter((item) => {
-          const progress = resolveProgressPercent(item);
-          return progress >= 1 && progress <= 25;
-        }).length,
+        count: enrollmentInsights.filter((item) => item.progressPercent >= 1 && item.progressPercent <= 25).length,
       },
       {
         label: "26-50%",
-        count: enrollments.filter((item) => {
-          const progress = resolveProgressPercent(item);
-          return progress >= 26 && progress <= 50;
-        }).length,
+        count: enrollmentInsights.filter((item) => item.progressPercent >= 26 && item.progressPercent <= 50).length,
       },
       {
         label: "51-75%",
-        count: enrollments.filter((item) => {
-          const progress = resolveProgressPercent(item);
-          return progress >= 51 && progress <= 75;
-        }).length,
+        count: enrollmentInsights.filter((item) => item.progressPercent >= 51 && item.progressPercent <= 75).length,
       },
       {
         label: "76-100%",
-        count: enrollments.filter((item) => {
-          const progress = resolveProgressPercent(item);
-          return progress >= 76 && progress <= 100;
-        }).length,
+        count: enrollmentInsights.filter((item) => item.progressPercent >= 76 && item.progressPercent <= 100).length,
       },
     ],
-    [enrollments],
+    [enrollmentInsights],
   );
 
   const saveCaseUpdate = async (caseItem) => {
@@ -589,9 +747,8 @@ export default function AdminConsole() {
 
     const draft = userDrafts[selectedUser.id] || buildUserDraft(selectedUser);
     const target = draft.resetTarget || "all";
-    const targetEnrollments = enrollments.filter(
+    const targetEnrollments = selectedUserEnrollments.filter(
       (enrollment) =>
-        enrollment.userId === selectedUser.id &&
         (target === "all" || (enrollment.courseId || enrollment.id) === target),
     );
 
@@ -720,10 +877,16 @@ export default function AdminConsole() {
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="text-lg font-semibold text-ink">{selectedUser.name}</p>
                         <span className={`brand-chip ${selectedUser.presence.tone}`}>{selectedUser.presence.label}</span>
+                        <span className="brand-chip border-slate-200 bg-white text-slate-500">
+                          {selectedUser.spotlightStatus === "completed" ? "Completed" : "Active"}
+                        </span>
                       </div>
                       <p className="mt-1 text-sm text-slate-500">{selectedUser.email || "No email"}</p>
                       <p className="mt-2 text-sm text-slate-600">
                         {selectedUser.spotlightCourse} | {selectedUser.activeModuleTitle || "No active module"}
+                      </p>
+                      <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">
+                        {selectedUser.spotlightCompletedLessonsCount}/{selectedUser.spotlightLessonCount || 0} lessons completed
                       </p>
                     </div>
                     <div className="text-right">
@@ -731,6 +894,75 @@ export default function AdminConsole() {
                       <p className="mt-2 text-2xl font-bold text-ink">{selectedUser.averageProgress}%</p>
                     </div>
                   </div>
+                </div>
+
+                <div className="grid gap-3 xl:grid-cols-2">
+                  {selectedUserEnrollments.length === 0 ? (
+                    <div className="rounded-[26px] border border-dashed border-slate-200 bg-white p-5 text-sm leading-7 text-slate-500 xl:col-span-2">
+                      No enrollment data yet for this member.
+                    </div>
+                  ) : (
+                    selectedUserEnrollments.map((enrollment) => (
+                      <div key={enrollment.path || `${selectedUser.id}-${enrollment.courseId}`} className="rounded-[26px] border border-slate-100 bg-white p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-ink">{enrollment.courseTitle}</p>
+                            <p className="mt-1 text-sm text-slate-500">
+                              {enrollment.activeModuleTitle || "Waiting module"} | {enrollment.activeLessonTitle || "No active lesson"}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Progress</p>
+                            <p className="mt-1 text-xl font-bold text-ink">{enrollment.progressPercent}%</p>
+                          </div>
+                        </div>
+                        <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-primary via-secondary to-accent"
+                            style={{ width: `${enrollment.progressPercent}%` }}
+                          />
+                        </div>
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500">
+                          <span>
+                            {enrollment.completedLessonsCount}/{enrollment.lessonCount || 0} lessons
+                          </span>
+                          <span>{enrollment.status === "completed" ? "Completed" : "In progress"}</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="rounded-[26px] border border-slate-100 bg-slate-50/80 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Pain point focus</p>
+                      <p className="mt-2 text-lg font-semibold text-ink">คำที่ผู้เรียนพูดถึงบ่อยจาก mission ต่าง ๆ</p>
+                    </div>
+                    <span className="brand-chip border-slate-200 bg-white text-slate-500">
+                      {selectedUserPainPointCloud.length} signal(s)
+                    </span>
+                  </div>
+                  {selectedUserPainPointCloud.length === 0 ? (
+                    <p className="mt-4 text-sm leading-7 text-slate-500">
+                      ยังไม่มี pain point ที่สกัดได้จากคำตอบ mission ของผู้เรียนคนนี้
+                    </p>
+                  ) : (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {selectedUserPainPointCloud.map((item) => (
+                        <span
+                          key={`${selectedUser.id}-${item.text}`}
+                          className={`max-w-full break-words rounded-full border px-3 py-2 font-semibold ${
+                            item.weight >= 6
+                              ? "border-primary/20 bg-primary/10 text-base text-primary"
+                              : "border-slate-200 bg-white text-sm text-slate-700"
+                          }`}
+                        >
+                          {item.text}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -799,12 +1031,10 @@ export default function AdminConsole() {
                   >
                     <option value="all">All enrollments</option>
                     {selectedUserEnrollments.map((enrollment) => {
-                      const courseId = enrollment.courseId || enrollment.id;
-                      const courseTitle =
-                        courseCatalog.find((course) => course.id === courseId)?.title || courseId;
+                      const courseKey = enrollment.courseId || enrollment.id;
                       return (
-                        <option key={courseId} value={courseId}>
-                          {courseTitle}
+                        <option key={courseKey} value={courseKey}>
+                          {enrollment.courseTitle}
                         </option>
                       );
                     })}
@@ -927,6 +1157,44 @@ export default function AdminConsole() {
               </div>
             </div>
 
+            <div className="mt-6 rounded-[28px] border border-slate-100 bg-slate-50/80 p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Pain Point Word Cloud</p>
+                  <p className="mt-2 text-lg font-semibold text-ink">
+                    ภาพรวม pain point ที่ผู้เรียนสะท้อนผ่าน mission
+                  </p>
+                </div>
+                <span className="brand-chip border-slate-200 bg-white text-slate-500">
+                  {painPointContributorCount} users
+                </span>
+              </div>
+
+              {painPointCloud.length === 0 ? (
+                <p className="mt-4 text-sm leading-7 text-slate-500">
+                  ยังไม่มี pain point ที่สกัดได้จากคำตอบ mission ของผู้เรียนในตอนนี้
+                </p>
+              ) : (
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {painPointCloud.map((item, index) => (
+                    <span
+                      key={`${item.text}-${index}`}
+                      className={`max-w-full break-words rounded-full border px-3 py-2 font-semibold ${
+                        item.weight >= 8
+                          ? "border-primary/20 bg-primary/10 text-base text-primary"
+                          : item.weight >= 5
+                            ? "border-secondary/20 bg-secondary/10 text-sm text-secondary"
+                            : "border-slate-200 bg-white text-sm text-slate-700"
+                      }`}
+                    >
+                      {item.text}
+                      <span className="ml-2 text-xs font-medium opacity-70">{item.userCount}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="mt-6 space-y-4">
               {coursePulse.map((course) => (
                 <div key={course.id} className="overflow-hidden rounded-[28px] border border-slate-100 bg-white">
@@ -1018,7 +1286,9 @@ export default function AdminConsole() {
                       <div className="text-right">
                         <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Course progress</p>
                         <p className="mt-2 text-2xl font-bold text-ink">{user.spotlightProgress}%</p>
-                        <p className="mt-1 text-sm text-slate-500">{user.enrollmentsCount} active enrollment(s)</p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {user.spotlightCompletedLessonsCount}/{user.spotlightLessonCount || 0} lessons
+                        </p>
                       </div>
                     </div>
                     <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
@@ -1136,6 +1406,13 @@ export default function AdminConsole() {
                 const categoryMeta = getCategoryMeta(caseItem.category);
                 const statusMeta = getStatusMeta(caseItem.status);
                 const approvalMeta = getApprovalMeta(caseItem.approvalState);
+                const requesterContext = memberMap.get(caseItem.requesterId) || null;
+                const requesterEnrollments = enrollmentsByUser.get(caseItem.requesterId) || [];
+                const requesterSpotlight =
+                  requesterEnrollments.find((item) => item.courseId === "course-teacher") ||
+                  requesterEnrollments[0] ||
+                  null;
+                const requesterPainPointCloud = painPointCloudByUser.get(caseItem.requesterId) || [];
                 const updates = [...(caseItem.updates || [])].sort(
                   (left, right) => toUnixTime(right.at) - toUnixTime(left.at),
                 );
@@ -1184,6 +1461,39 @@ export default function AdminConsole() {
                             </div>
                           ) : null}
                         </div>
+
+                        {requesterContext && requesterSpotlight ? (
+                          <div className="rounded-[26px] border border-secondary/10 bg-secondary/5 p-4">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div>
+                                <p className="text-xs uppercase tracking-[0.18em] text-secondary/70">Learner context</p>
+                                <p className="mt-2 text-lg font-semibold text-ink">{requesterSpotlight.courseTitle}</p>
+                                <p className="mt-1 text-sm text-slate-600">
+                                  {requesterSpotlight.activeModuleTitle || "Waiting module"} | {requesterSpotlight.activeLessonTitle || "No active lesson"}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Progress</p>
+                                <p className="mt-1 text-2xl font-bold text-ink">{requesterSpotlight.progressPercent}%</p>
+                                <p className="mt-1 text-sm text-slate-500">
+                                  {requesterSpotlight.completedLessonsCount}/{requesterSpotlight.lessonCount || 0} lessons
+                                </p>
+                              </div>
+                            </div>
+                            {requesterPainPointCloud.length > 0 ? (
+                              <div className="mt-4 flex flex-wrap gap-2">
+                                {requesterPainPointCloud.slice(0, 4).map((item) => (
+                                  <span
+                                    key={`${caseItem.id}-${item.text}`}
+                                    className="max-w-full break-words rounded-full border border-white bg-white px-3 py-2 text-sm font-semibold text-slate-700"
+                                  >
+                                    {item.text}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : null}
 
                         {latestUpdate ? (
                           <div className="rounded-[26px] border border-primary/10 bg-primary/5 p-4">

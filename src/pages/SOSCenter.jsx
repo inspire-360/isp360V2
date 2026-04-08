@@ -55,6 +55,18 @@ const defaultForm = {
   preferredChannel: "LINE",
 };
 
+const getSosSubmitMessage = (error) => {
+  if (error?.code === "permission-denied") {
+    return "ยังส่ง SOS ไม่สำเร็จ เพราะ Firestore rules ของโปรเจกต์ยังไม่อนุญาต flow นี้สำหรับ learner กรุณา deploy rules ล่าสุดก่อนแล้วลองส่งอีกครั้ง";
+  }
+
+  if (error?.code === "unavailable") {
+    return "ยังส่ง SOS ไม่สำเร็จเพราะเชื่อมต่อ Firebase ไม่ได้ในตอนนี้ ลองอีกครั้งเมื่อเครือข่ายพร้อม";
+  }
+
+  return "ยังส่ง SOS ไม่สำเร็จในตอนนี้ ลองอีกครั้งได้เลยครับ";
+};
+
 export default function SOSCenter() {
   const { currentUser, userRole } = useAuth();
   const [form, setForm] = useState(defaultForm);
@@ -183,10 +195,20 @@ export default function SOSCenter() {
       }
 
       setForm(defaultForm);
-      setMessage("SOS ถูกส่งถึง DU แล้ว ตอนนี้คุณครูติดตามสถานะ คำแนะนำ และเพิ่มข้อมูลต่อได้จากคิวด้านขวา");
+      if (rootWrite.status !== "fulfilled") {
+        setMessage(
+          rootWrite.reason?.code === "permission-denied"
+            ? "SOS ถูกบันทึกในบัญชีผู้เรียนแล้ว แต่ mirror กลางของ DU ยังไม่ sync เพราะ Firestore rules ของโปรเจกต์ยังไม่อัปเดต"
+            : "SOS ถูกบันทึกแล้ว แต่ mirror กลางของ DU ยัง sync ไม่ครบ ระบบยังเก็บเคสฝั่งผู้เรียนไว้ให้แล้ว",
+        );
+        return;
+      }
+      setMessage("SOS ถูกส่งถึง DU แล้ว ตอนนี้คุณครูติดตามสถานะ คำแนะนำ และอัปเดตข้อมูลต่อได้จากคิวด้านขวา");
+      return;
     } catch (error) {
       console.error("Failed to create SOS case:", error);
-      setMessage("ยังส่ง SOS ไม่สำเร็จในตอนนี้ ลองอีกครั้งได้เลยครับ");
+      setMessage(getSosSubmitMessage(error));
+      return;
     } finally {
       setSubmitting(false);
     }
@@ -599,3 +621,6 @@ export default function SOSCenter() {
     </div>
   );
 }
+
+
+
