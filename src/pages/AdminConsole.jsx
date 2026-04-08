@@ -55,7 +55,7 @@ import {
   sosStatusTone,
   toUnixTime,
 } from "../data/sosConfig";
-import { PRESENCE_TICK_MS, resolvePresenceMeta } from "../utils/presenceStatus";
+import { PRESENCE_COLLECTION, PRESENCE_TICK_MS, resolvePresenceMeta } from "../utils/presenceStatus";
 import { getRoleLabel, normalizeUserRole, userRoleOptions } from "../utils/userRoles";
 
 const resolveProgressPercent = (enrollment) => {
@@ -132,11 +132,13 @@ const formatLastSeen = (value) => {
 export default function AdminConsole() {
   const { currentUser } = useAuth();
   const [usersData, setUsersData] = useState([]);
+  const [presenceRows, setPresenceRows] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
   const [userCaseCache, setUserCaseCache] = useState([]);
   const [rootCaseCache, setRootCaseCache] = useState([]);
   const [loadingState, setLoadingState] = useState({
     users: true,
+    presence: true,
     enrollments: true,
     sosUser: true,
     sosRoot: true,
@@ -175,6 +177,17 @@ export default function AdminConsole() {
         (error) => {
           console.error("Failed to subscribe users:", error);
           markLoaded("users");
+        },
+      ),
+      onSnapshot(
+        collection(db, PRESENCE_COLLECTION),
+        (snapshot) => {
+          setPresenceRows(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
+          markLoaded("presence");
+        },
+        (error) => {
+          console.error("Failed to subscribe presence:", error);
+          markLoaded("presence");
         },
       ),
       onSnapshot(
@@ -239,6 +252,10 @@ export default function AdminConsole() {
 
   const loading = Object.values(loadingState).some(Boolean);
   const cases = useMemo(() => mergeSosCases(userCaseCache, rootCaseCache), [rootCaseCache, userCaseCache]);
+  const presenceMap = useMemo(
+    () => new Map(presenceRows.map((item) => [item.uid || item.id, item])),
+    [presenceRows],
+  );
 
   useEffect(() => {
     setDrafts((previous) => {
@@ -311,6 +328,7 @@ export default function AdminConsole() {
   const memberRows = useMemo(() => {
     return usersData
       .map((user) => {
+        const presenceRecord = presenceMap.get(user.id) || {};
         const userEnrollments = enrollments.filter((item) => item.userId === user.id);
         const spotlightEnrollment =
           userEnrollments.find((item) => (item.courseId || item.id) === "course-teacher") ||
@@ -331,9 +349,9 @@ export default function AdminConsole() {
           email: user.email || "",
           role: normalizeUserRole(user.role),
           roleLabel: getRoleLabel(user.role),
-          presence: resolvePresenceMeta(user, now),
-          lastSeen: user.lastSeen,
-          activePath: user.activePath || "",
+          presence: resolvePresenceMeta(presenceRecord, now),
+          lastSeen: presenceRecord.lastSeen,
+          activePath: presenceRecord.activePath || "",
           enrollmentsCount: userEnrollments.length,
           averageProgress,
           spotlightCourse: spotlightEnrollment
@@ -352,7 +370,7 @@ export default function AdminConsole() {
         if (left.averageProgress !== right.averageProgress) return right.averageProgress - left.averageProgress;
         return left.name.localeCompare(right.name);
       });
-  }, [enrollments, now, usersData]);
+  }, [enrollments, now, presenceMap, usersData]);
 
   const filteredMembers = useMemo(() => {
     const keyword = memberSearch.trim().toLowerCase();

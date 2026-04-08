@@ -1,4 +1,16 @@
 Original prompt:
+เตรียม admin test account จริง หรือแก้ Firestore rules สำหรับ flow ที่ตั้งใจให้ learner ใช้ได้ เช่น SOS, presence, และ dashboard aggregation
+
+- Added a repo-managed `firestore.rules` file plus `firebase.json` Firestore config so the app no longer depends on invisible console-only rules.
+- Refactored live presence away from the private `users` collection into a dedicated `presence` collection: `usePresence.jsx` now writes there, `OnlineUsers.jsx` reads there, and `AdminConsole.jsx` merges `presence` docs with private user profiles for admin-only detail views.
+- Changed the learner dashboard to stop querying `getCountFromServer(users)` and use a safer real-time `presence` pulse instead, which removes the learner-facing aggregate read that was failing with `permission-denied`.
+- Added `functions/scripts/bootstrap-admin.mjs` plus `npm run bootstrap-admin` to create or promote a Firebase Auth user into an `admin` Firestore profile using Admin SDK credentials, giving the project a real bootstrap path for a DU admin test account.
+- Added `functions/package.json` so the bootstrap script and Firebase admin dependencies are documented in-repo instead of living only in a stray `node_modules` folder.
+- Verified the code changes with `npm run lint` and `npm run build`; both passed after the rules/presence/admin-bootstrap refactor.
+- Attempted to deploy `firestore.rules` to project `inspire-72132` through the local Firebase CLI, but the desktop session's CLI credentials were expired and the deploy was rejected with `Authentication Error: Your credentials are no longer valid. Please run firebase login --reauth`.
+- The bootstrap admin script is ready, but it still needs a valid Firebase service account via `GOOGLE_APPLICATION_CREDENTIALS` before it can create or promote a real admin test account.
+
+Original prompt:
 เช็กE2E ของหน้าที่ต้องล็อกอินจริง เช่น CourseRoom, SOS to DU, และ DU Admin ด้วยบัญชีทดสอบ
 
 - On April 8, 2026 (Asia/Bangkok), ran real browser E2E checks against the built app served locally from `dist` while authenticating against the live Firebase project with a throwaway learner account created through the UI registration flow.

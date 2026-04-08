@@ -1,0 +1,131 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function currentUserRecord() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && currentUserRecord().data.role in ["admin", "du admin", "du_admin"];
+    }
+
+    function validSelfUserCreate(userId) {
+      return request.resource.data.uid == userId
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.role == "learner";
+    }
+
+    function validSelfUserUpdate(userId) {
+      return request.resource.data.uid == userId
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "prefix",
+          "firstName",
+          "lastName",
+          "name",
+          "position",
+          "school",
+          "photoURL",
+          "updatedAt",
+          "lastLogin",
+          "lineUserId",
+          "pdpaAccepted",
+          "pdpaAcceptedAt"
+        ]);
+    }
+
+    function validPresenceWrite(userId) {
+      return request.resource.data.uid == userId
+        && request.resource.data.keys().hasOnly([
+          "uid",
+          "name",
+          "role",
+          "photoURL",
+          "activePath",
+          "presenceState",
+          "lastSeen"
+        ]);
+    }
+
+    function validOwnerSosCreate(userId) {
+      return request.resource.data.requesterId == userId
+        && request.resource.data.approvalState == "pending_review"
+        && request.resource.data.status == "new"
+        && request.resource.data.duResponse == ""
+        && request.resource.data.helpDetails == "";
+    }
+
+    function validOwnerSosUpdate(userId) {
+      return request.resource.data.requesterId == userId
+        && request.resource.data.requesterId == resource.data.requesterId
+        && request.resource.data.approvalState == resource.data.approvalState
+        && request.resource.data.duResponse == resource.data.duResponse
+        && request.resource.data.helpDetails == resource.data.helpDetails
+        && request.resource.data.assignedTeam == resource.data.assignedTeam
+        && request.resource.data.lastTouchedBy == resource.data.lastTouchedBy
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "category",
+          "tags",
+          "riskLevel",
+          "riskSort",
+          "summary",
+          "details",
+          "location",
+          "preferredChannel",
+          "status",
+          "updatedAt",
+          "updates"
+        ]);
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && validSelfUserCreate(userId);
+      allow update: if isAdmin() || (isOwner(userId) && validSelfUserUpdate(userId));
+      allow delete: if isAdmin();
+
+      match /enrollments/{enrollmentId} {
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update, delete: if isOwner(userId) || isAdmin();
+      }
+
+      match /sosCases/{caseId} {
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create: if isAdmin() || (isOwner(userId) && validOwnerSosCreate(userId));
+        allow update: if isAdmin() || (isOwner(userId) && validOwnerSosUpdate(userId));
+        allow delete: if isAdmin();
+      }
+    }
+
+    match /presence/{userId} {
+      allow get, list: if signedIn();
+      allow create, update: if isOwner(userId) && validPresenceWrite(userId);
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    match /duSosCases/{caseId} {
+      allow get, list: if isAdmin() || (signedIn() && resource.data.requesterId == request.auth.uid);
+      allow create: if isAdmin() || (signedIn() && validOwnerSosCreate(request.auth.uid));
+      allow update: if isAdmin() || (signedIn() && validOwnerSosUpdate(request.auth.uid));
+      allow delete: if isAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

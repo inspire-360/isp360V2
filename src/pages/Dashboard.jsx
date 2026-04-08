@@ -13,12 +13,13 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
-import { collection, doc, getCountFromServer, getDocs, setDoc } from "firebase/firestore";
+import { collection, doc, getDocs, limit, onSnapshot, orderBy, query, setDoc } from "firebase/firestore";
 import OnlineUsers from "../components/OnlineUsers";
 import { useAuth } from "../contexts/AuthContext";
 import { courseCatalog } from "../data/courseCatalog";
 import { db } from "../lib/firebase";
 import { getCourseIcon } from "../utils/courseIcons";
+import { PRESENCE_COLLECTION, resolvePresenceMeta } from "../utils/presenceStatus";
 
 const duCoreRoles = [
   {
@@ -62,7 +63,7 @@ export default function Dashboard() {
 
   const [enrolledCourses, setEnrolledCourses] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [totalUsers, setTotalUsers] = useState(0);
+  const [communityPulse, setCommunityPulse] = useState(0);
 
   const [showModal, setShowModal] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState(null);
@@ -79,13 +80,9 @@ export default function Dashboard() {
       if (!currentUser) return;
 
       try {
-        const [enrollmentSnapshot, usersCount] = await Promise.all([
-          getDocs(collection(db, "users", currentUser.uid, "enrollments")),
-          getCountFromServer(collection(db, "users")),
-        ]);
+        const enrollmentSnapshot = await getDocs(collection(db, "users", currentUser.uid, "enrollments"));
 
         setEnrolledCourses(enrollmentSnapshot.docs.map((item) => item.id));
-        setTotalUsers(usersCount.data().count);
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
       } finally {
@@ -96,10 +93,34 @@ export default function Dashboard() {
     fetchData();
   }, [currentUser]);
 
+  useEffect(() => {
+    const presenceQuery = query(
+      collection(db, PRESENCE_COLLECTION),
+      orderBy("lastSeen", "desc"),
+      limit(40),
+    );
+
+    const unsubscribe = onSnapshot(
+      presenceQuery,
+      (snapshot) => {
+        const liveCount = snapshot.docs
+          .map((item) => resolvePresenceMeta(item.data(), Date.now()))
+          .filter((presence) => presence.isConnected).length;
+        setCommunityPulse(liveCount);
+      },
+      (error) => {
+        console.error("Error fetching community pulse:", error);
+        setCommunityPulse(0);
+      },
+    );
+
+    return () => unsubscribe();
+  }, []);
+
   const stats = [
     {
-      label: "Total users",
-      value: totalUsers.toLocaleString(),
+      label: "Live now",
+      value: communityPulse.toLocaleString(),
       icon: <Users size={18} />,
       tone: "bg-primary/10 text-primary",
     },

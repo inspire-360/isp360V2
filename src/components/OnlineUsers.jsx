@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { collection, limit, onSnapshot, orderBy, query } from "firebase/firestore";
 import { Activity, Users } from "lucide-react";
 import { db } from "../lib/firebase";
-import { PRESENCE_TICK_MS, resolvePresenceMeta } from "../utils/presenceStatus";
+import { PRESENCE_COLLECTION, PRESENCE_TICK_MS, resolvePresenceMeta } from "../utils/presenceStatus";
 import { getRoleLabel } from "../utils/userRoles";
 
 export default function OnlineUsers() {
@@ -10,7 +10,11 @@ export default function OnlineUsers() {
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    const usersQuery = query(collection(db, "users"), orderBy("lastSeen", "desc"), limit(20));
+    const usersQuery = query(
+      collection(db, PRESENCE_COLLECTION),
+      orderBy("lastSeen", "desc"),
+      limit(20),
+    );
 
     const unsubscribe = onSnapshot(usersQuery, (snapshot) => {
       setUsers(snapshot.docs.map((userDocument) => ({ id: userDocument.id, ...userDocument.data() })));
@@ -110,10 +114,11 @@ export default function OnlineUsers() {
                 <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">
                   {getRoleLabel(user.role)}
                 </p>
-                <p className="mt-2 truncate text-sm text-slate-500">{user.email || "No email"}</p>
                 {user.activePath ? (
-                  <p className="mt-1 truncate text-xs text-slate-400">Path: {user.activePath}</p>
-                ) : null}
+                  <p className="mt-2 truncate text-sm text-slate-500">Path: {user.activePath}</p>
+                ) : (
+                  <p className="mt-2 truncate text-sm text-slate-500">Live in the platform</p>
+                )}
               </div>
             </div>
           ))

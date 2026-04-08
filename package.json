@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "bootstrap-admin": "node ./functions/scripts/bootstrap-admin.mjs"
   },
   "dependencies": {
     "@line/liff": "^2.27.3",

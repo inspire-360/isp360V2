@@ -1,3 +1,4 @@
+export const PRESENCE_COLLECTION = "presence";
 export const ACTIVE_WINDOW_MS = 2 * 60 * 1000;
 export const PRESENCE_TICK_MS = 15 * 1000;
 

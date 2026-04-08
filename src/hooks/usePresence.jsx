@@ -3,29 +3,30 @@ import { useLocation } from "react-router-dom";
 import { doc, serverTimestamp, setDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useAuth } from "../contexts/AuthContext";
+import { PRESENCE_COLLECTION } from "../utils/presenceStatus";
 
 const HEARTBEAT_MS = 15000;
 
 export function usePresence() {
-  const { currentUser } = useAuth();
+  const { currentUser, userRole } = useAuth();
   const location = useLocation();
 
   useEffect(() => {
     if (!currentUser) return undefined;
 
-    const userRef = doc(db, "users", currentUser.uid);
+    const presenceRef = doc(db, PRESENCE_COLLECTION, currentUser.uid);
 
     let interval = 0;
 
     const syncPresence = async (presenceState) => {
       try {
         await setDoc(
-          userRef,
+          presenceRef,
           {
             uid: currentUser.uid,
             name: currentUser.displayName || currentUser.email?.split("@")[0] || "InSPIRE user",
-            email: currentUser.email || "",
-            isOnline: true,
+            role: userRole || "learner",
+            photoURL: currentUser.photoURL || "",
             presenceState,
             activePath: location.pathname,
             lastSeen: serverTimestamp(),
@@ -91,5 +92,5 @@ export function usePresence() {
       window.removeEventListener("pagehide", handlePageHide);
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
-  }, [currentUser, location.pathname]);
+  }, [currentUser, location.pathname, userRole]);
 }
