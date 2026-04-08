@@ -1,4 +1,21 @@
 Original prompt:
+1. ทำครบจนได้รับ Certificate แล้วแต่ยังไม่ครบ 100%
+2. ในหน้า certificate ให้ฝัง Padlet wall
+3. ทำให้สามารถส่งข้อมูล SOS to DU ได้
+4. Module 4 Mission 1 ให้ตัวเลือกเปลี่ยนสีเมื่อเลือก
+5. ทุก Module ที่มีตัวเลือกให้ highlight สีตัวที่เลือก
+6. เพิ่ม feature ล้างคำตอบ และอัปเดตคำตอบในทุก mission
+
+- Fixed teacher-course progress so certificate completion now counts as the final gate: enrollment metadata, sidebar module progress, XP tally, and the headline course percentage all use an effective completed-lesson set that marks the certificate lesson complete once both `posttest-exam` and `final-survey` are done.
+- Added a reusable per-mission reset flow in `CourseRoom.jsx`: the page now shows a `ล้างคำตอบ` action for Module 1-5 missions and the final platform survey, clears the saved response for the current lesson, and forces the mission form to rehydrate cleanly without stale autosave data.
+- Changed mission response persistence in `CourseRoom.jsx` to replace the current lesson's `missionResponses.{lessonId}` record with `updateDoc`, which avoids old nested fields surviving after a clear/reset.
+- Updated Module 2, 3, 4, 5, and the final survey so completed lessons can still submit again with an explicit update button instead of turning into a read-only completed badge.
+- Strengthened selected-option highlighting across choice-heavy flows, including Module 1 strategy selection, Module 3 role cards, and Module 4 Innovation Lab / Crafting Session option cards; Module 4 Mission 1 now has a much more visible selected state for tool and pedagogy choices.
+- Embedded the requested Padlet wall directly under the downloadable certificate card in `CourseCertificateCard.jsx`, while keeping the exportable certificate canvas separate so PNG/PDF export is still reliable.
+- Re-verified the app after these UI/data-flow changes with `npm run lint` and `npm run build`; both passed on April 8, 2026.
+- Attempted to make SOS live by re-running Firebase CLI reauthentication, but `firebase login --reauth` fails in this desktop shell because the command is treated as non-interactive. The Firestore rules/code path needed for SOS already exists in the repo from the previous pass, but it still must be deployed outside this non-interactive session before learner SOS submissions will work against the live Firebase project.
+
+Original prompt:
 เตรียม admin test account จริง หรือแก้ Firestore rules สำหรับ flow ที่ตั้งใจให้ learner ใช้ได้ เช่น SOS, presence, และ dashboard aggregation
 
 - Added a repo-managed `firestore.rules` file plus `firebase.json` Firestore config so the app no longer depends on invisible console-only rules.

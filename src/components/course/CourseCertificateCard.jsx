@@ -194,6 +194,31 @@ export default function CourseCertificateCard({ certificate }) {
           </div>
         </div>
       </div>
+
+      <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-[#F4F4F4]">
+        <iframe
+          src="https://padlet.com/embed/74rfe3bwey5srwll"
+          title="InSPIRE360 Certificate Padlet"
+          frameBorder="0"
+          allow="camera;microphone;geolocation;display-capture;clipboard-write"
+          className="block h-[608px] w-full"
+        />
+        <div className="flex items-center justify-end px-3 py-2">
+          <a
+            href="https://padlet.com?ref=embed"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-[10px] text-slate-500 no-underline"
+          >
+            <span aria-hidden="true">Made with</span>
+            <img
+              src="https://padlet.net/emails/padlet_email_logo_2026_text-dark-200.png"
+              height="12"
+              alt="สร้างขึ้นด้วย Padlet"
+            />
+          </a>
+        </div>
+      </div>
     </div>
   );
 }

@@ -94,6 +94,7 @@ export default function ModuleThreeMission({
   lesson,
   savedResponse,
   allResponses = EMPTY_RESPONSE,
+  clearNonce = 0,
   isCompleted,
   onSave,
   onDraftSave,
@@ -110,7 +111,8 @@ export default function ModuleThreeMission({
   const moduleTwoSmart = allResponses["m2-mission-5"] ?? EMPTY_RESPONSE;
 
   useEffect(() => {
-    if (hydratedLessonRef.current === lesson.id) return;
+    const hydrationKey = `${lesson.id}:${clearNonce}`;
+    if (hydratedLessonRef.current === hydrationKey) return;
 
     let nextDraft;
 
@@ -151,12 +153,12 @@ export default function ModuleThreeMission({
       };
     }
 
-    hydratedLessonRef.current = lesson.id;
+    hydratedLessonRef.current = hydrationKey;
     lastPayloadRef.current = JSON.stringify(buildPayload(lesson, nextDraft));
     setReward("");
     setAutosaveState("");
     setDraft(nextDraft);
-  }, [lesson, moduleTwoPitch, moduleTwoRoadmap, moduleTwoSmart, savedResponse]);
+  }, [clearNonce, lesson, moduleTwoPitch, moduleTwoRoadmap, moduleTwoSmart, savedResponse]);
 
   const payload = useMemo(() => buildPayload(lesson, draft), [draft, lesson]);
 
@@ -218,23 +220,27 @@ export default function ModuleThreeMission({
   );
 
   const renderSubmit = (ready) => (
-    <div className="mt-6 flex justify-end">
-      {isCompleted ? (
-        <div className="flex items-center gap-2 rounded-full border border-primary/10 bg-primary/5 px-4 py-2 text-sm font-semibold text-primary">
+    <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
+      <div className="rounded-[22px] border border-primary/10 bg-primary/5 px-4 py-3 text-sm text-primary">
+        {isCompleted
+          ? "ภารกิจนี้ผ่านแล้ว อัปเดตคำตอบหรือเริ่มกรอกใหม่ได้"
+          : "บันทึกเมื่อพร้อมเพื่อปลดล็อกภารกิจถัดไป"}
+      </div>
+      <button
+        type="button"
+        disabled={!ready || saving}
+        onClick={persist}
+        className="brand-button-primary disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {saving ? (
+          <Loader2 size={16} className="animate-spin" />
+        ) : isCompleted ? (
           <CheckCircle2 size={16} />
-          ทำภารกิจนี้เสร็จแล้ว
-        </div>
-      ) : (
-        <button
-          type="button"
-          disabled={!ready || saving}
-          onClick={persist}
-          className="brand-button-primary disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {saving ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-          บันทึกภารกิจ
-        </button>
-      )}
+        ) : (
+          <Sparkles size={16} />
+        )}
+        {isCompleted ? "อัปเดตคำตอบ" : "บันทึกภารกิจ"}
+      </button>
     </div>
   );
 
@@ -322,7 +328,7 @@ export default function ModuleThreeMission({
             onClick={() => onPick(role.id)}
             className={`rounded-[20px] border p-4 text-left transition ${
               value === role.id
-                ? "border-primary/25 bg-primary/5"
+                ? "border-primary/30 bg-gradient-to-br from-primary/10 via-secondary/10 to-accent/10 shadow-[0_20px_55px_rgba(100,13,95,0.12)]"
                 : "border-slate-100 bg-slate-50/80 hover:border-secondary/20"
             }`}
           >

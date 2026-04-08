@@ -121,7 +121,7 @@ const ChoiceGrid = ({ options, value, onSelect }) => (
         onClick={() => onSelect(option.id)}
         className={`rounded-[20px] border p-4 text-left transition ${
           value === option.id
-            ? "border-primary/25 bg-primary/5"
+            ? "border-primary/30 bg-gradient-to-br from-primary/10 via-secondary/10 to-accent/10 shadow-[0_20px_55px_rgba(100,13,95,0.12)]"
             : "border-slate-100 bg-slate-50/80 hover:border-secondary/20"
         }`}
       >
@@ -135,6 +135,7 @@ export default function ModuleFourMission({
   lesson,
   savedResponse,
   allResponses = EMPTY_RESPONSE,
+  clearNonce = 0,
   isCompleted,
   onSave,
   onDraftSave,
@@ -154,9 +155,10 @@ export default function ModuleFourMission({
   const moduleFourCraft = allResponses["m4-mission-3"] ?? EMPTY_RESPONSE;
 
   useEffect(() => {
-    if (hydratedLessonRef.current === lesson.id) return;
+    const hydrationKey = `${lesson.id}:${clearNonce}`;
+    if (hydratedLessonRef.current === hydrationKey) return;
 
-    hydratedLessonRef.current = lesson.id;
+    hydratedLessonRef.current = hydrationKey;
     setReward("");
     setAutosaveState("");
 
@@ -214,14 +216,7 @@ export default function ModuleFourMission({
       upgradeAnswer: savedResponse?.upgradeAnswer || "",
       feedbackNote: savedResponse?.feedbackNote || "",
     });
-  }, [
-    lesson,
-    moduleFourInnovation,
-    moduleThreeBillboard,
-    moduleThreePitch,
-    moduleTwoSmart,
-    savedResponse,
-  ]);
+  }, [clearNonce, lesson, moduleFourInnovation, moduleThreeBillboard, moduleThreePitch, moduleTwoSmart, savedResponse]);
 
   useEffect(() => {
     if (!onDraftSave) return undefined;
@@ -284,23 +279,27 @@ export default function ModuleFourMission({
   );
 
   const renderSubmit = (ready) => (
-    <div className="mt-6 flex justify-end">
-      {isCompleted ? (
-        <div className="flex items-center gap-2 rounded-full border border-primary/10 bg-primary/5 px-4 py-2 text-sm font-semibold text-primary">
+    <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
+      <div className="rounded-[22px] border border-primary/10 bg-primary/5 px-4 py-3 text-sm text-primary">
+        {isCompleted
+          ? "ภารกิจนี้ผ่านแล้ว อัปเดตคำตอบหรือเริ่มกรอกใหม่ได้"
+          : "บันทึกเมื่อพร้อมเพื่อปลดล็อกภารกิจถัดไป"}
+      </div>
+      <button
+        type="button"
+        disabled={!ready || saving}
+        onClick={persist}
+        className="brand-button-primary disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {saving ? (
+          <Loader2 size={16} className="animate-spin" />
+        ) : isCompleted ? (
           <CheckCircle2 size={16} />
-          ทำภารกิจนี้เสร็จแล้ว
-        </div>
-      ) : (
-        <button
-          type="button"
-          disabled={!ready || saving}
-          onClick={persist}
-          className="brand-button-primary disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {saving ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-          บันทึกภารกิจ
-        </button>
-      )}
+        ) : (
+          <Sparkles size={16} />
+        )}
+        {isCompleted ? "อัปเดตคำตอบ" : "บันทึกภารกิจ"}
+      </button>
     </div>
   );
 
@@ -657,7 +656,7 @@ export default function ModuleFourMission({
                   onClick={() => setDraft((previous) => ({ ...previous, artifactType: option.id }))}
                   className={`rounded-[20px] border p-4 text-left transition ${
                     draft.artifactType === option.id
-                      ? "border-primary/25 bg-primary/5"
+                      ? "border-primary/30 bg-gradient-to-br from-primary/10 via-secondary/10 to-accent/10 shadow-[0_20px_55px_rgba(100,13,95,0.12)]"
                       : "border-slate-100 bg-slate-50/80 hover:border-secondary/20"
                   }`}
                 >

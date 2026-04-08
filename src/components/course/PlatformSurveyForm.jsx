@@ -224,23 +224,27 @@ export default function PlatformSurveyForm({
         />
       </div>
 
-      <div className="flex justify-end">
-        {isCompleted ? (
-          <div className="flex items-center gap-2 rounded-full border border-primary/10 bg-primary/5 px-4 py-2 text-sm font-semibold text-primary">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="rounded-[22px] border border-primary/10 bg-primary/5 px-4 py-3 text-sm text-primary">
+          {isCompleted
+            ? "แบบประเมินนี้ส่งแล้ว แก้ไขหรือล้างคำตอบเพื่อกรอกใหม่ได้"
+            : "บันทึกเมื่อพร้อมเพื่อปลดล็อก Certificate"}
+        </div>
+        <button
+          type="button"
+          onClick={persist}
+          disabled={!ready || saving}
+          className="brand-button-primary disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {saving ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : isCompleted ? (
             <CheckCircle2 size={16} />
-            ทำแบบประเมินเสร็จแล้ว
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={persist}
-            disabled={!ready || saving}
-            className="brand-button-primary disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {saving ? <Loader2 size={16} className="animate-spin" /> : <MessageSquareHeart size={16} />}
-            ส่งแบบประเมิน
-          </button>
-        )}
+          ) : (
+            <MessageSquareHeart size={16} />
+          )}
+          {isCompleted ? "อัปเดตแบบประเมิน" : "ส่งแบบประเมิน"}
+        </button>
       </div>
     </div>
   );

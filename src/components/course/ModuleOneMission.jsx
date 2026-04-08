@@ -950,7 +950,13 @@ export default function ModuleOneMission({
                     </div>
                   ))}
                 </div>
-                <label className="mt-5 flex items-center gap-3 rounded-[20px] border border-slate-100 bg-slate-50/80 px-4 py-3 text-sm font-semibold text-ink">
+                <label
+                  className={`mt-5 flex items-center gap-3 rounded-[20px] border px-4 py-3 text-sm font-semibold text-ink transition ${
+                    draft.selectedStrategyId === strategy.id
+                      ? "border-primary/30 bg-gradient-to-r from-primary/10 via-secondary/10 to-accent/10 shadow-[0_18px_45px_rgba(100,13,95,0.10)]"
+                      : "border-slate-100 bg-slate-50/80"
+                  }`}
+                >
                   <input
                     type="radio"
                     name="selected-strategy"

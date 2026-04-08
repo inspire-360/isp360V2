@@ -114,6 +114,29 @@ const totalCourseLessons = currentCourse.modules.reduce(
   (sum, module) => sum + module.lessons.length,
   0,
 );
+const certificateLessonIds = currentCourse.modules.flatMap((module) =>
+  module.lessons
+    .filter((lesson) => lesson.type === "certificate")
+    .map((lesson) => lesson.id),
+);
+
+const getEffectiveCompletedLessons = (completedLessons = []) => {
+  const effectiveSet = new Set(completedLessons);
+  const isCertificateUnlocked =
+    effectiveSet.has("posttest-exam") && effectiveSet.has("final-survey");
+
+  if (isCertificateUnlocked) {
+    certificateLessonIds.forEach((lessonId) => effectiveSet.add(lessonId));
+  }
+
+  return Array.from(effectiveSet);
+};
+
+const isResettableMissionLesson = (lesson) =>
+  Boolean(
+    lesson?.activityType?.startsWith("module") ||
+      lesson?.activityType === "final_platform_survey",
+  );
 
 const getFirstPendingLessonIndex = (moduleIndex, completedLessons) => {
   const lessonIndex = currentCourse.modules[moduleIndex]?.lessons.findIndex(
@@ -161,7 +184,8 @@ const buildEnrollmentMeta = ({
   const safeLessonIndex = getSafeLessonIndex(safeModuleIndex, activeLesson);
   const activeModuleData = currentCourse.modules[safeModuleIndex];
   const activeLessonData = activeModuleData?.lessons?.[safeLessonIndex];
-  const completedCount = completedLessons.length;
+  const effectiveCompletedLessons = getEffectiveCompletedLessons(completedLessons);
+  const completedCount = effectiveCompletedLessons.length;
   const progressPercent = totalCourseLessons
     ? Math.min(100, Math.round((completedCount / totalCourseLessons) * 100))
     : 0;
@@ -198,6 +222,8 @@ export default function CourseRoom() {
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [quizScore, setQuizScore] = useState(0);
   const [currentTime, setCurrentTime] = useState(Date.now());
+  const [missionResetNonce, setMissionResetNonce] = useState(0);
+  const [clearingMission, setClearingMission] = useState(false);
 
   const lessonMap = useMemo(() => {
     const nextMap = new Map();
@@ -230,6 +256,14 @@ export default function CourseRoom() {
     () => new Set(progressData.completedLessons),
     [progressData.completedLessons],
   );
+  const effectiveCompletedLessons = useMemo(
+    () => getEffectiveCompletedLessons(progressData.completedLessons),
+    [progressData.completedLessons],
+  );
+  const effectiveCompletedSet = useMemo(
+    () => new Set(effectiveCompletedLessons),
+    [effectiveCompletedLessons],
+  );
   const courseCertificate = useMemo(() => {
     if (!completedSet.has("posttest-exam") || !completedSet.has("final-survey")) return null;
 
@@ -256,11 +290,11 @@ export default function CourseRoom() {
   );
   const earnedXp = useMemo(
     () =>
-      progressData.completedLessons.reduce((sum, lessonId) => {
+      effectiveCompletedLessons.reduce((sum, lessonId) => {
         const entry = lessonMap.get(lessonId);
         return sum + (entry ? getLessonXp(entry.lesson) : 0);
       }, 0),
-    [lessonMap, progressData.completedLessons],
+    [effectiveCompletedLessons, lessonMap],
   );
   const completedMissionCount = useMemo(
     () => allLessons.filter((item) => isMissionLesson(item.lesson) && completedSet.has(item.lesson.id)).length,
@@ -270,7 +304,8 @@ export default function CourseRoom() {
     () => allLessons.filter((item) => isMissionLesson(item.lesson)).length,
     [allLessons],
   );
-  const courseProgressPercent = Math.round((progressData.completedLessons.length / allLessons.length) * 100) || 0;
+  const courseProgressPercent =
+    Math.round((effectiveCompletedLessons.length / allLessons.length) * 100) || 0;
 
   const getQuizAttemptCount = (lessonId) =>
     progressData.quizAttempts?.[lessonId] ??
@@ -523,6 +558,45 @@ export default function CourseRoom() {
     );
   };
 
+  const replaceMissionResponse = async (lessonId, record, options = {}) => {
+    if (!currentUser) return;
+
+    const enrollRef = doc(db, "users", currentUser.uid, "enrollments", courseId);
+    const timestamp = new Date();
+    const enrollmentMeta = buildEnrollmentMeta({
+      completedLessons: options.completedLessons ?? progressData.completedLessons,
+      unlockedModuleIndex: options.currentModuleIndex ?? progressData.currentModuleIndex,
+      activeModule: options.activeModuleIndex ?? activeModuleIndex,
+      activeLesson: options.activeLessonIndex ?? activeLessonIndex,
+    });
+
+    try {
+      await updateDoc(enrollRef, {
+        ...enrollmentMeta,
+        [`missionResponses.${lessonId}`]: record,
+        lastAccess: timestamp,
+        lastSavedAt: timestamp,
+      });
+    } catch (error) {
+      if (error?.code !== "not-found") {
+        throw error;
+      }
+
+      await setDoc(
+        enrollRef,
+        {
+          ...enrollmentMeta,
+          missionResponses: {
+            [lessonId]: record,
+          },
+          lastAccess: timestamp,
+          lastSavedAt: timestamp,
+        },
+        { merge: true },
+      );
+    }
+  };
+
   const persistMissionResponse = async (payload, submitted = false) => {
     if (!currentUser || !currentLesson) return;
 
@@ -535,11 +609,7 @@ export default function CourseRoom() {
       record.submittedAt = new Date().toISOString();
     }
 
-    await mergeEnrollmentData({
-      missionResponses: {
-        [currentLesson.id]: record,
-      },
-    });
+    await replaceMissionResponse(currentLesson.id, record);
 
     setProgressData((previous) => ({
       ...previous,
@@ -551,6 +621,34 @@ export default function CourseRoom() {
 
     if (submitted && !completedSet.has(currentLesson.id)) {
       await markLessonComplete();
+    }
+  };
+
+  const clearCurrentMissionResponse = async () => {
+    if (!currentUser || !currentLesson || !isResettableMissionLesson(currentLesson)) return;
+
+    setClearingMission(true);
+    const timestamp = new Date().toISOString();
+    const clearedRecord = {
+      saveState: completedSet.has(currentLesson.id) ? "submitted" : "draft",
+      updatedAt: timestamp,
+      clearedAt: timestamp,
+    };
+
+    try {
+      await replaceMissionResponse(currentLesson.id, clearedRecord);
+      setProgressData((previous) => ({
+        ...previous,
+        missionResponses: {
+          ...previous.missionResponses,
+          [currentLesson.id]: clearedRecord,
+        },
+      }));
+      setMissionResetNonce((previous) => previous + 1);
+    } catch (error) {
+      console.error("Error clearing mission response:", error);
+    } finally {
+      setClearingMission(false);
     }
   };
 
@@ -1153,6 +1251,28 @@ export default function CourseRoom() {
     <div className="space-y-6">
       {renderQuestBrief()}
       <div className="brand-panel p-6">
+        {isResettableMissionLesson(currentLesson) ? (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-[24px] border border-slate-100 bg-slate-50/80 px-4 py-4">
+            <p className="text-sm leading-7 text-slate-600">
+              {completedSet.has(currentLesson.id)
+                ? "ภารกิจนี้ผ่านแล้ว ล้างคำตอบหรืออัปเดตข้อมูลใหม่ได้ทุกเมื่อ"
+                : "ระบบบันทึกแบบร่างให้อัตโนมัติ และล้างคำตอบเพื่อเริ่มกรอกใหม่ได้ทันที"}
+            </p>
+            <button
+              type="button"
+              onClick={clearCurrentMissionResponse}
+              disabled={clearingMission}
+              className="brand-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {clearingMission ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <RotateCcw size={16} />
+              )}
+              ล้างคำตอบ
+            </button>
+          </div>
+        ) : null}
         {currentLesson.activityType?.startsWith("module1_") ? (
           <ModuleOneMission
             lesson={currentLesson}
@@ -1168,6 +1288,7 @@ export default function CourseRoom() {
             lesson={currentLesson}
             savedResponse={currentMissionResponse}
             allResponses={progressData.missionResponses}
+            clearNonce={missionResetNonce}
             isCompleted={completedSet.has(currentLesson.id)}
             onDraftSave={saveModuleFourDraft}
             onSave={saveModuleFourMission}
@@ -1178,6 +1299,7 @@ export default function CourseRoom() {
             lesson={currentLesson}
             savedResponse={currentMissionResponse}
             allResponses={progressData.missionResponses}
+            clearNonce={missionResetNonce}
             isCompleted={completedSet.has(currentLesson.id)}
             onDraftSave={saveModuleFiveDraft}
             onSave={saveModuleFiveMission}
@@ -1188,6 +1310,7 @@ export default function CourseRoom() {
             lesson={currentLesson}
             savedResponse={currentMissionResponse}
             allResponses={progressData.missionResponses}
+            clearNonce={missionResetNonce}
             isCompleted={completedSet.has(currentLesson.id)}
             onDraftSave={saveModuleTwoDraft}
             onSave={saveModuleTwoMission}
@@ -1198,6 +1321,7 @@ export default function CourseRoom() {
             lesson={currentLesson}
             savedResponse={currentMissionResponse}
             allResponses={progressData.missionResponses}
+            clearNonce={missionResetNonce}
             isCompleted={completedSet.has(currentLesson.id)}
             onDraftSave={saveModuleThreeDraft}
             onSave={saveModuleThreeMission}
@@ -1506,7 +1630,7 @@ export default function CourseRoom() {
             <div className="mt-5 flex-1 space-y-2 overflow-y-auto pr-1">
               {currentCourse.modules.map((module, moduleIndex) => {
                 const isLocked = moduleIndex > progressData.currentModuleIndex;
-                const completedInModule = module.lessons.filter((lesson) => completedSet.has(lesson.id)).length;
+            const completedInModule = module.lessons.filter((lesson) => effectiveCompletedSet.has(lesson.id)).length;
                 const moduleProgress = Math.round((completedInModule / module.lessons.length) * 100);
 
                 return (
@@ -1528,7 +1652,7 @@ export default function CourseRoom() {
                       <div className="space-y-2 px-3 pb-3">
                         {module.lessons.map((lesson, lessonIndex) => {
                           const isActive = moduleIndex === activeModuleIndex && lessonIndex === activeLessonIndex;
-                          const isCompleted = completedSet.has(lesson.id);
+                          const isCompleted = effectiveCompletedSet.has(lesson.id);
                           const xp = getLessonXp(lesson);
 
                           return (
@@ -1595,7 +1719,7 @@ export default function CourseRoom() {
                 <div className="brand-panel p-5">
                   <p className="text-xs uppercase tracking-[0.18em] text-slate-400">สถานะ</p>
                   <p className="mt-3 text-2xl font-bold text-ink">
-                    {completedSet.has(currentLesson.id) ? "เสร็จแล้ว" : "กำลังทำอยู่"}
+                    {effectiveCompletedSet.has(currentLesson.id) ? "เสร็จแล้ว" : "กำลังทำอยู่"}
                   </p>
                 </div>
               </div>
