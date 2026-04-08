@@ -1,3 +1,20 @@
+Original prompt:
+เช็กE2E ของหน้าที่ต้องล็อกอินจริง เช่น CourseRoom, SOS to DU, และ DU Admin ด้วยบัญชีทดสอบ
+
+- On April 8, 2026 (Asia/Bangkok), ran real browser E2E checks against the built app served locally from `dist` while authenticating against the live Firebase project with a throwaway learner account created through the UI registration flow.
+- Verified the authenticated learner path from landing -> login/register -> dashboard works, and the teacher track enrollment flow accepts `TEACHER2024` then opens `/course/teacher` with the `Pre-test Checkpoint` screen visible.
+- Verified `My Courses` reflects the enrolled teacher track for that signed-in account, confirming the enrollment write path is currently allowed for the learner account.
+- Verified the learner cannot access `DU Admin` directly: clicking the dashboard `DU Admin Console` button redirects back to `/dashboard`, and the sidebar does not expose the admin route for a learner role.
+- Confirmed `SOS to DU` currently fails in production-style browser testing with Firestore `permission-denied`; the page shows the Thai error state equivalent to “unable to send SOS right now,” and no case appears in the learner queue.
+- Captured the underlying Firebase console/network evidence during the authenticated checks: `RunAggregationQuery` on `users`, presence updates, SOS writes, and a direct attempt to promote the throwaway account's `users/{uid}.role` to `admin` all returned `Missing or insufficient permissions`.
+- Because the role-promotion attempt on the throwaway account was also denied and no admin credentials exist in the repo, `DU Admin` could only be verified at the route-guard level in this pass; the real admin console itself still needs a valid admin test account or updated Firestore rules.
+- Saved authenticated browser artifacts under:
+  - `output/auth-e2e/1775584406333-resume/`
+  - `output/auth-e2e/sos-debug-1775584537773/`
+  - `output/auth-e2e/admin-gate-1775584586835/`
+  - `output/auth-e2e/admin-promote-1775584901680/`
+  - `output/auth-e2e/course-debug-1775585325622/`
+
 Original prompt: use skill [$develop-web-game](C:\\Users\\401ms\\.codex\\skills\\develop-web-game\\SKILL.md) [$frontend-skill](C:\\Users\\401ms\\.codex\\skills\\frontend-skill\\SKILL.md) [$skill-creator](C:\\Users\\401ms\\.codex\\skills\\.system\\skill-creator\\SKILL.md) [$skill-installer](C:\\Users\\401ms\\.codex\\skills\\.system\\skill-installer\\SKILL.md)
 1. tranfrom the color shade and gradient to  [ #0D1164 #640D5F #EA2264 #F78D60]
 2. use skill to build each Missions to Gamifications style
