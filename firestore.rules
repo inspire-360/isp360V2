@@ -56,7 +56,9 @@ service cloud.firestore {
           "photoURL",
           "activePath",
           "presenceState",
-          "lastSeen"
+          "lastSeen",
+          "lastSeenMs",
+          "sessionId"
         ]);
     }
 

@@ -17,6 +17,7 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { useAuth } from "../contexts/AuthContext";
 import { useLine } from "../contexts/LineContext";
 import { usePresence } from "../hooks/usePresence";
+import { syncPresenceRecord } from "../utils/presenceSync";
 import { isAdminRole } from "../utils/userRoles";
 
 export default function Layout() {
@@ -64,6 +65,12 @@ export default function Layout() {
   const handleLogout = async () => {
     try {
       sessionStorage.setItem("manualLogout", "true");
+      await syncPresenceRecord({
+        user: currentUser,
+        role: userRole,
+        activePath: window.location.pathname,
+        presenceState: "offline",
+      });
       logoutLine();
       await auth.signOut();
       window.location.href = "/";

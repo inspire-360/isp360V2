@@ -11,6 +11,7 @@ import {
   Send,
   ShieldAlert,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import {
   arrayUnion,
@@ -77,6 +78,7 @@ export default function SOSCenter() {
   const [message, setMessage] = useState("");
   const [followUpDrafts, setFollowUpDrafts] = useState({});
   const [submittingFollowUp, setSubmittingFollowUp] = useState("");
+  const [updatingCaseId, setUpdatingCaseId] = useState("");
 
   const requesterName =
     currentUser?.displayName || currentUser?.email?.split("@")[0] || "InSPIRE user";
@@ -119,8 +121,12 @@ export default function SOSCenter() {
 
   const cases = useMemo(() => mergeSosCases(userCases, rootCases), [rootCases, userCases]);
   const loadingCases = !sourceReady.user || !sourceReady.root;
-  const activeCases = useMemo(() => cases.filter((item) => item.status !== "resolved"), [cases]);
+  const activeCases = useMemo(
+    () => cases.filter((item) => !["resolved", "removed"].includes(item.status)),
+    [cases],
+  );
   const resolvedCases = useMemo(() => cases.filter((item) => item.status === "resolved"), [cases]);
+  const removedCases = useMemo(() => cases.filter((item) => item.status === "removed"), [cases]);
 
   const handleChange = (field, value) => setForm((previous) => ({ ...previous, [field]: value }));
   const toggleTag = (tag) =>
@@ -214,22 +220,24 @@ export default function SOSCenter() {
     }
   };
 
-  const submitFollowUp = async (caseId) => {
+  const submitFollowUp = async (caseItem) => {
+    const caseId = caseItem?.id;
     const note = followUpDrafts[caseId]?.trim();
     if (!note) return;
 
     setSubmittingFollowUp(caseId);
 
     try {
+      const nextStatus = caseItem.status === "resolved" ? "in_progress" : caseItem.status;
       const payload = {
-        status: "in_progress",
+        status: nextStatus,
         updatedAt: serverTimestamp(),
         updates: arrayUnion(
           createTimelineEntry({
             type: "follow-up",
             by: requesterName,
             message: note,
-            status: "in_progress",
+            status: nextStatus,
           }),
         ),
       };
@@ -248,6 +256,43 @@ export default function SOSCenter() {
       console.error("Failed to add follow-up:", error);
     } finally {
       setSubmittingFollowUp("");
+    }
+  };
+
+  const updateCaseStatus = async (caseItem, nextStatus, timelineMessage) => {
+    if (!currentUser || !caseItem?.id) return;
+
+    setUpdatingCaseId(caseItem.id);
+
+    try {
+      const payload = {
+        status: nextStatus,
+        updatedAt: serverTimestamp(),
+        updates: arrayUnion(
+          createTimelineEntry({
+            type: "status-change",
+            by: requesterName,
+            message: timelineMessage,
+            status: nextStatus,
+            approvalState: caseItem.approvalState || "pending_review",
+          }),
+        ),
+      };
+
+      const results = await Promise.allSettled([
+        setDoc(doc(db, "users", currentUser.uid, SOS_USER_SUBCOLLECTION, caseItem.id), payload, {
+          merge: true,
+        }),
+        setDoc(doc(db, SOS_COLLECTION, caseItem.id), payload, { merge: true }),
+      ]);
+
+      if (results.every((result) => result.status !== "fulfilled")) {
+        throw new Error("Unable to sync SOS status update.");
+      }
+    } catch (error) {
+      console.error("Failed to update SOS status:", error);
+    } finally {
+      setUpdatingCaseId("");
     }
   };
 
@@ -280,7 +325,8 @@ export default function SOSCenter() {
               <p className="mt-3 text-3xl font-bold">{resolvedCases.length}</p>
             </div>
             <div className="rounded-3xl border border-white/[0.12] bg-white/[0.10] p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-white/[0.55]">Follow-up</p>
+              <p className="text-xs uppercase tracking-[0.18em] text-white/[0.55]">Removed</p>
+              <p className="mt-3 text-3xl font-bold">{removedCases.length}</p>
               <p className="mt-3 text-sm leading-6 text-white/75">ทุกเคสเก็บ timeline และ feedback ไว้ใน Firebase</p>
             </div>
           </div>
@@ -573,10 +619,63 @@ export default function SOSCenter() {
                     </div>
                   </div>
 
-                  {caseItem.status !== "resolved" ? (
+                  <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-sm text-slate-500">
+                      Tracking จาก Firebase อัปเดตทันทีเมื่อ DU ตอบกลับ และผู้ใช้จัดการสถานะงานของตัวเองได้
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {!["resolved", "removed"].includes(caseItem.status) ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateCaseStatus(
+                              caseItem,
+                              "resolved",
+                              "User marked this SOS case complete after receiving support.",
+                            )
+                          }
+                          disabled={updatingCaseId === caseItem.id}
+                          className="brand-button-secondary border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                        >
+                          {updatingCaseId === caseItem.id ? (
+                            <Loader2 size={16} className="animate-spin" />
+                          ) : (
+                            <CheckCircle2 size={16} />
+                          )}
+                          Complete case
+                        </button>
+                      ) : null}
+                      {caseItem.status !== "removed" ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateCaseStatus(
+                              caseItem,
+                              "removed",
+                              "User removed this SOS case from the active queue.",
+                            )
+                          }
+                          disabled={updatingCaseId === caseItem.id}
+                          className="brand-button-secondary border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
+                        >
+                          {updatingCaseId === caseItem.id ? (
+                            <Loader2 size={16} className="animate-spin" />
+                          ) : (
+                            <Trash2 size={16} />
+                          )}
+                          Remove case
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {caseItem.status !== "removed" ? (
                     <div className="mt-5 rounded-[26px] border border-primary/10 bg-primary/5 p-4">
                       <label className="space-y-2 text-sm font-semibold text-ink">
+                        <span>{caseItem.status === "resolved" ? "Re-open with follow-up" : "Send more context to DU"}</span>
+                        <span className="sr-only">
                         <span>ส่งข้อมูลเพิ่มเติมถึง DU</span>
+                        </span>
                         <textarea
                           rows={3}
                           value={followUpDrafts[caseItem.id] || ""}
@@ -593,7 +692,7 @@ export default function SOSCenter() {
                       <div className="mt-4 flex justify-end">
                         <button
                           type="button"
-                          onClick={() => submitFollowUp(caseItem.id)}
+                          onClick={() => submitFollowUp(caseItem)}
                           disabled={submittingFollowUp === caseItem.id}
                           className="brand-button-secondary"
                         >
@@ -607,9 +706,12 @@ export default function SOSCenter() {
                       </div>
                     </div>
                   ) : (
-                    <div className="mt-5 flex items-center gap-3 rounded-[26px] border border-primary/10 bg-primary/5 px-4 py-4 text-sm text-primary">
-                      <CheckCircle2 size={18} />
+                    <div className="mt-5 flex items-center gap-3 rounded-[26px] border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
+                      <Trash2 size={18} />
+                      <span className="sr-only">
                       เคสนี้ปิดแล้ว หากต้องการความช่วยเหลือเพิ่มเติมสามารถเปิดเคสใหม่หรืออัปเดตผ่าน DU ได้อีกครั้ง
+                      </span>
+                      <span>This case was removed from the active queue. Timeline and feedback remain available for audit history.</span>
                     </div>
                   )}
                 </article>

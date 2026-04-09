@@ -11,6 +11,7 @@ import { auth, db } from '../lib/firebase';
 import { useNavigate, Link } from 'react-router-dom';
 import { LogIn, MessageCircle, Mail, Lock, Sparkles, ArrowRight, Loader2, CheckCircle } from 'lucide-react'; 
 import { useLine } from '../contexts/LineContext';
+import { consumeLineLoginRedirectPath } from '../utils/lineAuth';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -122,7 +123,7 @@ export default function Login() {
           setLineStatus('เสร็จสมบูรณ์! กำลังไปที่ Dashboard...');
           await new Promise(resolve => setTimeout(resolve, 500)); 
           
-          navigate('/dashboard');
+          navigate(consumeLineLoginRedirectPath());
 
         } catch (err) {
           console.error("❌ LINE Sync Error:", err);
@@ -145,6 +146,7 @@ export default function Login() {
   const handleGoogleLogin = async () => {
     try {
       sessionStorage.removeItem('manualLogout');
+      consumeLineLoginRedirectPath();
       setError('');
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
@@ -206,6 +208,7 @@ export default function Login() {
     setLoading(true);
     try {
       sessionStorage.removeItem('manualLogout');
+      consumeLineLoginRedirectPath();
       await signInWithEmailAndPassword(auth, email, password);
       navigate('/dashboard');
     } catch (err) {

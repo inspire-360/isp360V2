@@ -2,17 +2,35 @@ export const PRESENCE_COLLECTION = "presence";
 export const ACTIVE_WINDOW_MS = 2 * 60 * 1000;
 export const PRESENCE_TICK_MS = 15 * 1000;
 
-const toDateValue = (value) => {
+const toDateValue = (value, fallbackTimestamp) => {
   if (!value) return null;
   if (typeof value.toDate === "function") return value.toDate();
   if (value instanceof Date) return value;
 
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  if (!Number.isNaN(parsed.getTime())) return parsed;
+
+  if (typeof fallbackTimestamp === "number" && Number.isFinite(fallbackTimestamp)) {
+    return new Date(fallbackTimestamp);
+  }
+
+  return null;
 };
 
 export const resolvePresenceMeta = (user = {}, referenceTime = Date.now()) => {
-  const lastSeen = toDateValue(user.lastSeen);
+  const lastSeen = toDateValue(user.lastSeen, user.lastSeenMs);
+  const presenceState = String(user.presenceState || "").toLowerCase();
+
+  if (presenceState === "offline") {
+    return {
+      status: "offline",
+      label: "Offline",
+      isConnected: false,
+      sortWeight: 0,
+      tone: "border-slate-200 bg-slate-50 text-slate-500",
+      dotTone: "bg-slate-300",
+    };
+  }
 
   if (!lastSeen) {
     return {
@@ -37,7 +55,7 @@ export const resolvePresenceMeta = (user = {}, referenceTime = Date.now()) => {
     };
   }
 
-  if (["away", "background"].includes(String(user.presenceState || "").toLowerCase())) {
+  if (["away", "background", "idle"].includes(presenceState)) {
     return {
       status: "away",
       label: "Away",

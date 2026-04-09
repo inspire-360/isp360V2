@@ -13,7 +13,7 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
-import { collection, doc, getDocs, limit, onSnapshot, orderBy, query, setDoc } from "firebase/firestore";
+import { collection, doc, limit, onSnapshot, orderBy, query, setDoc } from "firebase/firestore";
 import OnlineUsers from "../components/OnlineUsers";
 import { useAuth } from "../contexts/AuthContext";
 import { courseCatalog } from "../data/courseCatalog";
@@ -76,21 +76,25 @@ export default function Dashboard() {
   const displayRole = userRole || "Learner";
 
   useEffect(() => {
-    const fetchData = async () => {
-      if (!currentUser) return;
+    if (!currentUser) {
+      setEnrolledCourses([]);
+      setLoading(false);
+      return undefined;
+    }
 
-      try {
-        const enrollmentSnapshot = await getDocs(collection(db, "users", currentUser.uid, "enrollments"));
-
-        setEnrolledCourses(enrollmentSnapshot.docs.map((item) => item.id));
-      } catch (error) {
-        console.error("Error fetching dashboard data:", error);
-      } finally {
+    const unsubscribe = onSnapshot(
+      collection(db, "users", currentUser.uid, "enrollments"),
+      (snapshot) => {
+        setEnrolledCourses(snapshot.docs.map((item) => item.id));
         setLoading(false);
-      }
-    };
+      },
+      (error) => {
+        console.error("Error fetching dashboard data:", error);
+        setLoading(false);
+      },
+    );
 
-    fetchData();
+    return () => unsubscribe();
   }, [currentUser]);
 
   useEffect(() => {

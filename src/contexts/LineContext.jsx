@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import liff from '@line/liff';
+import { buildLineLoginRedirectUri } from '../utils/lineAuth';
 
 const LineContext = createContext();
 
@@ -42,8 +43,8 @@ export function LineProvider({ children }) {
 
     // ✅ แก้ไข: ไม่ต้อง Alert ว่าเข้าสู่ระบบแล้ว แต่ให้เช็ค Profile เลย
     if (!liffObject.isLoggedIn()) {
-      // ตั้งค่า redirectUri ให้กลับมาที่หน้า Login โดยตรง (ถ้าทำได้) หรือหน้าปัจจุบัน
-      liffObject.login(); 
+      const redirectUri = buildLineLoginRedirectUri();
+      liffObject.login(redirectUri ? { redirectUri } : undefined); 
     } else {
       // ถ้า Login อยู่แล้ว ให้ Refresh Profile อีกรอบเพื่อความชัวร์
       liffObject.getProfile().then(profile => {

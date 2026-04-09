@@ -1,38 +1,30 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
-import { doc, serverTimestamp, setDoc } from "firebase/firestore";
-import { db } from "../lib/firebase";
 import { useAuth } from "../contexts/AuthContext";
-import { PRESENCE_COLLECTION } from "../utils/presenceStatus";
+import { createPresenceSessionId, syncPresenceRecord } from "../utils/presenceSync";
 
 const HEARTBEAT_MS = 15000;
 
 export function usePresence() {
   const { currentUser, userRole } = useAuth();
   const location = useLocation();
+  const sessionIdRef = useRef(createPresenceSessionId());
 
   useEffect(() => {
     if (!currentUser) return undefined;
 
-    const presenceRef = doc(db, PRESENCE_COLLECTION, currentUser.uid);
-
     let interval = 0;
+    const sessionId = sessionIdRef.current;
 
     const syncPresence = async (presenceState) => {
       try {
-        await setDoc(
-          presenceRef,
-          {
-            uid: currentUser.uid,
-            name: currentUser.displayName || currentUser.email?.split("@")[0] || "InSPIRE user",
-            role: userRole || "learner",
-            photoURL: currentUser.photoURL || "",
-            presenceState,
-            activePath: location.pathname,
-            lastSeen: serverTimestamp(),
-          },
-          { merge: true },
-        );
+        await syncPresenceRecord({
+          user: currentUser,
+          role: userRole,
+          activePath: location.pathname,
+          presenceState,
+          sessionId,
+        });
       } catch (error) {
         console.error("Error updating presence:", error);
       }

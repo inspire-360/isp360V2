@@ -8,7 +8,7 @@ import {
   Search,
   Sparkles,
 } from "lucide-react";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, onSnapshot } from "firebase/firestore";
 import { useAuth } from "../contexts/AuthContext";
 import { courseCatalog } from "../data/courseCatalog";
 import { db } from "../lib/firebase";
@@ -17,49 +17,56 @@ import { getCourseIcon } from "../utils/courseIcons";
 export default function MyCourses() {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
-  const [enrollments, setEnrollments] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [enrollments, setEnrollments] = useState(null);
 
   useEffect(() => {
-    const fetchEnrollments = async () => {
-      if (!currentUser) return;
+    if (!currentUser) return undefined;
 
-      try {
-        const snapshot = await getDocs(collection(db, "users", currentUser.uid, "enrollments"));
+    const unsubscribe = onSnapshot(
+      collection(db, "users", currentUser.uid, "enrollments"),
+      (snapshot) => {
         const nextEnrollments = snapshot.docs.map((item) => ({
           id: item.id,
           ...item.data(),
         }));
         setEnrollments(nextEnrollments);
-      } catch (error) {
+      },
+      (error) => {
         console.error("Error fetching enrollments:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+        setEnrollments([]);
+      },
+    );
 
-    fetchEnrollments();
+    return () => unsubscribe();
   }, [currentUser]);
+
+  const loading = Boolean(currentUser) && enrollments === null;
 
   const enrollmentMap = useMemo(
     () =>
-      enrollments.reduce((accumulator, enrollment) => {
+      (currentUser ? enrollments || [] : []).reduce((accumulator, enrollment) => {
         accumulator[enrollment.id] = enrollment;
         return accumulator;
       }, {}),
-    [enrollments],
+    [currentUser, enrollments],
   );
 
   const myCourses = courseCatalog
     .filter((course) => enrollmentMap[course.id])
     .map((course) => {
       const enrollment = enrollmentMap[course.id];
-      const completedLessons = Array.isArray(enrollment.completedLessons)
-        ? enrollment.completedLessons.length
-        : 0;
-      const progressPercent = completedLessons
-        ? Math.min(100, Math.round((completedLessons / course.lessonCount) * 100))
-        : Math.round(enrollment.progress || 0);
+      const completedLessons =
+        typeof enrollment.completedLessonsCount === "number"
+          ? enrollment.completedLessonsCount
+          : Array.isArray(enrollment.completedLessons)
+            ? enrollment.completedLessons.length
+            : 0;
+      const progressPercent =
+        typeof enrollment.progressPercent === "number"
+          ? Math.round(enrollment.progressPercent)
+          : completedLessons
+            ? Math.min(100, Math.round((completedLessons / course.lessonCount) * 100))
+            : Math.round(enrollment.progress || 0);
 
       return {
         ...course,

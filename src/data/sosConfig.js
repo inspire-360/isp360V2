@@ -117,6 +117,7 @@ export const sosStatusOptions = [
   { value: "in_progress", label: "In Progress" },
   { value: "waiting_user", label: "Waiting User" },
   { value: "resolved", label: "Resolved" },
+  { value: "removed", label: "Removed" },
 ];
 
 export const sosApprovalOptions = [
@@ -131,6 +132,7 @@ export const sosStatusTone = {
   in_progress: "bg-primary/10 text-primary border-primary/15",
   waiting_user: "bg-warm/15 text-[#a24619] border-warm/20",
   resolved: "bg-slate-900/5 text-slate-700 border-slate-200",
+  removed: "bg-rose-50 text-rose-700 border-rose-200",
 };
 
 export const sosApprovalTone = {

@@ -8,6 +8,7 @@ import {
   BookOpen,
   CheckCircle2,
   Clock3,
+  Download,
   Filter,
   Loader2,
   RadioTower,
@@ -54,6 +55,7 @@ import {
   toUnixTime,
 } from "../data/sosConfig";
 import { PRESENCE_COLLECTION, PRESENCE_TICK_MS, resolvePresenceMeta } from "../utils/presenceStatus";
+import { downloadExcelWorkbook } from "../utils/excelExport";
 import { getRoleLabel, normalizeUserRole, userRoleOptions } from "../utils/userRoles";
 
 const resolveCourseMeta = (courseId) =>
@@ -152,6 +154,46 @@ const buildResetPayload = (operatorName) => {
     resetBy: operatorName,
   };
 };
+
+const serializeExportValue = (value) => {
+  if (value == null) return "";
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (Array.isArray(value)) return value.map((item) => serializeExportValue(item)).filter(Boolean).join(" | ");
+  if (value?.seconds) return formatDateTime(value);
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === "object") {
+    return Object.entries(value)
+      .map(([key, item]) => `${key}: ${serializeExportValue(item)}`)
+      .filter(Boolean)
+      .join(" | ");
+  }
+  return String(value);
+};
+
+const buildMissionResponseRows = (enrollmentRows = []) =>
+  enrollmentRows.flatMap((enrollment) => {
+    const missionResponses = enrollment.missionResponses || {};
+
+    return Object.entries(missionResponses).flatMap(([missionId, response]) => {
+      if (!response || typeof response !== "object") return [];
+
+      return Object.entries(response)
+        .filter(([, value]) => value != null && value !== "")
+        .map(([field, value]) => ({
+          userId: enrollment.userId || "",
+          learnerName: enrollment.userName || "",
+          courseId: enrollment.courseId || enrollment.id || "",
+          courseTitle: enrollment.courseTitle || resolveCourseMeta(enrollment.courseId || enrollment.id)?.title || "",
+          missionId,
+          field,
+          answer: serializeExportValue(value),
+          enrollmentStatus: enrollment.status || "",
+          lastSavedAt: formatDateTime(enrollment.lastSavedAt || enrollment.lastAccess || enrollment.updatedAt),
+        }));
+    });
+  });
 
 const formatLastSeen = (value) => {
   const unix = toUnixTime(value);
@@ -265,6 +307,9 @@ export default function AdminConsole() {
   const [userDrafts, setUserDrafts] = useState({});
   const [selectedUserId, setSelectedUserId] = useState("");
   const [memberSearch, setMemberSearch] = useState("");
+  const [memberRoleFilter, setMemberRoleFilter] = useState("all");
+  const [memberPresenceFilter, setMemberPresenceFilter] = useState("all");
+  const [memberCourseFilter, setMemberCourseFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [approvalFilter, setApprovalFilter] = useState("all");
@@ -272,6 +317,8 @@ export default function AdminConsole() {
   const [savingUserId, setSavingUserId] = useState("");
   const [resettingUserId, setResettingUserId] = useState("");
   const [now, setNow] = useState(Date.now());
+  const [listenerSeed, setListenerSeed] = useState(0);
+  const [refreshingBoards, setRefreshingBoards] = useState(false);
 
   const operatorName = currentUser?.displayName || currentUser?.email || "DU Operations";
 
@@ -283,6 +330,14 @@ export default function AdminConsole() {
   useEffect(() => {
     const markLoaded = (key) =>
       setLoadingState((previous) => (previous[key] ? { ...previous, [key]: false } : previous));
+
+    setLoadingState({
+      users: true,
+      presence: true,
+      enrollments: true,
+      sosUser: true,
+      sosRoot: true,
+    });
 
     const unsubscribers = [
       onSnapshot(
@@ -365,9 +420,13 @@ export default function AdminConsole() {
     ];
 
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
-  }, []);
+  }, [listenerSeed]);
 
   const loading = Object.values(loadingState).some(Boolean);
+
+  useEffect(() => {
+    if (!loading) setRefreshingBoards(false);
+  }, [loading]);
   const cases = useMemo(() => mergeSosCases(userCaseCache, rootCaseCache), [rootCaseCache, userCaseCache]);
   const enrollmentInsights = useMemo(
     () => enrollments.map((item) => buildEnrollmentInsight(item)),
@@ -498,6 +557,7 @@ export default function AdminConsole() {
           activePath: presenceRecord.activePath || "",
           enrollmentsCount: userEnrollments.length,
           averageProgress,
+          spotlightCourseId: spotlightEnrollment?.courseId || spotlightEnrollment?.id || "",
           spotlightCourse: spotlightEnrollment?.courseTitle || "No course yet",
           spotlightProgress: spotlightEnrollment?.progressPercent || 0,
           spotlightCompletedLessonsCount: spotlightEnrollment?.completedLessonsCount || 0,
@@ -517,12 +577,30 @@ export default function AdminConsole() {
       });
   }, [enrollmentsByUser, now, presenceMap, usersData]);
 
+  const memberCourseOptions = useMemo(() => {
+    const courseMap = new Map();
+
+    memberRows.forEach((user) => {
+      if (!user.spotlightCourseId) return;
+      if (!courseMap.has(user.spotlightCourseId)) {
+        courseMap.set(user.spotlightCourseId, user.spotlightCourse);
+      }
+    });
+
+    return [...courseMap.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((left, right) => left.label.localeCompare(right.label));
+  }, [memberRows]);
+
   const filteredMembers = useMemo(() => {
     const keyword = memberSearch.trim().toLowerCase();
-    if (!keyword) return memberRows;
+    return memberRows.filter((user) => {
+      if (memberRoleFilter !== "all" && user.role !== memberRoleFilter) return false;
+      if (memberPresenceFilter !== "all" && user.presence.status !== memberPresenceFilter) return false;
+      if (memberCourseFilter !== "all" && user.spotlightCourseId !== memberCourseFilter) return false;
+      if (!keyword) return true;
 
-    return memberRows.filter((user) =>
-      [
+      return [
         user.name,
         user.email,
         user.activePath,
@@ -535,9 +613,9 @@ export default function AdminConsole() {
       ]
         .join(" ")
         .toLowerCase()
-        .includes(keyword),
-    );
-  }, [memberRows, memberSearch]);
+        .includes(keyword);
+    });
+  }, [memberCourseFilter, memberPresenceFilter, memberRoleFilter, memberRows, memberSearch]);
 
   const selectedUser = useMemo(
     () => memberRows.find((user) => user.id === selectedUserId) || null,
@@ -593,7 +671,7 @@ export default function AdminConsole() {
       pendingReview: cases.filter((item) => (item.approvalState || "pending_review") === "pending_review").length,
       approved: cases.filter((item) => item.approvalState === "approved").length,
       resolvedCases: cases.filter((item) => item.status === "resolved").length,
-      openCases: cases.filter((item) => item.status !== "resolved").length,
+      openCases: cases.filter((item) => item.status !== "resolved" && item.status !== "removed").length,
       averageProgress: enrollmentInsights.length
         ? Math.round(
             enrollmentInsights.reduce((sum, item) => sum + item.progressPercent, 0) / enrollmentInsights.length,
@@ -643,6 +721,150 @@ export default function AdminConsole() {
     ],
     [enrollmentInsights],
   );
+
+  const refreshLiveData = () => {
+    setRefreshingBoards(true);
+    setListenerSeed((previous) => previous + 1);
+  };
+
+  const exportConsoleWorkbook = () => {
+    const missionResponseRows = buildMissionResponseRows(
+      enrollmentInsights.map((enrollment) => ({
+        ...enrollment,
+        userName: memberMap.get(enrollment.userId)?.name || "",
+      })),
+    );
+
+    downloadExcelWorkbook({
+      fileName: `du-console-export-${new Date().toISOString().slice(0, 10)}.xls`,
+      sheets: [
+        {
+          name: "Members",
+          columns: [
+            "userId",
+            "name",
+            "email",
+            "role",
+            "presence",
+            "lastSeen",
+            "activePath",
+            "school",
+            "position",
+            "enrollmentsCount",
+            "averageProgress",
+            "spotlightCourse",
+            "spotlightProgress",
+            "activeModuleTitle",
+            "activeLessonTitle",
+          ],
+          rows: memberRows.map((user) => ({
+            userId: user.id,
+            name: user.name,
+            email: user.email || "",
+            role: user.roleLabel,
+            presence: user.presence.label,
+            lastSeen: formatLastSeen(user.lastSeen),
+            activePath: user.activePath || "",
+            school: user.school || "",
+            position: user.position || "",
+            enrollmentsCount: user.enrollmentsCount,
+            averageProgress: user.averageProgress,
+            spotlightCourse: user.spotlightCourse,
+            spotlightProgress: user.spotlightProgress,
+            activeModuleTitle: user.activeModuleTitle || "",
+            activeLessonTitle: user.activeLessonTitle || "",
+          })),
+        },
+        {
+          name: "Enrollments",
+          columns: [
+            "userId",
+            "learnerName",
+            "courseId",
+            "courseTitle",
+            "progressPercent",
+            "completedLessonsCount",
+            "lessonCount",
+            "status",
+            "activeModuleTitle",
+            "activeLessonTitle",
+            "lastAccess",
+            "lastSavedAt",
+          ],
+          rows: enrollmentInsights.map((enrollment) => ({
+            userId: enrollment.userId || "",
+            learnerName: memberMap.get(enrollment.userId)?.name || "",
+            courseId: enrollment.courseId || enrollment.id || "",
+            courseTitle: enrollment.courseTitle || "",
+            progressPercent: enrollment.progressPercent,
+            completedLessonsCount: enrollment.completedLessonsCount,
+            lessonCount: enrollment.lessonCount,
+            status: enrollment.status || "",
+            activeModuleTitle: enrollment.activeModuleTitle || "",
+            activeLessonTitle: enrollment.activeLessonTitle || "",
+            lastAccess: formatDateTime(enrollment.lastAccess),
+            lastSavedAt: formatDateTime(enrollment.lastSavedAt || enrollment.updatedAt),
+          })),
+        },
+        {
+          name: "Mission Responses",
+          columns: [
+            "userId",
+            "learnerName",
+            "courseId",
+            "courseTitle",
+            "missionId",
+            "field",
+            "answer",
+            "enrollmentStatus",
+            "lastSavedAt",
+          ],
+          rows: missionResponseRows,
+        },
+        {
+          name: "SOS Cases",
+          columns: [
+            "caseId",
+            "caseNumber",
+            "requesterId",
+            "requesterName",
+            "status",
+            "approvalState",
+            "riskLevel",
+            "category",
+            "summary",
+            "details",
+            "duResponse",
+            "helpDetails",
+            "location",
+            "tags",
+            "createdAt",
+            "updatedAt",
+            "updatesCount",
+          ],
+          rows: cases.map((caseItem) => ({
+            caseId: caseItem.id,
+            caseNumber: formatCaseNumber(caseItem.id),
+            requesterId: caseItem.requesterId || "",
+            requesterName: caseItem.requesterName || memberMap.get(caseItem.requesterId)?.name || "",
+            status: getStatusMeta(caseItem.status).label,
+            approvalState: getApprovalMeta(caseItem.approvalState).label,
+            riskLevel: getRiskMeta(normalizeRiskLevel(caseItem.riskLevel || caseItem.urgency)).label,
+            category: getCategoryMeta(caseItem.category).label,
+            summary: caseItem.summary || "",
+            details: caseItem.details || "",
+            duResponse: caseItem.duResponse || "",
+            helpDetails: caseItem.helpDetails || "",
+            location: caseItem.location || "",
+            tags: (caseItem.tags || []).join(" | "),
+            createdAt: formatDateTime(caseItem.createdAt),
+            updatedAt: formatDateTime(caseItem.updatedAt || caseItem.createdAt),
+            updatesCount: (caseItem.updates || []).length,
+          })),
+        },
+      ],
+    });
+  };
 
   const saveCaseUpdate = async (caseItem) => {
     const draft = drafts[caseItem.id];
@@ -831,6 +1053,23 @@ export default function AdminConsole() {
           </div>
 
           <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={refreshLiveData}
+              disabled={refreshingBoards}
+              className="brand-button-secondary border-white/[0.20] bg-white/[0.10] text-white hover:text-white disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {refreshingBoards ? <Loader2 size={16} className="animate-spin" /> : <RefreshCcw size={16} />}
+              Refresh live data
+            </button>
+            <button
+              type="button"
+              onClick={exportConsoleWorkbook}
+              className="brand-button-secondary border-white/[0.20] bg-white/[0.10] text-white hover:text-white"
+            >
+              <Download size={16} />
+              Export Excel
+            </button>
             <Link
               to="/du/sos"
               className="brand-button-secondary border-white/[0.20] bg-white/[0.10] text-white hover:text-white"
@@ -864,6 +1103,105 @@ export default function AdminConsole() {
             <h2 className="mt-3 font-display text-2xl font-bold text-ink">
               Edit roles, profile data, and learning recovery
             </h2>
+            <p className="mt-2 text-sm leading-7 text-slate-500">
+              Pick a member, filter the live roster, and edit the profile in one place so DU does not need to jump between sections.
+            </p>
+
+            <div className="mt-5 rounded-[28px] border border-slate-100 bg-slate-50/80 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Member workspace</p>
+                  <p className="mt-2 text-lg font-semibold text-ink">Live roster with quick filters</p>
+                </div>
+                <span className="brand-chip border-slate-200 bg-white text-slate-500">
+                  {filteredMembers.length} match(es)
+                </span>
+              </div>
+
+              <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_repeat(3,minmax(0,0.6fr))]">
+                <label className="relative block">
+                  <Search className="pointer-events-none absolute left-4 top-3.5 text-slate-400" size={18} />
+                  <input
+                    value={memberSearch}
+                    onChange={(event) => setMemberSearch(event.target.value)}
+                    placeholder="Search member, role, path, course, or lesson"
+                    className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
+                  />
+                </label>
+                <select
+                  value={memberRoleFilter}
+                  onChange={(event) => setMemberRoleFilter(event.target.value)}
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
+                >
+                  <option value="all">All roles</option>
+                  {userRoleOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={memberPresenceFilter}
+                  onChange={(event) => setMemberPresenceFilter(event.target.value)}
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
+                >
+                  <option value="all">All presence</option>
+                  <option value="online">Online</option>
+                  <option value="away">Away</option>
+                  <option value="offline">Offline</option>
+                </select>
+                <select
+                  value={memberCourseFilter}
+                  onChange={(event) => setMemberCourseFilter(event.target.value)}
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
+                >
+                  <option value="all">All spotlight courses</option>
+                  {memberCourseOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="mt-4 grid max-h-[420px] gap-3 overflow-y-auto pr-1 xl:grid-cols-2">
+                {filteredMembers.length === 0 ? (
+                  <div className="rounded-[24px] border border-dashed border-slate-200 bg-white p-5 text-sm leading-7 text-slate-500 xl:col-span-2">
+                    No member matched this filter set.
+                  </div>
+                ) : (
+                  filteredMembers.map((user) => (
+                    <button
+                      key={`member-workspace-${user.id}`}
+                      type="button"
+                      onClick={() => setSelectedUserId(user.id)}
+                      className={`rounded-[24px] border p-4 text-left transition ${
+                        selectedUserId === user.id
+                          ? "border-primary/25 bg-primary/5"
+                          : "border-slate-200 bg-white hover:border-primary/20"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-semibold text-ink">{user.name}</p>
+                            <span className={`brand-chip ${user.presence.tone}`}>{user.presence.label}</span>
+                          </div>
+                          <p className="mt-1 text-sm text-slate-500">{user.roleLabel} | {user.email || "No email"}</p>
+                          <p className="mt-2 text-sm text-slate-600">
+                            {user.spotlightCourse} | {user.activeLessonTitle || "No active lesson"}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Progress</p>
+                          <p className="mt-1 text-xl font-bold text-ink">{user.spotlightProgress}%</p>
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
 
             {!selectedUser ? (
               <div className="mt-5 rounded-[26px] border border-dashed border-slate-200 bg-slate-50/80 p-6 text-sm leading-7 text-slate-500">
@@ -1231,7 +1569,7 @@ export default function AdminConsole() {
               </div>
             </div>
 
-            <div className="mt-6">
+            <div className="mt-6 grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_repeat(3,minmax(0,0.6fr))]">
               <label className="relative block">
                 <Search className="pointer-events-none absolute left-4 top-3.5 text-slate-400" size={18} />
                 <input
@@ -1241,6 +1579,40 @@ export default function AdminConsole() {
                   className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
                 />
               </label>
+              <select
+                value={memberRoleFilter}
+                onChange={(event) => setMemberRoleFilter(event.target.value)}
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
+              >
+                <option value="all">All roles</option>
+                {userRoleOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={memberPresenceFilter}
+                onChange={(event) => setMemberPresenceFilter(event.target.value)}
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
+              >
+                <option value="all">All presence</option>
+                <option value="online">Online</option>
+                <option value="away">Away</option>
+                <option value="offline">Offline</option>
+              </select>
+              <select
+                value={memberCourseFilter}
+                onChange={(event) => setMemberCourseFilter(event.target.value)}
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
+              >
+                <option value="all">All spotlight courses</option>
+                {memberCourseOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="mt-6 space-y-3">

@@ -195,3 +195,23 @@ Original prompt:
 - Improved `SOSCenter.jsx` submit messaging so partial-sync cases are explained clearly and `permission-denied` failures now surface as Firestore-rules problems instead of a vague generic retry error.
 - Re-verified the repo after these changes with `npm run lint` and `npm run build`; both passed on April 8, 2026.
 - The code path for SOS is now clearer and safer in-app, but the live Firebase project still needs the latest `firestore.rules` deployed before a real learner account can submit SOS successfully against production data.
+
+Original prompt:
+[$cloudflare-deploy](C:\\Users\\401ms\\.codex\\skills\\cloudflare-deploy\\SKILL.md) [$develop-web-game](C:\\Users\\401ms\\.codex\\skills\\develop-web-game\\SKILL.md) [$figma-generate-design](C:\\Users\\401ms\\.codex\\skills\\figma-generate-design\\SKILL.md) [$figma-implement-design](C:\\Users\\401ms\\.codex\\skills\\figma-implement-design\\SKILL.md) [$frontend-skill](C:\\Users\\401ms\\.codex\\skills\\frontend-skill\\SKILL.md) [$plugin-creator](C:\\Users\\401ms\\.codex\\skills\\.system\\plugin-creator\\SKILL.md) [$openai-docs](C:\\Users\\401ms\\.codex\\skills\\.system\\openai-docs\\SKILL.md) [$pdf](C:\\Users\\401ms\\.codex\\skills\\pdf\\SKILL.md)
+1.line login ไม่สำเร็จ พบว่ามันพาไปที่ localhost
+2.ผู้เรียนเรียนแล้ว แต่ใน DU console ไม่แสดงความก้าวหน้า
+3.ระบบ SOS to DU ให้เพิ่ม Feature [Tracking , Remove, Complete] และส่วน follow up ของ user ยังไม่สมบูรณ์
+4. ระบบจัดการสมาชิก ใช้งานยาก เพราะต่องเลื่นไปคลิกด้านล่าง แล้วต่องเลื่อนกลับขึ้นด้านบนถึงจะแก้ไขได้ ช่วยปรับให้ใช้งานง่ายกว่านี้ ซึ่งอาจจะแยกส่วนโดยเฉพาะ และเพิ่มตัวกรองด้วย
+5.online user ไม่อัพเดทยังเป็นข้อมูลเก่า และไม่แสดงตามจริงแบ real time
+6.เพิ่ม Feature ส่งออกคำตอบและข้อมูลผู้ใช้ทั้งหมดเป็น excel ในหน้า DU console ด้วย
+7.ถ้าเพิ่มคำสั่ง refresh Firebase เข้าไป เพื่ออัพเดทข้อมูลให้ real time ควรจะทำไหม ถ้าทำได้จะต้องทำยังไง
+
+- Fixed the LINE login redirect flow so LIFF now sends users back through the current deployed origin instead of falling through to stale localhost-style redirects, and post-login navigation consumes the stored safe path before routing to the dashboard.
+- Switched learner enrollment reads in `Dashboard.jsx` and `MyCourses.jsx` from one-time fetches to Firestore `onSnapshot` listeners, and updated progress math to prefer tracked completion counts so DU sees the same progress the learner actually earned.
+- Added a shared Firestore presence writer with session IDs and millisecond timestamps, updated the app heartbeat to use it, and explicitly writes `offline` on logout so online/away/offline status is fresher in the DU console.
+- Expanded Firestore presence rules to allow the new heartbeat fields needed for better real-time tracking.
+- Extended SOS user controls with `Complete` and `Remove` actions, a `removed` status, and follow-up behavior that can reopen a resolved case by moving it back to `in_progress`.
+- Reworked `AdminConsole.jsx` so member management has its own filterable workspace near the edit form, added role/presence/course filters, and added a manual `Refresh live data` action that re-subscribes all Firestore listeners without reloading the app.
+- Added client-side Excel export in `DU Admin Console` that downloads four sheets: members, enrollments, mission responses, and SOS cases.
+- Added `src/utils/excelExport.js`, `src/utils/lineAuth.js`, and `src/utils/presenceSync.js` to keep the new export, login redirect, and presence sync logic reusable.
+- Verified the repo after this pass with `npm run lint` and `npm run build`; both passed on April 10, 2026.
