@@ -215,3 +215,18 @@ Original prompt:
 - Added client-side Excel export in `DU Admin Console` that downloads four sheets: members, enrollments, mission responses, and SOS cases.
 - Added `src/utils/excelExport.js`, `src/utils/lineAuth.js`, and `src/utils/presenceSync.js` to keep the new export, login redirect, and presence sync logic reusable.
 - Verified the repo after this pass with `npm run lint` and `npm run build`; both passed on April 10, 2026.
+
+Original prompt:
+1. กดออกจากระบบไม่ได้
+2. แก้ไข ปรับปรุง Online Pulse ให้ใช้งานได้จริง
+3. Member Control ให้แยกออกจาก Du Console ไปอีกส่วน เพราะมันแน่นและดูยาก
+4. สถานะการติดตามความก้าวหน้าของผู้ใช้ไม่ใช่ข้อมูลปัจจุบัน ต้องดึงมาจาก Firebase
+5. Pain point focus ให้ดึงมาจากคำตอบของผู้ใช้ใน Mision 1  และ Mision 2 ของ Module 1
+6. ทำให้ระบบเสถียรมากกว่านี้
+
+- Fixed the logout flow in `Layout.jsx` so sign-out is no longer blocked by the presence write; the app now writes presence in the background, disables the button while logging out, and routes back cleanly after `auth.signOut()`.
+- Tightened presence freshness by reducing the active window and heartbeat interval, which makes the online pulse fall back to offline faster when the browser stops sending updates.
+- Added a dedicated `Member Control` page at `/du/members`, wired it into admin navigation, and left `DU Console` focused on pulse/SOS/analytics instead of mixing in the heavy member-editing form.
+- Added shared `useDuMemberData` and `duMemberInsights` helpers so the new member workspace reads users, presence, enrollments, progress, and pain-point phrases from Firebase snapshots through one reusable data layer.
+- Updated pain-point extraction to use only Module 1 Mission 1 and Mission 2 answer text, both in the new member workspace and the remaining DU console summary cloud.
+- Verified the repo after this pass with `npm run lint` and `npm run build`; both passed on April 10, 2026.

@@ -12,6 +12,7 @@ const CourseRoom = lazy(() => import("../pages/CourseRoom"));
 const Dashboard = lazy(() => import("../pages/Dashboard"));
 const Landing = lazy(() => import("../pages/Landing"));
 const Login = lazy(() => import("../pages/Login"));
+const MemberControl = lazy(() => import("../pages/MemberControl"));
 const MyCourses = lazy(() => import("../pages/MyCourses"));
 const Profile = lazy(() => import("../pages/Profile"));
 const Register = lazy(() => import("../pages/Register"));
@@ -107,6 +108,14 @@ export default function AppRoutes() {
             element={
               <AdminRoute>
                 <AdminConsole />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/du/members"
+            element={
+              <AdminRoute>
+                <MemberControl />
               </AdminRoute>
             }
           />

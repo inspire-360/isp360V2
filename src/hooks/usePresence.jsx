@@ -3,7 +3,7 @@ import { useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { createPresenceSessionId, syncPresenceRecord } from "../utils/presenceSync";
 
-const HEARTBEAT_MS = 15000;
+const HEARTBEAT_MS = 10000;
 
 export function usePresence() {
   const { currentUser, userRole } = useAuth();

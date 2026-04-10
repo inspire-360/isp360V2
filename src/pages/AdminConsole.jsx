@@ -206,15 +206,6 @@ const formatLastSeen = (value) => {
   return formatDateTime(value);
 };
 
-const painPointFields = [
-  "painPoint",
-  "challengePoint",
-  "supportNeeded",
-  "adviceRequest",
-  "duQuestion",
-  "improvementFocus",
-];
-
 const normalizePainFragment = (value = "") =>
   value
     .toLowerCase()
@@ -238,12 +229,16 @@ const collectPainPointSignals = (enrollmentRows = []) => {
   enrollmentRows.forEach((enrollment) => {
     const missionResponses = enrollment.missionResponses || {};
 
-    Object.values(missionResponses).forEach((response) => {
-      painPointFields.forEach((field) => {
-        splitPainPointFragments(response?.[field]).forEach((fragment) => {
+    ["m1-mission-1", "m1-mission-2"].forEach((missionId) => {
+      const response = missionResponses[missionId];
+      const answers = response?.parts?.flatMap((part) => part.items || []) || [];
+
+      answers.forEach((item) => {
+        splitPainPointFragments(item?.answer).forEach((fragment) => {
           signals.push({
             text: fragment,
-            field,
+            missionId,
+            questionId: item?.id || "",
             userId: enrollment.userId || "",
             courseId: enrollment.courseId || enrollment.id || "",
           });
@@ -266,12 +261,12 @@ const buildPainPointCloud = (signals = [], limit = 18) => {
       text: signal.text.trim(),
       count: 0,
       users: new Set(),
-      fields: new Set(),
+      missions: new Set(),
     };
 
     current.count += 1;
     if (signal.userId) current.users.add(signal.userId);
-    if (signal.field) current.fields.add(signal.field);
+    if (signal.missionId) current.missions.add(signal.missionId);
     if (signal.text.trim().length < current.text.length) current.text = signal.text.trim();
 
     phraseMap.set(key, current);
@@ -1095,7 +1090,7 @@ export default function AdminConsole() {
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,0.86fr)_minmax(380px,1.14fr)]">
         <section className="space-y-6">
-          <article className="brand-panel p-6">
+          <article className="hidden brand-panel p-6">
             <p className="brand-chip border-secondary/10 bg-secondary/5 text-secondary">
               <UserCog size={14} />
               Member Control
@@ -1414,6 +1409,25 @@ export default function AdminConsole() {
           <article className="brand-panel p-6">
             <div className="flex items-center justify-between gap-4">
               <div>
+                <p className="brand-chip border-secondary/10 bg-secondary/5 text-secondary">
+                  <UserCog size={14} />
+                  Member Control
+                </p>
+                <h2 className="mt-3 font-display text-2xl font-bold text-ink">Member management moved out</h2>
+                <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
+                  เปิดหน้าเฉพาะสำหรับจัดการสมาชิก, รีเซ็ตการเรียน, และดู pain point จาก Module 1 Mission 1-2 โดยไม่ต้องเบียดกับ SOS queue
+                </p>
+              </div>
+              <Link to="/du/members" className="brand-button-secondary">
+                Open Member Control
+                <ArrowUpRight size={16} />
+              </Link>
+            </div>
+          </article>
+
+          <article className="brand-panel p-6">
+            <div className="flex items-center justify-between gap-4">
+              <div>
                 <p className="brand-chip border-primary/10 bg-primary/5 text-primary">
                   <Activity size={14} />
                   Course Pulse
@@ -1499,6 +1513,7 @@ export default function AdminConsole() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Pain Point Word Cloud</p>
+                  <p className="mt-2 text-sm text-slate-500">Source: Module 1 Mission 1 and Mission 2 answers</p>
                   <p className="mt-2 text-lg font-semibold text-ink">
                     ภาพรวม pain point ที่ผู้เรียนสะท้อนผ่าน mission
                   </p>
@@ -1559,7 +1574,7 @@ export default function AdminConsole() {
               <div>
                 <p className="brand-chip border-accent/10 bg-accent/5 text-accent">
                   <Users size={14} />
-                  Learner Progress
+                  Online Pulse
                 </p>
                 <h2 className="mt-3 font-display text-2xl font-bold text-ink">ติดตามความก้าวหน้าของผู้ใช้แบบ real-time</h2>
               </div>

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   Activity,
   AlertTriangle,
@@ -7,6 +7,7 @@ import {
   ChevronRight,
   LayoutDashboard,
   LifeBuoy,
+  Loader2,
   LogOut,
   Menu,
   User,
@@ -23,11 +24,13 @@ import { isAdminRole } from "../utils/userRoles";
 export default function Layout() {
   const { currentUser, userRole } = useAuth();
   const { logoutLine } = useLine();
+  const navigate = useNavigate();
 
   usePresence();
 
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [showWarning, setShowWarning] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [userData, setUserData] = useState({
     name: "User",
     role: "Learner",
@@ -63,9 +66,12 @@ export default function Layout() {
   }, []);
 
   const handleLogout = async () => {
+    if (loggingOut) return;
+
+    setLoggingOut(true);
     try {
       sessionStorage.setItem("manualLogout", "true");
-      await syncPresenceRecord({
+      void syncPresenceRecord({
         user: currentUser,
         role: userRole,
         activePath: window.location.pathname,
@@ -73,9 +79,11 @@ export default function Layout() {
       });
       logoutLine();
       await auth.signOut();
-      window.location.href = "/";
+      navigate("/", { replace: true });
     } catch (error) {
       console.error("Failed to log out", error);
+    } finally {
+      setLoggingOut(false);
     }
   };
 
@@ -91,6 +99,11 @@ export default function Layout() {
       icon: <Activity size={18} />,
       label: "DU Console",
       path: "/du/admin",
+    });
+    menuItems.splice(4, 0, {
+      icon: <Users size={18} />,
+      label: "Member Control",
+      path: "/du/members",
     });
   }
 
@@ -190,9 +203,10 @@ export default function Layout() {
             <button
               type="button"
               onClick={handleLogout}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-full border border-white/[0.12] bg-white/[0.10] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.16]"
+              disabled={loggingOut}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-full border border-white/[0.12] bg-white/[0.10] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.16] disabled:cursor-not-allowed disabled:opacity-70"
             >
-              <LogOut size={16} />
+              {loggingOut ? <Loader2 size={16} className="animate-spin" /> : <LogOut size={16} />}
               ออกจากระบบ
             </button>
           </div>
