@@ -58,10 +58,10 @@ const inspireFlow = [
 ];
 
 export default function Dashboard() {
-  const { currentUser, userRole } = useAuth();
+  const { currentUser, userRole, userProfile } = useAuth();
   const navigate = useNavigate();
 
-  const [enrolledCourses, setEnrolledCourses] = useState([]);
+  const [enrollments, setEnrollments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [communityPulse, setCommunityPulse] = useState(0);
 
@@ -72,12 +72,40 @@ export default function Dashboard() {
   const [enrollLoading, setEnrollLoading] = useState(false);
 
   const displayName =
-    currentUser?.displayName || currentUser?.email?.split("@")[0] || "User";
-  const displayRole = userRole || "Learner";
+    userProfile?.name ||
+    [userProfile?.prefix, userProfile?.firstName, userProfile?.lastName].filter(Boolean).join(" ").trim() ||
+    currentUser?.displayName ||
+    currentUser?.email?.split("@")[0] ||
+    "User";
+  const displayRole = userProfile?.role || userRole || "Learner";
+
+  const completedTracks = enrollments.filter(
+    (enrollment) =>
+      enrollment.status === "completed" ||
+      (typeof enrollment.progressPercent === "number" && enrollment.progressPercent >= 100) ||
+      (typeof enrollment.progress === "number" && enrollment.progress >= 100),
+  ).length;
+
+  const averageProgress =
+    enrollments.length > 0
+      ? Math.round(
+          enrollments.reduce((total, enrollment) => {
+            if (typeof enrollment.progressPercent === "number") return total + enrollment.progressPercent;
+            if (Array.isArray(enrollment.completedLessons)) {
+              const courseMeta = courseCatalog.find((course) => course.id === enrollment.id);
+              if (courseMeta?.lessonCount) {
+                return total + Math.round((enrollment.completedLessons.length / courseMeta.lessonCount) * 100);
+              }
+            }
+            if (typeof enrollment.progress === "number") return total + enrollment.progress;
+            return total;
+          }, 0) / enrollments.length,
+        )
+      : 0;
 
   useEffect(() => {
     if (!currentUser) {
-      setEnrolledCourses([]);
+      setEnrollments([]);
       setLoading(false);
       return undefined;
     }
@@ -85,7 +113,12 @@ export default function Dashboard() {
     const unsubscribe = onSnapshot(
       collection(db, "users", currentUser.uid, "enrollments"),
       (snapshot) => {
-        setEnrolledCourses(snapshot.docs.map((item) => item.id));
+        setEnrollments(
+          snapshot.docs.map((item) => ({
+            id: item.id,
+            ...item.data(),
+          })),
+        );
         setLoading(false);
       },
       (error) => {
@@ -136,20 +169,20 @@ export default function Dashboard() {
     },
     {
       label: "Enrolled now",
-      value: enrolledCourses.length,
+      value: enrollments.length,
       icon: <GraduationCap size={18} />,
       tone: "bg-accent/10 text-accent",
     },
     {
-      label: "Mission ready",
-      value: courseCatalog.reduce((total, course) => total + course.missionCount, 0),
-      icon: <Sparkles size={18} />,
+      label: "Completed tracks",
+      value: `${completedTracks} | ${averageProgress}%`,
+      icon: <CheckCircle2 size={18} />,
       tone: "bg-warm/15 text-[#a24619]",
     },
   ];
 
   const openEnrollModal = (course) => {
-    if (enrolledCourses.includes(course.id)) {
+    if (enrollments.some((item) => item.id === course.id)) {
       navigate(course.path);
       return;
     }
@@ -196,7 +229,15 @@ export default function Dashboard() {
         accessCodeUsed: course.requiresCode ? accessCode.trim().toUpperCase() : "none",
       });
 
-      setEnrolledCourses((previous) => [...previous, course.id]);
+      setEnrollments((previous) => [
+        ...previous,
+        {
+          id: course.id,
+          progress: 0,
+          progressPercent: 0,
+          status: "active",
+        },
+      ]);
       navigate(course.path);
     } catch (error) {
       console.error("Enrollment failed:", error);
@@ -296,7 +337,7 @@ export default function Dashboard() {
 
           <div className="mt-6 grid gap-5 lg:grid-cols-2">
             {courseCatalog.map((course) => {
-              const isEnrolled = enrolledCourses.includes(course.id);
+              const isEnrolled = enrollments.some((item) => item.id === course.id);
               return (
                 <article
                   key={course.id}
