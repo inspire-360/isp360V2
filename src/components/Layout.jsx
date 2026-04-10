@@ -11,6 +11,7 @@ import {
   LogOut,
   Menu,
   User,
+  Users,
   X,
 } from "lucide-react";
 import { auth, db } from "../lib/firebase";
