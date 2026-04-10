@@ -9,6 +9,7 @@ const AuthContext = createContext();
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [userRole, setUserRole] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,6 +24,7 @@ export function AuthProvider({ children }) {
       if (!user) {
         setCurrentUser(null);
         setUserRole(null);
+        setUserProfile(null);
         setLoading(false);
         return;
       }
@@ -32,14 +34,18 @@ export function AuthProvider({ children }) {
         doc(db, "users", user.uid),
         (docSnap) => {
           if (docSnap.exists()) {
-            setUserRole(normalizeUserRole(docSnap.data().role));
+            const profile = { id: docSnap.id, ...docSnap.data() };
+            setUserProfile(profile);
+            setUserRole(normalizeUserRole(profile.role));
           } else {
+            setUserProfile(null);
             setUserRole("learner");
           }
           setLoading(false);
         },
         (error) => {
           console.error("Error subscribing user role:", error);
+          setUserProfile(null);
           setUserRole("learner");
           setLoading(false);
         },
@@ -57,6 +63,7 @@ export function AuthProvider({ children }) {
   const value = {
     currentUser,
     userRole,
+    userProfile,
     loading,
   };
 
