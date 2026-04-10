@@ -23,19 +23,22 @@ const hasTrackedCompletionCount = (enrollment = {}) =>
 
 export const resolveProgressPercent = (enrollment = {}) => {
   const lessonCount = resolveLessonCount(enrollment);
+  const completedLessonsCount = resolveCompletedLessonsCount(enrollment);
+  const countedPercent =
+    lessonCount > 0 ? Math.min(100, Math.round((completedLessonsCount / lessonCount) * 100)) : 0;
+  const storedPercent =
+    typeof enrollment.progressPercent === "number"
+      ? Math.max(0, Math.min(100, Math.round(enrollment.progressPercent)))
+      : typeof enrollment.progress === "number"
+        ? Math.max(0, Math.min(100, Math.round(enrollment.progress)))
+        : 0;
 
   if (lessonCount > 0 && hasTrackedCompletionCount(enrollment)) {
-    return Math.min(100, Math.round((resolveCompletedLessonsCount(enrollment) / lessonCount) * 100));
+    return Math.max(countedPercent, storedPercent, enrollment.status === "completed" ? 100 : 0);
   }
 
   if (enrollment.status === "completed") return 100;
-  if (typeof enrollment.progressPercent === "number") {
-    return Math.max(0, Math.min(100, Math.round(enrollment.progressPercent)));
-  }
-  if (typeof enrollment.progress === "number") {
-    return Math.max(0, Math.min(100, Math.round(enrollment.progress)));
-  }
-  return 0;
+  return storedPercent;
 };
 
 export const buildEnrollmentInsight = (enrollment = {}) => {
@@ -119,8 +122,25 @@ const splitPainPointFragments = (value) => {
     .map((fragment) => (fragment.length > 60 ? `${fragment.slice(0, 57)}...` : fragment));
 };
 
-const collectModuleOneMissionAnswerItems = (response = {}) =>
-  response?.parts?.flatMap((part) => part.items || []).filter((item) => typeof item?.answer === "string") || [];
+const collectModuleOneMissionAnswerItems = (response = {}) => {
+  const partItems =
+    response?.parts?.flatMap((part) =>
+      (part.items || []).map((item) => ({
+        id: item?.id || "",
+        lensCode: item?.lensCode || "",
+        answer: item?.answer,
+      })),
+    ) || [];
+  const answerMapItems =
+    response?.answers && typeof response.answers === "object"
+      ? Object.entries(response.answers).map(([id, answer]) => ({ id, lensCode: "", answer }))
+      : [];
+
+  return [...partItems, ...answerMapItems].map((item) => ({
+    ...item,
+    answer: typeof item.answer === "string" ? item.answer : String(item.answer || "").trim(),
+  }));
+};
 
 export const collectMissionPainPointSignals = (enrollmentRows = []) => {
   const signals = [];

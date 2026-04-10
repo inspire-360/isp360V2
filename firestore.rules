@@ -17,7 +17,16 @@ service cloud.firestore {
     function isAdmin() {
       return signedIn()
         && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && currentUserRecord().data.role in ["admin", "du admin", "du_admin"];
+        && currentUserRecord().data.role in [
+          "admin",
+          "Admin",
+          "du admin",
+          "DU Admin",
+          "du_admin",
+          "DU_ADMIN",
+          "duadmin",
+          "DUADMIN"
+        ];
     }
 
     function validSelfUserCreate(userId) {
