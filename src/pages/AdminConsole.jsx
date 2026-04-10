@@ -80,15 +80,22 @@ const hasTrackedCompletionCount = (enrollment = {}) =>
 
 const resolveProgressPercent = (enrollment = {}) => {
   const lessonCount = resolveLessonCount(enrollment);
+  const completedLessonsCount = resolveCompletedLessonsCount(enrollment);
+  const countedPercent =
+    lessonCount > 0 ? Math.min(100, Math.round((completedLessonsCount / lessonCount) * 100)) : 0;
+  const storedPercent =
+    typeof enrollment.progressPercent === "number"
+      ? Math.max(0, Math.min(100, Math.round(enrollment.progressPercent)))
+      : typeof enrollment.progress === "number"
+        ? Math.max(0, Math.min(100, Math.round(enrollment.progress)))
+        : 0;
 
   if (lessonCount > 0 && hasTrackedCompletionCount(enrollment)) {
-    return Math.min(100, Math.round((resolveCompletedLessonsCount(enrollment) / lessonCount) * 100));
+    return Math.max(countedPercent, storedPercent, enrollment.status === "completed" ? 100 : 0);
   }
 
   if (enrollment.status === "completed") return 100;
-  if (typeof enrollment.progressPercent === "number") return Math.max(0, Math.min(100, Math.round(enrollment.progressPercent)));
-  if (typeof enrollment.progress === "number") return Math.max(0, Math.min(100, Math.round(enrollment.progress)));
-  return 0;
+  return storedPercent;
 };
 
 const buildEnrollmentInsight = (enrollment = {}) => {
@@ -225,13 +232,31 @@ const splitPainPointFragments = (value) => {
 
 const collectPainPointSignals = (enrollmentRows = []) => {
   const signals = [];
+  const collectAnswerItems = (response = {}) => {
+    const partItems =
+      response?.parts?.flatMap((part) =>
+        (part.items || []).map((item) => ({
+          id: item?.id || "",
+          answer: item?.answer,
+        })),
+      ) || [];
+    const answerMapItems =
+      response?.answers && typeof response.answers === "object"
+        ? Object.entries(response.answers).map(([id, answer]) => ({ id, answer }))
+        : [];
+
+    return [...partItems, ...answerMapItems].map((item) => ({
+      id: item.id,
+      answer: typeof item.answer === "string" ? item.answer : String(item.answer || "").trim(),
+    }));
+  };
 
   enrollmentRows.forEach((enrollment) => {
     const missionResponses = enrollment.missionResponses || {};
 
     ["m1-mission-1", "m1-mission-2"].forEach((missionId) => {
       const response = missionResponses[missionId];
-      const answers = response?.parts?.flatMap((part) => part.items || []) || [];
+      const answers = collectAnswerItems(response);
 
       answers.forEach((item) => {
         splitPainPointFragments(item?.answer).forEach((fragment) => {
