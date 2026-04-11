@@ -17,6 +17,7 @@ import {
   sortExpertsByName,
   sortMatchRequests,
 } from "../data/resourceMatchmaking";
+import { seedExpertsDirectory as runExpertSeedDirectory } from "../utils/seedExpertsDirectory";
 
 const resolveDisplayName = ({ currentUser, userProfile, userRole }) =>
   userProfile?.name ||
@@ -34,6 +35,7 @@ export function useResourceMarketplace({ currentUser, userProfile, userRole, isA
   const [creatingRequest, setCreatingRequest] = useState(false);
   const [assigningExpert, setAssigningExpert] = useState(false);
   const [completingRequest, setCompletingRequest] = useState(false);
+  const [seedingExperts, setSeedingExperts] = useState(false);
 
   useEffect(() => {
     if (!currentUser?.uid) {
@@ -135,7 +137,7 @@ export function useResourceMarketplace({ currentUser, userProfile, userRole, isA
       await setDoc(requestRef, {
         requesterId: currentUser.uid,
         requesterName,
-        requesterRole: userRole || "teacher",
+        requesterRole: "teacher",
         schoolName: userProfile?.school || "",
         requestTitle: requestTitle.trim(),
         desiredExpertise: desiredExpertise.trim(),
@@ -159,6 +161,20 @@ export function useResourceMarketplace({ currentUser, userProfile, userRole, isA
       setActiveRequestId(requestRef.id);
     } finally {
       setCreatingRequest(false);
+    }
+  };
+
+  const seedExpertsDirectory = async () => {
+    if (!isAdminView || !currentUser?.uid) {
+      throw new Error("บัญชีนี้ไม่มีสิทธิ์นำเข้าฐานข้อมูลผู้เชี่ยวชาญ");
+    }
+
+    setSeedingExperts(true);
+
+    try {
+      return await runExpertSeedDirectory();
+    } finally {
+      setSeedingExperts(false);
     }
   };
 
@@ -228,8 +244,10 @@ export function useResourceMarketplace({ currentUser, userProfile, userRole, isA
     creatingRequest,
     assigningExpert,
     completingRequest,
+    seedingExperts,
     createRequest,
     assignExpertToRequest,
     completeRequest,
+    seedExpertsDirectory,
   };
 }

@@ -16,6 +16,11 @@ import {
   SUPPORT_TICKET_MESSAGES_SUBCOLLECTION,
   sortSupportTickets,
 } from "../data/supportTickets";
+import {
+  getReadableSosFirestoreError,
+  logSosFirestoreError,
+} from "../utils/sosWriteDiagnostics";
+import { isTeacherRole } from "../utils/userRoles";
 
 const resolveDisplayName = ({ currentUser, userProfile, fallbackLabel }) =>
   userProfile?.name ||
@@ -28,6 +33,12 @@ const buildPreview = (value = "") => {
   const normalized = String(value || "").replace(/\s+/g, " ").trim();
   if (normalized.length <= 120) return normalized;
   return `${normalized.slice(0, 117)}...`;
+};
+
+const buildSosClientError = (message) => {
+  const error = new Error(message);
+  error.userMessage = message;
+  return error;
 };
 
 const patchTicketList = (previousTickets, snapshot) => {
@@ -102,7 +113,13 @@ export function useSupportTickets({ currentUser, userProfile, userRole, isAdminV
           setLoadingTickets(false);
         });
       },
-      () => {
+      (error) => {
+        console.error("ไม่สามารถติดตามรายการคำร้อง SOS แบบเรียลไทม์ได้", {
+          รหัสข้อผิดพลาด: error?.code || "ไม่ทราบรหัส",
+          ข้อความระบบ: error?.message || "ไม่มีข้อความจากระบบ",
+          ผู้ใช้งาน: currentUser?.uid || "ไม่พบรหัสผู้ใช้",
+          มุมมองแอดมิน: Boolean(isAdminView),
+        });
         setLoadingTickets(false);
       },
     );
@@ -142,13 +159,19 @@ export function useSupportTickets({ currentUser, userProfile, userRole, isAdminV
           setLoadingMessages(false);
         });
       },
-      () => {
+      (error) => {
+        console.error("ไม่สามารถติดตามข้อความในคำร้อง SOS ได้", {
+          รหัสข้อผิดพลาด: error?.code || "ไม่ทราบรหัส",
+          ข้อความระบบ: error?.message || "ไม่มีข้อความจากระบบ",
+          รหัสคำร้อง: activeTicketId,
+          ผู้ใช้งาน: currentUser?.uid || "ไม่พบรหัสผู้ใช้",
+        });
         setLoadingMessages(false);
       },
     );
 
     return () => unsubscribe();
-  }, [activeTicketId]);
+  }, [activeTicketId, currentUser?.uid]);
 
   const activeTicket = useMemo(
     () => tickets.find((ticket) => ticket.id === activeTicketId) || null,
@@ -165,7 +188,13 @@ export function useSupportTickets({ currentUser, userProfile, userRole, isAdminV
     contactInfo,
     isConfidential,
   }) => {
-    if (!currentUser?.uid) return;
+    if (!currentUser?.uid) {
+      throw buildSosClientError("กรุณาเข้าสู่ระบบก่อนส่งคำร้องถึง DU");
+    }
+
+    if (!isTeacherRole(userRole)) {
+      throw buildSosClientError("บัญชีนี้ยังไม่มีสิทธิ์ส่งคำร้องถึง DU");
+    }
 
     setCreatingTicket(true);
 
@@ -185,7 +214,7 @@ export function useSupportTickets({ currentUser, userProfile, userRole, isAdminV
       batch.set(ticketRef, {
         requesterId: currentUser.uid,
         requesterDisplayName,
-        requesterRole: userRole || "teacher",
+        requesterRole: "teacher",
         topic: String(topic || "").trim(),
         mainCategory,
         subCategory,
@@ -216,13 +245,45 @@ export function useSupportTickets({ currentUser, userProfile, userRole, isAdminV
       await batch.commit();
 
       setActiveTicketId(ticketRef.id);
+    } catch (error) {
+      logSosFirestoreError({
+        phase: "สร้างคำร้องใหม่",
+        error,
+        currentUser,
+        userRole,
+        payload: {
+          topic,
+          mainCategory,
+          subCategory,
+          urgencyLevel,
+          location,
+          details,
+          contactInfo,
+          isConfidential,
+        },
+      });
+
+      const enhancedError =
+        error instanceof Error ? error : new Error("ไม่สามารถสร้างคำร้องใหม่ได้");
+      enhancedError.userMessage = getReadableSosFirestoreError(error);
+      throw enhancedError;
     } finally {
       setCreatingTicket(false);
     }
   };
 
   const sendMessage = async ({ ticket, body }) => {
-    if (!ticket?.id || !currentUser?.uid) return;
+    if (!ticket?.id) {
+      throw buildSosClientError("กรุณาเลือกคำร้องก่อนส่งข้อความ");
+    }
+
+    if (!currentUser?.uid) {
+      throw buildSosClientError("กรุณาเข้าสู่ระบบก่อนส่งข้อความ");
+    }
+
+    if (!isAdminView && !isTeacherRole(userRole)) {
+      throw buildSosClientError("บัญชีนี้ยังไม่มีสิทธิ์ตอบกลับคำร้อง");
+    }
 
     setSendingMessage(true);
 
@@ -265,13 +326,39 @@ export function useSupportTickets({ currentUser, userProfile, userRole, isAdminV
         { merge: true },
       );
       await batch.commit();
+    } catch (error) {
+      logSosFirestoreError({
+        phase: "ส่งข้อความตอบกลับ",
+        error,
+        currentUser,
+        userRole,
+        payload: {
+          ticket,
+          body,
+        },
+      });
+
+      const enhancedError =
+        error instanceof Error ? error : new Error("ไม่สามารถส่งข้อความตอบกลับได้");
+      enhancedError.userMessage = getReadableSosFirestoreError(error);
+      throw enhancedError;
     } finally {
       setSendingMessage(false);
     }
   };
 
   const updateTicketAdminMeta = async ({ ticket, nextStatus, assignedTo, note }) => {
-    if (!isAdminView || !ticket?.id || !currentUser?.uid) return;
+    if (!isAdminView) {
+      throw buildSosClientError("บัญชีนี้ยังไม่มีสิทธิ์คัดกรองคำร้องของ DU");
+    }
+
+    if (!ticket?.id) {
+      throw buildSosClientError("กรุณาเลือกคำร้องก่อนบันทึกการคัดกรอง");
+    }
+
+    if (!currentUser?.uid) {
+      throw buildSosClientError("กรุณาเข้าสู่ระบบก่อนบันทึกการคัดกรอง");
+    }
 
     setUpdatingTicket(true);
 
@@ -331,6 +418,24 @@ export function useSupportTickets({ currentUser, userProfile, userRole, isAdminV
         { merge: true },
       );
       await batch.commit();
+    } catch (error) {
+      logSosFirestoreError({
+        phase: "อัปเดตสถานะและผู้รับผิดชอบ",
+        error,
+        currentUser,
+        userRole,
+        payload: {
+          ticket,
+          nextStatus,
+          assignedTo,
+          note,
+        },
+      });
+
+      const enhancedError =
+        error instanceof Error ? error : new Error("ไม่สามารถอัปเดตการคัดกรองคำร้องได้");
+      enhancedError.userMessage = getReadableSosFirestoreError(error);
+      throw enhancedError;
     } finally {
       setUpdatingTicket(false);
     }

@@ -23,6 +23,7 @@ import {
   shouldSuggestConfidentialMode,
 } from "../data/supportTickets";
 import { useSupportTickets } from "../hooks/useSupportTickets";
+import { isTeacherRole } from "../utils/userRoles";
 
 const defaultMainCategory = supportTicketMainCategoryOptions[0];
 
@@ -145,6 +146,8 @@ const AdminTicketTableRow = memo(function AdminTicketTableRow({
 
 export default function SupportTicketWorkspace({ isAdminView = false }) {
   const { currentUser, userProfile, userRole } = useAuth();
+  const teacherView = isTeacherRole(userRole);
+  const canCreateTicket = !isAdminView && teacherView;
   const [ticketForm, setTicketForm] = useState({
     ...initialTicketForm,
     location: userProfile?.school || "",
@@ -285,7 +288,7 @@ export default function SupportTicketWorkspace({ isAdminView = false }) {
       setFormError("");
     } catch (error) {
       console.error("เกิดข้อผิดพลาดระหว่างสร้างคำร้อง SOS", error);
-      setFormError("ไม่สามารถส่งคำร้องได้ กรุณาลองใหม่อีกครั้ง");
+      setFormError(error?.userMessage || "ไม่สามารถส่งคำร้องได้ กรุณาลองใหม่อีกครั้ง");
     }
   };
 
@@ -306,7 +309,7 @@ export default function SupportTicketWorkspace({ isAdminView = false }) {
       setReplyError("");
     } catch (error) {
       console.error("เกิดข้อผิดพลาดระหว่างส่งข้อความตอบกลับ", error);
-      setReplyError("ไม่สามารถส่งข้อความได้ กรุณาลองใหม่อีกครั้ง");
+      setReplyError(error?.userMessage || "ไม่สามารถส่งข้อความได้ กรุณาลองใหม่อีกครั้ง");
     }
   };
 
@@ -332,7 +335,7 @@ export default function SupportTicketWorkspace({ isAdminView = false }) {
       setReplyError("");
     } catch (error) {
       console.error("เกิดข้อผิดพลาดระหว่างบันทึกการคัดกรอง", error);
-      setReplyError("ไม่สามารถบันทึกสถานะหรือผู้รับผิดชอบได้ กรุณาลองใหม่อีกครั้ง");
+      setReplyError(error?.userMessage || "ไม่สามารถบันทึกสถานะหรือผู้รับผิดชอบได้ กรุณาลองใหม่อีกครั้ง");
     }
   };
 
@@ -355,165 +358,171 @@ export default function SupportTicketWorkspace({ isAdminView = false }) {
             </div>
           </div>
 
-          <form className="mt-6 space-y-5" onSubmit={handleCreateTicket}>
-            <label className="space-y-2 text-sm font-semibold text-ink">
-              <span>หัวข้อสรุป</span>
-              <input
-                value={ticketForm.topic}
-                onChange={(event) =>
-                  setTicketForm((previous) => ({ ...previous, topic: event.target.value }))
-                }
-                placeholder="สรุปประเด็นหลักที่ต้องการให้ DU รับรู้"
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
-              />
-            </label>
-
-            <div className="grid gap-4 lg:grid-cols-2">
+          {canCreateTicket ? (
+            <form className="mt-6 space-y-5" onSubmit={handleCreateTicket}>
               <label className="space-y-2 text-sm font-semibold text-ink">
-                <span>หมวดหมู่หลัก</span>
-                <select
-                  value={ticketForm.mainCategory}
-                  onChange={(event) => handleMainCategoryChange(event.target.value)}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
-                >
-                  {supportTicketMainCategoryOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs font-normal leading-6 text-slate-500">
-                  {getSupportTicketMainCategoryMeta(ticketForm.mainCategory).helper}
-                </p>
-              </label>
-
-              <label className="space-y-2 text-sm font-semibold text-ink">
-                <span>ปัญหาย่อย</span>
-                <select
-                  value={ticketForm.subCategory}
-                  onChange={(event) => handleSubCategoryChange(event.target.value)}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
-                >
-                  {subCategoryOptions.map((subCategory) => (
-                    <option key={subCategory} value={subCategory}>
-                      {subCategory}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            <div className="grid gap-4 lg:grid-cols-2">
-              <label className="space-y-2 text-sm font-semibold text-ink">
-                <span>ระดับความเร่งด่วน</span>
-                <select
-                  value={ticketForm.urgencyLevel}
-                  onChange={(event) =>
-                    setTicketForm((previous) => ({ ...previous, urgencyLevel: event.target.value }))
-                  }
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
-                >
-                  {supportTicketUrgencyOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs font-normal leading-6 text-slate-500">
-                  {
-                    supportTicketUrgencyOptions.find(
-                      (option) => option.value === ticketForm.urgencyLevel,
-                    )?.helper
-                  }
-                </p>
-              </label>
-
-              <label className="space-y-2 text-sm font-semibold text-ink">
-                <span>สถานที่ / หน่วยงาน</span>
+                <span>หัวข้อสรุป</span>
                 <input
-                  value={ticketForm.location}
+                  value={ticketForm.topic}
                   onChange={(event) =>
-                    setTicketForm((previous) => ({ ...previous, location: event.target.value }))
+                    setTicketForm((previous) => ({ ...previous, topic: event.target.value }))
                   }
-                  placeholder="เช่น โรงเรียน ห้องเรียน กลุ่มสาระ หรือหน่วยงานที่เกี่ยวข้อง"
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
-                />
-              </label>
-            </div>
-
-            <label className="space-y-2 text-sm font-semibold text-ink">
-              <span>รายละเอียด</span>
-              <textarea
-                rows={6}
-                value={ticketForm.details}
-                onChange={(event) =>
-                  setTicketForm((previous) => ({ ...previous, details: event.target.value }))
-                }
-                placeholder="เล่าเหตุการณ์ ผลกระทบ สิ่งที่ลองทำไปแล้ว และสิ่งที่อยากให้ DU ช่วย"
-                className="w-full rounded-[24px] border border-slate-200 bg-white px-4 py-3 text-sm leading-7 outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
-              />
-            </label>
-
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-              <label className="space-y-2 text-sm font-semibold text-ink">
-                <span>ช่องทางติดต่อที่สะดวก</span>
-                <input
-                  value={ticketForm.contactInfo}
-                  onChange={(event) =>
-                    setTicketForm((previous) => ({ ...previous, contactInfo: event.target.value }))
-                  }
-                  placeholder="เช่น อีเมล เบอร์โทร หรือไลน์ที่สะดวก"
+                  placeholder="สรุปประเด็นหลักที่ต้องการให้ DU รับรู้"
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
                 />
               </label>
 
-              <label className="flex items-start gap-3 rounded-[24px] border border-slate-200 bg-slate-50/80 px-4 py-4">
-                <input
-                  type="checkbox"
-                  checked={ticketForm.isConfidential}
-                  onChange={(event) =>
-                    setTicketForm((previous) => ({
-                      ...previous,
-                      isConfidential: event.target.checked,
-                    }))
-                  }
-                  className="mt-1 h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/20"
-                />
-                <span className="space-y-1 text-sm">
-                  <span className="flex items-center gap-2 font-semibold text-ink">
-                    <LockKeyhole size={16} />
-                    ส่งข้อมูลแบบไม่ระบุชื่อ / ข้อมูลความลับ
-                  </span>
-                  <span className="block leading-7 text-slate-600">
-                    ใช้สำหรับกรณีสุขภาพจิต ความขัดแย้ง หรือเคสที่ต้องการลดการเปิดเผยตัวตนบนหน้ารายการ
-                  </span>
-                </span>
-              </label>
-            </div>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <label className="space-y-2 text-sm font-semibold text-ink">
+                  <span>หมวดหมู่หลัก</span>
+                  <select
+                    value={ticketForm.mainCategory}
+                    onChange={(event) => handleMainCategoryChange(event.target.value)}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
+                  >
+                    {supportTicketMainCategoryOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs font-normal leading-6 text-slate-500">
+                    {getSupportTicketMainCategoryMeta(ticketForm.mainCategory).helper}
+                  </p>
+                </label>
 
-            {suggestedConfidentialMode ? (
-              <div className="rounded-[24px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-7 text-amber-800">
-                หมวดหมู่นี้มีความละเอียดอ่อน ระบบจึงแนะนำให้เปิดโหมดข้อมูลความลับเพื่อปกป้องตัวตนของผู้ส่ง
+                <label className="space-y-2 text-sm font-semibold text-ink">
+                  <span>ปัญหาย่อย</span>
+                  <select
+                    value={ticketForm.subCategory}
+                    onChange={(event) => handleSubCategoryChange(event.target.value)}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
+                  >
+                    {subCategoryOptions.map((subCategory) => (
+                      <option key={subCategory} value={subCategory}>
+                        {subCategory}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               </div>
-            ) : null}
 
-            {formError ? (
-              <div className="rounded-[24px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
-                {formError}
+              <div className="grid gap-4 lg:grid-cols-2">
+                <label className="space-y-2 text-sm font-semibold text-ink">
+                  <span>ระดับความเร่งด่วน</span>
+                  <select
+                    value={ticketForm.urgencyLevel}
+                    onChange={(event) =>
+                      setTicketForm((previous) => ({ ...previous, urgencyLevel: event.target.value }))
+                    }
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
+                  >
+                    {supportTicketUrgencyOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs font-normal leading-6 text-slate-500">
+                    {
+                      supportTicketUrgencyOptions.find(
+                        (option) => option.value === ticketForm.urgencyLevel,
+                      )?.helper
+                    }
+                  </p>
+                </label>
+
+                <label className="space-y-2 text-sm font-semibold text-ink">
+                  <span>สถานที่ / หน่วยงาน</span>
+                  <input
+                    value={ticketForm.location}
+                    onChange={(event) =>
+                      setTicketForm((previous) => ({ ...previous, location: event.target.value }))
+                    }
+                    placeholder="เช่น โรงเรียน ห้องเรียน กลุ่มสาระ หรือหน่วยงานที่เกี่ยวข้อง"
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
+                  />
+                </label>
               </div>
-            ) : null}
 
-            <div className="flex justify-end">
-              <button
-                type="submit"
-                disabled={creatingTicket}
-                className="brand-button-primary disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                {creatingTicket ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-                ส่งคำร้องถึง DU
-              </button>
+              <label className="space-y-2 text-sm font-semibold text-ink">
+                <span>รายละเอียด</span>
+                <textarea
+                  rows={6}
+                  value={ticketForm.details}
+                  onChange={(event) =>
+                    setTicketForm((previous) => ({ ...previous, details: event.target.value }))
+                  }
+                  placeholder="เล่าเหตุการณ์ ผลกระทบ สิ่งที่ลองทำไปแล้ว และสิ่งที่อยากให้ DU ช่วย"
+                  className="w-full rounded-[24px] border border-slate-200 bg-white px-4 py-3 text-sm leading-7 outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
+                />
+              </label>
+
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+                <label className="space-y-2 text-sm font-semibold text-ink">
+                  <span>ช่องทางติดต่อที่สะดวก</span>
+                  <input
+                    value={ticketForm.contactInfo}
+                    onChange={(event) =>
+                      setTicketForm((previous) => ({ ...previous, contactInfo: event.target.value }))
+                    }
+                    placeholder="เช่น อีเมล เบอร์โทร หรือไลน์ที่สะดวก"
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
+                  />
+                </label>
+
+                <label className="flex items-start gap-3 rounded-[24px] border border-slate-200 bg-slate-50/80 px-4 py-4">
+                  <input
+                    type="checkbox"
+                    checked={ticketForm.isConfidential}
+                    onChange={(event) =>
+                      setTicketForm((previous) => ({
+                        ...previous,
+                        isConfidential: event.target.checked,
+                      }))
+                    }
+                    className="mt-1 h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/20"
+                  />
+                  <span className="space-y-1 text-sm">
+                    <span className="flex items-center gap-2 font-semibold text-ink">
+                      <LockKeyhole size={16} />
+                      ส่งข้อมูลแบบไม่ระบุชื่อ / ข้อมูลความลับ
+                    </span>
+                    <span className="block leading-7 text-slate-600">
+                      ใช้สำหรับกรณีสุขภาพจิต ความขัดแย้ง หรือเคสที่ต้องการลดการเปิดเผยตัวตนบนหน้ารายการ
+                    </span>
+                  </span>
+                </label>
+              </div>
+
+              {suggestedConfidentialMode ? (
+                <div className="rounded-[24px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-7 text-amber-800">
+                  หมวดหมู่นี้มีความละเอียดอ่อน ระบบจึงแนะนำให้เปิดโหมดข้อมูลความลับเพื่อปกป้องตัวตนของผู้ส่ง
+                </div>
+              ) : null}
+
+              {formError ? (
+                <div className="rounded-[24px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+                  {formError}
+                </div>
+              ) : null}
+
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={creatingTicket}
+                  className="brand-button-primary disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {creatingTicket ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                  ส่งคำร้องถึง DU
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="mt-6 rounded-[28px] border border-amber-200 bg-amber-50 px-5 py-5 text-sm leading-7 text-amber-900">
+              บัญชีนี้ยังไม่มีสิทธิ์สร้างคำร้องถึง DU ระบบจะเปิดแบบฟอร์มนี้ให้เฉพาะผู้ใช้บทบาทครูเท่านั้น หากควรมีสิทธิ์ใช้งาน กรุณาตรวจสอบบทบาทผู้ใช้ในโปรไฟล์และกฎ Firestore อีกครั้ง
             </div>
-          </form>
+          )}
         </article>
       ) : null}
 

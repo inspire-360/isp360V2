@@ -18,6 +18,7 @@ import {
   matchRequestStatusOptions,
   preferredFormatOptions,
 } from "../data/resourceMatchmaking";
+import { buildExpertSeedSummary } from "../data/expertSeedCatalog";
 import { useResourceMarketplace } from "../hooks/useResourceMarketplace";
 import { isAdminRole, isTeacherRole } from "../utils/userRoles";
 
@@ -27,6 +28,8 @@ const initialRequestForm = {
   preferredFormat: "online",
   requestDetails: "",
 };
+
+const expertSeedSummary = buildExpertSeedSummary();
 
 const MatchRequestListItem = memo(function MatchRequestListItem({
   request,
@@ -136,6 +139,8 @@ export default function ResourceMatchmaker() {
   });
   const [requestFormError, setRequestFormError] = useState("");
   const [assignFormError, setAssignFormError] = useState("");
+  const [seedFeedback, setSeedFeedback] = useState("");
+  const [seedError, setSeedError] = useState("");
 
   const {
     requests,
@@ -148,9 +153,11 @@ export default function ResourceMatchmaker() {
     creatingRequest,
     assigningExpert,
     completingRequest,
+    seedingExperts,
     createRequest,
     assignExpertToRequest,
     completeRequest,
+    seedExpertsDirectory,
   } = useResourceMarketplace({
     currentUser,
     userProfile,
@@ -282,6 +289,25 @@ export default function ResourceMatchmaker() {
     } catch (error) {
       console.error("เกิดข้อผิดพลาดระหว่างปิดงานคำร้อง", error);
       setAssignFormError("ไม่สามารถปิดงานคำร้องได้ กรุณาลองใหม่อีกครั้ง");
+    }
+  };
+
+  const handleSeedExperts = async () => {
+    try {
+      const result = await seedExpertsDirectory();
+      const placeholderText =
+        result.placeholderCategories.length > 0
+          ? ` หมวดที่เตรียมโครงไว้แล้ว: ${result.placeholderCategories.join(" / ")}`
+          : "";
+
+      setSeedFeedback(
+        `นำเข้าฐานผู้เชี่ยวชาญสำเร็จ ${result.totalCount} รายการ สร้างใหม่ ${result.createdCount} รายการ และอัปเดต ${result.updatedCount} รายการ.${placeholderText}`,
+      );
+      setSeedError("");
+    } catch (error) {
+      console.error("ไม่สามารถนำเข้าฐานผู้เชี่ยวชาญได้", error);
+      setSeedFeedback("");
+      setSeedError(error?.message || "ไม่สามารถนำเข้าฐานผู้เชี่ยวชาญได้ กรุณาลองใหม่อีกครั้ง");
     }
   };
 
@@ -676,7 +702,36 @@ export default function ResourceMatchmaker() {
               </p>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="flex flex-col gap-3 lg:items-end">
+              <button
+                type="button"
+                onClick={handleSeedExperts}
+                disabled={seedingExperts}
+                className="brand-button-primary disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {seedingExperts ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                นำเข้าฐานผู้เชี่ยวชาญเริ่มต้น
+              </button>
+              <p className="max-w-md text-right text-xs leading-6 text-slate-500">
+                ชุดข้อมูลเริ่มต้นนี้เตรียมผู้เชี่ยวชาญ {expertSeedSummary.expertCount} รายการ และเว้นโครงหมวดที่รอเพิ่มข้อมูลในอนาคตไว้อีก{" "}
+                {expertSeedSummary.placeholderCategories.length} หมวด
+              </p>
+            </div>
+          </div>
+
+          {seedFeedback ? (
+            <div className="mt-6 rounded-[24px] border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm leading-7 text-emerald-700">
+              {seedFeedback}
+            </div>
+          ) : null}
+
+          {seedError ? (
+            <div className="mt-6 rounded-[24px] border border-rose-200 bg-rose-50 px-5 py-4 text-sm leading-7 text-rose-700">
+              {seedError}
+            </div>
+          ) : null}
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
               <div className="rounded-3xl border border-slate-200 bg-white px-4 py-3">
                 <p className="text-xs tracking-[0.08em] text-slate-400">ผู้เชี่ยวชาญทั้งหมด</p>
                 <p className="mt-2 text-2xl font-bold text-ink">{expertSummary.total}</p>
@@ -689,7 +744,6 @@ export default function ResourceMatchmaker() {
                 <p className="text-xs tracking-[0.08em] text-amber-700">คิวแน่น</p>
                 <p className="mt-2 text-2xl font-bold text-amber-700">{expertSummary.limited}</p>
               </div>
-            </div>
           </div>
 
           <div className="mt-6 grid gap-4 xl:grid-cols-2">
