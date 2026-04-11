@@ -1,7 +1,7 @@
 export const userRoleOptions = [
-  { value: "admin", label: "DU Admin" },
-  { value: "teacher", label: "Teacher" },
-  { value: "learner", label: "Learner" },
+  { value: "admin", label: "ผู้ดูแล DU" },
+  { value: "teacher", label: "ครู" },
+  { value: "learner", label: "ผู้เรียน" },
 ];
 
 export const normalizeUserRole = (role = "") => {
@@ -18,5 +18,5 @@ export const isAdminRole = (role = "") => normalizeUserRole(role) === "admin";
 
 export const getRoleLabel = (role = "") => {
   const normalized = normalizeUserRole(role);
-  return userRoleOptions.find((option) => option.value === normalized)?.label || "Learner";
+  return userRoleOptions.find((option) => option.value === normalized)?.label || "ผู้เรียน";
 };

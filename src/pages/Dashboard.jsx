@@ -133,7 +133,7 @@ export default function Dashboard() {
   useEffect(() => {
     const presenceQuery = query(
       collection(db, PRESENCE_COLLECTION),
-      orderBy("lastSeen", "desc"),
+      orderBy("lastActive", "desc"),
       limit(40),
     );
 
@@ -156,7 +156,7 @@ export default function Dashboard() {
 
   const stats = [
     {
-      label: "Live now",
+      label: "กำลังออนไลน์",
       value: communityPulse.toLocaleString(),
       icon: <Users size={18} />,
       tone: "bg-primary/10 text-primary",

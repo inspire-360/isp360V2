@@ -65,10 +65,30 @@ service cloud.firestore {
           "photoURL",
           "activePath",
           "presenceState",
+          "isOnline",
+          "visibilityState",
+          "lastActive",
+          "lastActiveMs",
           "lastSeen",
           "lastSeenMs",
+          "updatedAt",
+          "updatedAtMs",
           "sessionId"
-        ]);
+        ])
+        && request.resource.data.name is string
+        && request.resource.data.role is string
+        && request.resource.data.photoURL is string
+        && request.resource.data.activePath is string
+        && request.resource.data.presenceState in ["online", "away", "offline"]
+        && request.resource.data.isOnline is bool
+        && request.resource.data.visibilityState in ["visible", "hidden"]
+        && request.resource.data.lastActive is timestamp
+        && request.resource.data.lastActiveMs is int
+        && request.resource.data.lastSeen is timestamp
+        && request.resource.data.lastSeenMs is int
+        && request.resource.data.updatedAt is timestamp
+        && request.resource.data.updatedAtMs is int
+        && (request.resource.data.sessionId == null || request.resource.data.sessionId is string);
     }
 
     function validOwnerSosCreate(userId) {

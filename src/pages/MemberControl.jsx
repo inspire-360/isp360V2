@@ -3,10 +3,10 @@ import { Link } from "react-router-dom";
 import { ArrowUpRight, BookOpen, Loader2, RefreshCcw, Save, Search, UserCog, Users, Wifi } from "lucide-react";
 import { doc, serverTimestamp, setDoc, writeBatch } from "firebase/firestore";
 import { useAuth } from "../contexts/AuthContext";
-import { formatDateTime, toUnixTime } from "../data/sosConfig";
+import { formatDateTime } from "../data/sosConfig";
 import { useDuMemberData } from "../hooks/useDuMemberData";
 import { db } from "../lib/firebase";
-import { resolvePresenceMeta } from "../utils/presenceStatus";
+import { getPresenceTimestamp, resolvePresenceMeta } from "../utils/presenceStatus";
 import {
   buildEnrollmentInsight,
   buildPainPointCloud,
@@ -18,12 +18,12 @@ import {
 import { getRoleLabel, normalizeUserRole, userRoleOptions } from "../utils/userRoles";
 
 const formatLastSeen = (value) => {
-  const unix = toUnixTime(value);
-  if (!unix) return "No presence yet";
+  const unix = getPresenceTimestamp({ lastActive: value, lastSeen: value })?.getTime?.() || 0;
+  if (!unix) return "ยังไม่มีข้อมูลสถานะ";
   const diff = Date.now() - unix;
-  if (diff < 60_000) return "Just now";
-  if (diff < 3_600_000) return `${Math.max(1, Math.round(diff / 60_000))} min ago`;
-  if (diff < 86_400_000) return `${Math.max(1, Math.round(diff / 3_600_000))} hr ago`;
+  if (diff < 60_000) return "เมื่อสักครู่";
+  if (diff < 3_600_000) return `${Math.max(1, Math.round(diff / 60_000))} นาทีที่แล้ว`;
+  if (diff < 86_400_000) return `${Math.max(1, Math.round(diff / 3_600_000))} ชั่วโมงที่แล้ว`;
   return formatDateTime(value);
 };
 
@@ -67,7 +67,7 @@ export default function MemberControl() {
           role: normalizeUserRole(user.role),
           roleLabel: getRoleLabel(user.role),
           presence: resolvePresenceMeta(presenceRecord, now),
-          lastSeen: presenceRecord.lastSeen,
+          lastSeen: presenceRecord.lastActive || presenceRecord.lastSeen,
           activePath: presenceRecord.activePath || "",
           spotlightCourseId: spotlightEnrollment?.courseId || spotlightEnrollment?.id || "",
           spotlightCourse: spotlightEnrollment?.courseTitle || "No course yet",

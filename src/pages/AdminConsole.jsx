@@ -54,8 +54,13 @@ import {
   sosStatusTone,
   toUnixTime,
 } from "../data/sosConfig";
-import { PRESENCE_COLLECTION, PRESENCE_TICK_MS, resolvePresenceMeta } from "../utils/presenceStatus";
-import { downloadExcelWorkbook } from "../utils/excelExport";
+import {
+  getPresenceTimestamp,
+  PRESENCE_COLLECTION,
+  PRESENCE_TICK_MS,
+  resolvePresenceMeta,
+} from "../utils/presenceStatus";
+import { downloadCsvFile } from "../utils/csvExport";
 import { getRoleLabel, normalizeUserRole, userRoleOptions } from "../utils/userRoles";
 
 const resolveCourseMeta = (courseId) =>
@@ -203,13 +208,13 @@ const buildMissionResponseRows = (enrollmentRows = []) =>
   });
 
 const formatLastSeen = (value) => {
-  const unix = toUnixTime(value);
-  if (!unix) return "No presence yet";
+  const unix = getPresenceTimestamp({ lastActive: value, lastSeen: value })?.getTime?.() || 0;
+  if (!unix) return "ยังไม่มีข้อมูลสถานะ";
 
   const diff = Date.now() - unix;
-  if (diff < 60_000) return "Just now";
-  if (diff < 3_600_000) return `${Math.max(1, Math.round(diff / 60_000))} min ago`;
-  if (diff < 86_400_000) return `${Math.max(1, Math.round(diff / 3_600_000))} hr ago`;
+  if (diff < 60_000) return "เมื่อสักครู่";
+  if (diff < 3_600_000) return `${Math.max(1, Math.round(diff / 60_000))} นาทีที่แล้ว`;
+  if (diff < 86_400_000) return `${Math.max(1, Math.round(diff / 3_600_000))} ชั่วโมงที่แล้ว`;
   return formatDateTime(value);
 };
 
@@ -573,7 +578,7 @@ export default function AdminConsole() {
           role: normalizeUserRole(user.role),
           roleLabel: getRoleLabel(user.role),
           presence: resolvePresenceMeta(presenceRecord, now),
-          lastSeen: presenceRecord.lastSeen,
+          lastSeen: presenceRecord.lastActive || presenceRecord.lastSeen,
           activePath: presenceRecord.activePath || "",
           enrollmentsCount: userEnrollments.length,
           averageProgress,
@@ -755,134 +760,25 @@ export default function AdminConsole() {
       })),
     );
 
-    downloadExcelWorkbook({
-      fileName: `du-console-export-${new Date().toISOString().slice(0, 10)}.xls`,
-      sheets: [
-        {
-          name: "Members",
-          columns: [
-            "userId",
-            "name",
-            "email",
-            "role",
-            "presence",
-            "lastSeen",
-            "activePath",
-            "school",
-            "position",
-            "enrollmentsCount",
-            "averageProgress",
-            "spotlightCourse",
-            "spotlightProgress",
-            "activeModuleTitle",
-            "activeLessonTitle",
-          ],
-          rows: memberRows.map((user) => ({
-            userId: user.id,
-            name: user.name,
-            email: user.email || "",
-            role: user.roleLabel,
-            presence: user.presence.label,
-            lastSeen: formatLastSeen(user.lastSeen),
-            activePath: user.activePath || "",
-            school: user.school || "",
-            position: user.position || "",
-            enrollmentsCount: user.enrollmentsCount,
-            averageProgress: user.averageProgress,
-            spotlightCourse: user.spotlightCourse,
-            spotlightProgress: user.spotlightProgress,
-            activeModuleTitle: user.activeModuleTitle || "",
-            activeLessonTitle: user.activeLessonTitle || "",
-          })),
-        },
-        {
-          name: "Enrollments",
-          columns: [
-            "userId",
-            "learnerName",
-            "courseId",
-            "courseTitle",
-            "progressPercent",
-            "completedLessonsCount",
-            "lessonCount",
-            "status",
-            "activeModuleTitle",
-            "activeLessonTitle",
-            "lastAccess",
-            "lastSavedAt",
-          ],
-          rows: enrollmentInsights.map((enrollment) => ({
-            userId: enrollment.userId || "",
-            learnerName: memberMap.get(enrollment.userId)?.name || "",
-            courseId: enrollment.courseId || enrollment.id || "",
-            courseTitle: enrollment.courseTitle || "",
-            progressPercent: enrollment.progressPercent,
-            completedLessonsCount: enrollment.completedLessonsCount,
-            lessonCount: enrollment.lessonCount,
-            status: enrollment.status || "",
-            activeModuleTitle: enrollment.activeModuleTitle || "",
-            activeLessonTitle: enrollment.activeLessonTitle || "",
-            lastAccess: formatDateTime(enrollment.lastAccess),
-            lastSavedAt: formatDateTime(enrollment.lastSavedAt || enrollment.updatedAt),
-          })),
-        },
-        {
-          name: "Mission Responses",
-          columns: [
-            "userId",
-            "learnerName",
-            "courseId",
-            "courseTitle",
-            "missionId",
-            "field",
-            "answer",
-            "enrollmentStatus",
-            "lastSavedAt",
-          ],
-          rows: missionResponseRows,
-        },
-        {
-          name: "SOS Cases",
-          columns: [
-            "caseId",
-            "caseNumber",
-            "requesterId",
-            "requesterName",
-            "status",
-            "approvalState",
-            "riskLevel",
-            "category",
-            "summary",
-            "details",
-            "duResponse",
-            "helpDetails",
-            "location",
-            "tags",
-            "createdAt",
-            "updatedAt",
-            "updatesCount",
-          ],
-          rows: cases.map((caseItem) => ({
-            caseId: caseItem.id,
-            caseNumber: formatCaseNumber(caseItem.id),
-            requesterId: caseItem.requesterId || "",
-            requesterName: caseItem.requesterName || memberMap.get(caseItem.requesterId)?.name || "",
-            status: getStatusMeta(caseItem.status).label,
-            approvalState: getApprovalMeta(caseItem.approvalState).label,
-            riskLevel: getRiskMeta(normalizeRiskLevel(caseItem.riskLevel || caseItem.urgency)).label,
-            category: getCategoryMeta(caseItem.category).label,
-            summary: caseItem.summary || "",
-            details: caseItem.details || "",
-            duResponse: caseItem.duResponse || "",
-            helpDetails: caseItem.helpDetails || "",
-            location: caseItem.location || "",
-            tags: (caseItem.tags || []).join(" | "),
-            createdAt: formatDateTime(caseItem.createdAt),
-            updatedAt: formatDateTime(caseItem.updatedAt || caseItem.createdAt),
-            updatesCount: (caseItem.updates || []).length,
-          })),
-        },
+    if (missionResponseRows.length === 0) {
+      window.alert("ยังไม่มีข้อมูลคำตอบสำหรับการส่งออก");
+      return;
+    }
+
+    downloadCsvFile({
+      fileName: `คำตอบผู้ใช้งาน-${new Date().toISOString().slice(0, 10)}.csv`,
+      columns: [
+        { key: "userId", label: "รหัสผู้ใช้" },
+        { key: "learnerName", label: "ชื่อผู้ตอบ" },
+        { key: "courseId", label: "รหัสหลักสูตร" },
+        { key: "courseTitle", label: "ชื่อหลักสูตร" },
+        { key: "missionId", label: "รหัสภารกิจ" },
+        { key: "field", label: "ฟิลด์คำถาม" },
+        { key: "answer", label: "คำตอบ" },
+        { key: "enrollmentStatus", label: "สถานะการเรียน" },
+        { key: "lastSavedAt", label: "บันทึกล่าสุด" },
       ],
+      rows: missionResponseRows,
     });
   };
 
@@ -1080,7 +976,7 @@ export default function AdminConsole() {
               className="brand-button-secondary border-white/[0.20] bg-white/[0.10] text-white hover:text-white disabled:cursor-not-allowed disabled:opacity-70"
             >
               {refreshingBoards ? <Loader2 size={16} className="animate-spin" /> : <RefreshCcw size={16} />}
-              Refresh live data
+              รีเฟรชข้อมูลสด
             </button>
             <button
               type="button"
@@ -1088,13 +984,13 @@ export default function AdminConsole() {
               className="brand-button-secondary border-white/[0.20] bg-white/[0.10] text-white hover:text-white"
             >
               <Download size={16} />
-              Export Excel
+              ส่งออกคำตอบเป็น CSV
             </button>
             <Link
               to="/du/sos"
               className="brand-button-secondary border-white/[0.20] bg-white/[0.10] text-white hover:text-white"
             >
-              Open SOS Center
+              เปิดศูนย์ SOS
               <ArrowUpRight size={16} />
             </Link>
           </div>
@@ -1685,21 +1581,21 @@ export default function AdminConsole() {
                             {user.roleLabel}
                           </span>
                         </div>
-                        <p className="mt-1 text-sm text-slate-500">{user.email || "No email"}</p>
+                        <p className="mt-1 text-sm text-slate-500">{user.email || "ไม่มีอีเมล"}</p>
                         <p className="mt-2 text-sm text-slate-600">
-                          {user.spotlightCourse} | {user.activeModuleTitle || "Waiting module"}
+                          {user.spotlightCourse} | {user.activeModuleTitle || "รอเริ่มโมดูล"}
                         </p>
                         {user.activePath ? (
                           <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">
-                            Active path: {user.activePath}
+                            เส้นทางล่าสุด: {user.activePath}
                           </p>
                         ) : null}
                       </div>
                       <div className="text-right">
-                        <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Course progress</p>
+                        <p className="text-xs uppercase tracking-[0.18em] text-slate-400">ความคืบหน้าหลักสูตร</p>
                         <p className="mt-2 text-2xl font-bold text-ink">{user.spotlightProgress}%</p>
                         <p className="mt-1 text-sm text-slate-500">
-                          {user.spotlightCompletedLessonsCount}/{user.spotlightLessonCount || 0} lessons
+                          {user.spotlightCompletedLessonsCount}/{user.spotlightLessonCount || 0} บทเรียน
                         </p>
                       </div>
                     </div>
@@ -1710,9 +1606,9 @@ export default function AdminConsole() {
                       />
                     </div>
                     <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500">
-                      <span>{user.activeLessonTitle || "No active lesson yet"}</span>
+                      <span>{user.activeLessonTitle || "ยังไม่มีบทเรียนที่กำลังเปิด"}</span>
                       <span>
-                        Last seen {formatLastSeen(user.lastSeen)}
+                        ใช้งานล่าสุด {formatLastSeen(user.lastSeen)}
                       </span>
                     </div>
                   </button>

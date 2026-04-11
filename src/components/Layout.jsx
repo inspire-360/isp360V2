@@ -72,7 +72,7 @@ export default function Layout() {
     setLoggingOut(true);
     try {
       sessionStorage.setItem("manualLogout", "true");
-      void syncPresenceRecord({
+      await syncPresenceRecord({
         user: currentUser,
         role: userRole,
         activePath: window.location.pathname,
