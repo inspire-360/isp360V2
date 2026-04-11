@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   BookOpen,
   ChevronRight,
+  Handshake,
   LayoutDashboard,
   LifeBuoy,
   Loader2,
@@ -20,7 +21,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useLine } from "../contexts/LineContext";
 import { usePresence } from "../hooks/usePresence";
 import { syncPresenceRecord } from "../utils/presenceSync";
-import { isAdminRole } from "../utils/userRoles";
+import { isAdminRole, isTeacherRole } from "../utils/userRoles";
 
 export default function Layout() {
   const { currentUser, userRole } = useAuth();
@@ -91,17 +92,22 @@ export default function Layout() {
   const menuItems = [
     { icon: <LayoutDashboard size={18} />, label: "Dashboard", path: "/dashboard" },
     { icon: <BookOpen size={18} />, label: "My Courses", path: "/courses" },
+    { icon: <Handshake size={18} />, label: "จับคู่ผู้เชี่ยวชาญ", path: "/du/matchmaker" },
     { icon: <LifeBuoy size={18} />, label: "SOS to DU", path: "/du/sos" },
     { icon: <User size={18} />, label: "Profile", path: "/profile" },
   ];
 
+  if (!isAdminRole(userRole) && !isTeacherRole(userRole)) {
+    menuItems.splice(2, 1);
+  }
+
   if (isAdminRole(userRole)) {
-    menuItems.splice(3, 0, {
+    menuItems.splice(4, 0, {
       icon: <Activity size={18} />,
       label: "DU Console",
       path: "/du/admin",
     });
-    menuItems.splice(4, 0, {
+    menuItems.splice(5, 0, {
       icon: <Users size={18} />,
       label: "Member Control",
       path: "/du/members",

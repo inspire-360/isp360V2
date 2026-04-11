@@ -15,6 +15,7 @@ const Login = lazy(() => import("../pages/Login"));
 const MemberControl = lazy(() => import("../pages/MemberControl"));
 const MyCourses = lazy(() => import("../pages/MyCourses"));
 const Profile = lazy(() => import("../pages/Profile"));
+const ResourceMatchmaker = lazy(() => import("../pages/ResourceMatchmaker"));
 const Register = lazy(() => import("../pages/Register"));
 const SOSCenter = lazy(() => import("../pages/SOSCenter"));
 const VideoAnnotation = lazy(() => import("../pages/VideoAnnotation"));
@@ -103,6 +104,7 @@ export default function AppRoutes() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/courses" element={<MyCourses />} />
+          <Route path="/du/matchmaker" element={<ResourceMatchmaker />} />
           <Route path="/du/sos" element={<SOSCenter />} />
           <Route
             path="/du/admin"

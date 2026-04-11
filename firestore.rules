@@ -397,6 +397,192 @@ service cloud.firestore {
         ]);
     }
 
+    function validExpertCapacityStatus(status) {
+      return status in ["available", "limited", "paused"];
+    }
+
+    function validPreferredSupportFormat(format) {
+      return format in ["online", "onsite", "hybrid"];
+    }
+
+    function validMatchRequestStatus(status) {
+      return status in ["pending_match", "matched", "completed"];
+    }
+
+    function validExpertDocumentShape() {
+      return request.resource.data.keys().hasOnly([
+          "displayName",
+          "title",
+          "organization",
+          "primaryExpertise",
+          "expertiseTags",
+          "serviceModes",
+          "region",
+          "bio",
+          "contactEmail",
+          "contactLine",
+          "isActive",
+          "capacityStatus",
+          "createdAt",
+          "updatedAt"
+        ])
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() > 0
+        && request.resource.data.title is string
+        && request.resource.data.organization is string
+        && request.resource.data.primaryExpertise is string
+        && request.resource.data.primaryExpertise.size() > 0
+        && request.resource.data.expertiseTags is list
+        && request.resource.data.serviceModes is list
+        && request.resource.data.region is string
+        && request.resource.data.bio is string
+        && request.resource.data.contactEmail is string
+        && request.resource.data.contactLine is string
+        && request.resource.data.isActive is bool
+        && validExpertCapacityStatus(request.resource.data.capacityStatus)
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    function validExpertCreate() {
+      return validExpertDocumentShape();
+    }
+
+    function validExpertUpdate() {
+      return validExpertDocumentShape()
+        && request.resource.data.createdAt == resource.data.createdAt;
+    }
+
+    function validTeacherMatchRequestCreate() {
+      return request.resource.data.keys().hasOnly([
+          "requesterId",
+          "requesterName",
+          "requesterRole",
+          "schoolName",
+          "requestTitle",
+          "desiredExpertise",
+          "preferredFormat",
+          "requestDetails",
+          "status",
+          "createdAt",
+          "updatedAt",
+          "matchedExpertId",
+          "matchedExpertName",
+          "matchedExpertTitle",
+          "matchedExpertPrimaryExpertise",
+          "matchedByAdminId",
+          "matchedByAdminName",
+          "matchedAt",
+          "completedAt",
+          "adminNote",
+          "latestUpdateText"
+        ])
+        && request.resource.data.requesterId == request.auth.uid
+        && request.resource.data.requesterName is string
+        && request.resource.data.requesterName.size() > 0
+        && request.resource.data.requesterRole == "teacher"
+        && request.resource.data.schoolName is string
+        && request.resource.data.requestTitle is string
+        && request.resource.data.requestTitle.size() > 0
+        && request.resource.data.desiredExpertise is string
+        && request.resource.data.desiredExpertise.size() > 0
+        && validPreferredSupportFormat(request.resource.data.preferredFormat)
+        && request.resource.data.requestDetails is string
+        && request.resource.data.requestDetails.size() > 0
+        && request.resource.data.status == "pending_match"
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp
+        && request.resource.data.matchedExpertId == ""
+        && request.resource.data.matchedExpertName == ""
+        && request.resource.data.matchedExpertTitle == ""
+        && request.resource.data.matchedExpertPrimaryExpertise == ""
+        && request.resource.data.matchedByAdminId == ""
+        && request.resource.data.matchedByAdminName == ""
+        && request.resource.data.matchedAt == null
+        && request.resource.data.completedAt == null
+        && request.resource.data.adminNote == ""
+        && request.resource.data.latestUpdateText is string
+        && request.resource.data.latestUpdateText.size() > 0;
+    }
+
+    function validAdminMatchRequestUpdate() {
+      return request.resource.data.keys().hasOnly([
+          "requesterId",
+          "requesterName",
+          "requesterRole",
+          "schoolName",
+          "requestTitle",
+          "desiredExpertise",
+          "preferredFormat",
+          "requestDetails",
+          "status",
+          "createdAt",
+          "updatedAt",
+          "matchedExpertId",
+          "matchedExpertName",
+          "matchedExpertTitle",
+          "matchedExpertPrimaryExpertise",
+          "matchedByAdminId",
+          "matchedByAdminName",
+          "matchedAt",
+          "completedAt",
+          "adminNote",
+          "latestUpdateText"
+        ])
+        && request.resource.data.requesterId == resource.data.requesterId
+        && request.resource.data.requesterName == resource.data.requesterName
+        && request.resource.data.requesterRole == resource.data.requesterRole
+        && request.resource.data.schoolName == resource.data.schoolName
+        && request.resource.data.requestTitle == resource.data.requestTitle
+        && request.resource.data.desiredExpertise == resource.data.desiredExpertise
+        && request.resource.data.preferredFormat == resource.data.preferredFormat
+        && validPreferredSupportFormat(request.resource.data.preferredFormat)
+        && request.resource.data.requestDetails == resource.data.requestDetails
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt is timestamp
+        && validMatchRequestStatus(request.resource.data.status)
+        && request.resource.data.matchedExpertId is string
+        && request.resource.data.matchedExpertName is string
+        && request.resource.data.matchedExpertTitle is string
+        && request.resource.data.matchedExpertPrimaryExpertise is string
+        && request.resource.data.matchedByAdminId is string
+        && request.resource.data.matchedByAdminName is string
+        && request.resource.data.adminNote is string
+        && request.resource.data.latestUpdateText is string
+        && request.resource.data.latestUpdateText.size() > 0
+        && (
+          (
+            request.resource.data.status == "pending_match"
+            && request.resource.data.matchedExpertId == ""
+            && request.resource.data.matchedExpertName == ""
+            && request.resource.data.matchedExpertTitle == ""
+            && request.resource.data.matchedExpertPrimaryExpertise == ""
+            && request.resource.data.matchedByAdminId == ""
+            && request.resource.data.matchedByAdminName == ""
+            && request.resource.data.matchedAt == null
+            && request.resource.data.completedAt == null
+          )
+          || (
+            request.resource.data.status == "matched"
+            && request.resource.data.matchedExpertId.size() > 0
+            && request.resource.data.matchedExpertName.size() > 0
+            && request.resource.data.matchedAt is timestamp
+            && request.resource.data.completedAt == null
+            && request.resource.data.matchedByAdminId.size() > 0
+            && request.resource.data.matchedByAdminName.size() > 0
+          )
+          || (
+            request.resource.data.status == "completed"
+            && request.resource.data.matchedExpertId.size() > 0
+            && request.resource.data.matchedExpertName.size() > 0
+            && request.resource.data.matchedAt is timestamp
+            && request.resource.data.completedAt is timestamp
+            && request.resource.data.matchedByAdminId.size() > 0
+            && request.resource.data.matchedByAdminName.size() > 0
+          )
+        );
+    }
+
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
@@ -437,6 +623,20 @@ service cloud.firestore {
         allow update: if isAdmin() && validVideoCommentUpdate(videoId);
         allow delete: if isAdmin();
       }
+    }
+
+    match /experts/{expertId} {
+      allow get, list: if isAdmin();
+      allow create: if isAdmin() && validExpertCreate();
+      allow update: if isAdmin() && validExpertUpdate();
+      allow delete: if isAdmin();
+    }
+
+    match /match_requests/{requestId} {
+      allow get, list: if isAdmin() || (signedIn() && resource.data.requesterId == request.auth.uid);
+      allow create: if signedIn() && validTeacherMatchRequestCreate();
+      allow update: if isAdmin() && validAdminMatchRequestUpdate();
+      allow delete: if false;
     }
 
     match /duSosCases/{caseId} {
