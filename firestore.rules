@@ -29,6 +29,15 @@ service cloud.firestore {
         ];
     }
 
+    function isTeacher() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && currentUserRecord().data.role in [
+          "teacher",
+          "Teacher"
+        ];
+    }
+
     function validSelfUserCreate(userId) {
       return request.resource.data.uid == userId
         && request.resource.data.uid == request.auth.uid
@@ -583,6 +592,118 @@ service cloud.firestore {
         );
     }
 
+    function validInnovationStage(stage) {
+      return stage in ["idea", "prototype", "funded", "best_practice"];
+    }
+
+    function validInnovationDocumentShape() {
+      return request.resource.data.keys().hasOnly([
+          "teacherId",
+          "teacherName",
+          "schoolName",
+          "title",
+          "summary",
+          "focusArea",
+          "supportNeed",
+          "tags",
+          "stage",
+          "evidenceNote",
+          "createdAt",
+          "updatedAt",
+          "lastMovedAt",
+          "lastMovedById",
+          "lastMovedByName"
+        ])
+        && request.resource.data.teacherId is string
+        && request.resource.data.teacherId.size() > 0
+        && request.resource.data.teacherName is string
+        && request.resource.data.teacherName.size() > 0
+        && request.resource.data.schoolName is string
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.summary is string
+        && request.resource.data.focusArea is string
+        && request.resource.data.supportNeed is string
+        && request.resource.data.tags is list
+        && validInnovationStage(request.resource.data.stage)
+        && request.resource.data.evidenceNote is string
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp
+        && (
+          request.resource.data.lastMovedAt == null
+          || request.resource.data.lastMovedAt is timestamp
+        )
+        && request.resource.data.lastMovedById is string
+        && request.resource.data.lastMovedByName is string;
+    }
+
+    function validTeacherInnovationCreate() {
+      return validInnovationDocumentShape()
+        && request.resource.data.teacherId == request.auth.uid
+        && request.resource.data.stage == "idea"
+        && request.resource.data.lastMovedAt == null
+        && request.resource.data.lastMovedById == ""
+        && request.resource.data.lastMovedByName == "";
+    }
+
+    function validTeacherInnovationUpdate() {
+      return validInnovationDocumentShape()
+        && request.resource.data.teacherId == resource.data.teacherId
+        && request.resource.data.teacherId == request.auth.uid
+        && request.resource.data.stage == resource.data.stage
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.lastMovedAt == resource.data.lastMovedAt
+        && request.resource.data.lastMovedById == resource.data.lastMovedById
+        && request.resource.data.lastMovedByName == resource.data.lastMovedByName
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "teacherName",
+          "schoolName",
+          "title",
+          "summary",
+          "focusArea",
+          "supportNeed",
+          "tags",
+          "evidenceNote",
+          "updatedAt"
+        ]);
+    }
+
+    function validAdminInnovationCreate() {
+      return validInnovationDocumentShape()
+        && (
+          (
+            request.resource.data.lastMovedAt == null
+            && request.resource.data.lastMovedById == ""
+            && request.resource.data.lastMovedByName == ""
+          )
+          || (
+            request.resource.data.lastMovedAt is timestamp
+            && request.resource.data.lastMovedById.size() > 0
+            && request.resource.data.lastMovedByName.size() > 0
+          )
+        );
+    }
+
+    function validAdminInnovationUpdate() {
+      return validInnovationDocumentShape()
+        && request.resource.data.teacherId == resource.data.teacherId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && (
+          (
+            request.resource.data.stage == resource.data.stage
+            && request.resource.data.lastMovedAt == resource.data.lastMovedAt
+            && request.resource.data.lastMovedById == resource.data.lastMovedById
+            && request.resource.data.lastMovedByName == resource.data.lastMovedByName
+          )
+          || (
+            request.resource.data.stage != resource.data.stage
+            && request.resource.data.lastMovedAt is timestamp
+            && request.resource.data.lastMovedById == request.auth.uid
+            && request.resource.data.lastMovedByName.size() > 0
+          )
+        );
+    }
+
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
@@ -637,6 +758,15 @@ service cloud.firestore {
       allow create: if signedIn() && validTeacherMatchRequestCreate();
       allow update: if isAdmin() && validAdminMatchRequestUpdate();
       allow delete: if false;
+    }
+
+    match /innovations/{innovationId} {
+      allow get, list: if isAdmin() || (signedIn() && resource.data.teacherId == request.auth.uid);
+      allow create: if (isTeacher() && validTeacherInnovationCreate())
+        || (isAdmin() && validAdminInnovationCreate());
+      allow update: if (isTeacher() && resource.data.teacherId == request.auth.uid && validTeacherInnovationUpdate())
+        || (isAdmin() && validAdminInnovationUpdate());
+      allow delete: if isAdmin();
     }
 
     match /duSosCases/{caseId} {

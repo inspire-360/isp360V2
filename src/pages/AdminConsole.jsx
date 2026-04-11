@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, Download, Handshake, Loader2, PlayCircle, ShieldCheck, Users } from "lucide-react";
+import { ArrowUpRight, Download, Handshake, Lightbulb, Loader2, PlayCircle, ShieldCheck, Users } from "lucide-react";
 import { collection, collectionGroup, getDocs } from "firebase/firestore";
 import LearningProgressDashboard from "../components/LearningProgressDashboard";
 import OnlineUsers from "../components/OnlineUsers";
@@ -155,6 +155,13 @@ export default function AdminConsole() {
             >
               เปิดห้องโค้ชวิดีโอ
               <PlayCircle size={16} />
+            </Link>
+            <Link
+              to="/du/innovations"
+              className="brand-button-secondary border-white/[0.20] bg-white/[0.10] text-white hover:text-white"
+            >
+              เปิดกระดานนวัตกรรม
+              <Lightbulb size={16} />
             </Link>
             <button
               type="button"

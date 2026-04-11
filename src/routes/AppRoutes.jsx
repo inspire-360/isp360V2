@@ -10,6 +10,7 @@ const AdminConsole = lazy(() => import("../pages/AdminConsole"));
 const Construction = lazy(() => import("../pages/Construction"));
 const CourseRoom = lazy(() => import("../pages/CourseRoom"));
 const Dashboard = lazy(() => import("../pages/Dashboard"));
+const InnovationBoard = lazy(() => import("../pages/InnovationBoard"));
 const Landing = lazy(() => import("../pages/Landing"));
 const Login = lazy(() => import("../pages/Login"));
 const MemberControl = lazy(() => import("../pages/MemberControl"));
@@ -104,6 +105,14 @@ export default function AppRoutes() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/courses" element={<MyCourses />} />
+          <Route
+            path="/du/innovations"
+            element={
+              <AdminRoute>
+                <InnovationBoard />
+              </AdminRoute>
+            }
+          />
           <Route path="/du/matchmaker" element={<ResourceMatchmaker />} />
           <Route path="/du/sos" element={<SOSCenter />} />
           <Route

@@ -8,6 +8,7 @@ import {
   Handshake,
   LayoutDashboard,
   LifeBuoy,
+  Lightbulb,
   Loader2,
   LogOut,
   Menu,
@@ -108,6 +109,11 @@ export default function Layout() {
       path: "/du/admin",
     });
     menuItems.splice(5, 0, {
+      icon: <Lightbulb size={18} />,
+      label: "กระดานนวัตกรรม",
+      path: "/du/innovations",
+    });
+    menuItems.splice(6, 0, {
       icon: <Users size={18} />,
       label: "Member Control",
       path: "/du/members",
