@@ -272,6 +272,241 @@ service cloud.firestore {
         && request.resource.data.createdAt is timestamp;
     }
 
+    function validSosTicketStatus(status) {
+      return status in ["รอดำเนินการ", "กำลังช่วยเหลือ", "ปิดงาน"];
+    }
+
+    function validSosUrgencyLevel(level) {
+      return level in [
+        "ฉุกเฉินวิกฤต",
+        "ฉุกเฉินหนัก",
+        "ฉุกเฉิน",
+        "ฉุกเฉินไม่เร่งด่วน",
+        "เรื่องทั่วไป"
+      ];
+    }
+
+    function validSosMainCategory(category) {
+      return category in [
+        "หมวดงาน",
+        "หมวดสถานที่และอุปกรณ์",
+        "หมวดความสัมพันธ์",
+        "หมวดสุขภาพกาย",
+        "หมวดสุขภาพจิต"
+      ];
+    }
+
+    function validSosSubCategory(mainCategory, subCategory) {
+      return (
+        mainCategory == "หมวดงาน"
+        && subCategory in [
+          "งานสอนและเตรียมสอน",
+          "งานเอกสาร/ประเมิน",
+          "งานพิเศษ/กิจกรรม",
+          "ผลกระทบจากนโยบาย"
+        ]
+      ) || (
+        mainCategory == "หมวดสถานที่และอุปกรณ์"
+        && subCategory in [
+          "ซ่อมบำรุงอาคาร/พื้นที่",
+          "อุปกรณ์การสอนชำรุด/ขาดแคลน",
+          "ระบบ IT/อินเทอร์เน็ต",
+          "ความปลอดภัย/สภาพแวดล้อม"
+        ]
+      ) || (
+        mainCategory == "หมวดความสัมพันธ์"
+        && subCategory in [
+          "ปัญหาพฤติกรรมนักเรียน",
+          "การสื่อสารกับผู้ปกครอง",
+          "บรรยากาศเพื่อนร่วมงาน",
+          "การบริหารของผู้บังคับบัญชา",
+          "การถูกคุกคาม/กลั่นแกล้ง"
+        ]
+      ) || (
+        mainCategory == "หมวดสุขภาพกาย"
+        && subCategory in [
+          "ออฟฟิศซินโดรม",
+          "ปัญหาเส้นเสียง/ทางเดินหายใจ",
+          "ความอ่อนล้าสะสม",
+          "ปัญหาสุขภาพเรื้อรัง"
+        ]
+      ) || (
+        mainCategory == "หมวดสุขภาพจิต"
+        && subCategory in [
+          "ภาวะหมดไฟ (Burnout)",
+          "ความเครียด/วิตกกังวลสูง",
+          "ต้องการที่ปรึกษาทางจิตวิทยา",
+          "ปัญหาภาระหนี้สิน"
+        ]
+      );
+    }
+
+    function validSosTicketDocumentShape() {
+      return request.resource.data.keys().hasOnly([
+          "requesterId",
+          "requesterDisplayName",
+          "requesterRole",
+          "topic",
+          "mainCategory",
+          "subCategory",
+          "urgencyLevel",
+          "location",
+          "details",
+          "contactInfo",
+          "isConfidential",
+          "status",
+          "assignedTo",
+          "createdAt",
+          "updatedAt",
+          "lastMessageAt",
+          "lastMessagePreview",
+          "lastMessageAuthorId",
+          "lastMessageAuthorRole",
+          "closedAt",
+          "messageCount"
+        ])
+        && request.resource.data.requesterId is string
+        && request.resource.data.requesterId.size() > 0
+        && request.resource.data.requesterDisplayName is string
+        && request.resource.data.requesterDisplayName.size() > 0
+        && request.resource.data.requesterRole == "teacher"
+        && request.resource.data.topic is string
+        && request.resource.data.topic.size() > 0
+        && validSosMainCategory(request.resource.data.mainCategory)
+        && validSosSubCategory(
+          request.resource.data.mainCategory,
+          request.resource.data.subCategory
+        )
+        && validSosUrgencyLevel(request.resource.data.urgencyLevel)
+        && request.resource.data.location is string
+        && request.resource.data.location.size() > 0
+        && request.resource.data.details is string
+        && request.resource.data.details.size() > 0
+        && request.resource.data.contactInfo is string
+        && request.resource.data.contactInfo.size() > 0
+        && request.resource.data.isConfidential is bool
+        && validSosTicketStatus(request.resource.data.status)
+        && request.resource.data.assignedTo is string
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp
+        && request.resource.data.lastMessageAt is timestamp
+        && request.resource.data.lastMessagePreview is string
+        && request.resource.data.lastMessagePreview.size() > 0
+        && request.resource.data.lastMessageAuthorId is string
+        && request.resource.data.lastMessageAuthorRole in ["teacher", "admin"]
+        && (
+          request.resource.data.closedAt == null
+          || request.resource.data.closedAt is timestamp
+        )
+        && request.resource.data.messageCount is int
+        && request.resource.data.messageCount > 0;
+    }
+
+    function validTeacherSosTicketCreate() {
+      return validSosTicketDocumentShape()
+        && request.resource.data.requesterId == request.auth.uid
+        && request.resource.data.status == "รอดำเนินการ"
+        && request.resource.data.assignedTo == ""
+        && request.resource.data.lastMessageAuthorId == request.auth.uid
+        && request.resource.data.lastMessageAuthorRole == "teacher"
+        && request.resource.data.closedAt == null
+        && request.resource.data.messageCount == 1;
+    }
+
+    function validTeacherSosTicketUpdate() {
+      return validSosTicketDocumentShape()
+        && request.resource.data.requesterId == resource.data.requesterId
+        && request.resource.data.requesterId == request.auth.uid
+        && request.resource.data.requesterDisplayName == resource.data.requesterDisplayName
+        && request.resource.data.requesterRole == resource.data.requesterRole
+        && request.resource.data.topic == resource.data.topic
+        && request.resource.data.mainCategory == resource.data.mainCategory
+        && request.resource.data.subCategory == resource.data.subCategory
+        && request.resource.data.urgencyLevel == resource.data.urgencyLevel
+        && request.resource.data.location == resource.data.location
+        && request.resource.data.details == resource.data.details
+        && request.resource.data.contactInfo == resource.data.contactInfo
+        && request.resource.data.isConfidential == resource.data.isConfidential
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.assignedTo == resource.data.assignedTo
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.lastMessageAuthorId == request.auth.uid
+        && request.resource.data.lastMessageAuthorRole == "teacher"
+        && request.resource.data.closedAt == resource.data.closedAt
+        && request.resource.data.messageCount == resource.data.messageCount + 1
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "updatedAt",
+          "lastMessageAt",
+          "lastMessagePreview",
+          "lastMessageAuthorId",
+          "lastMessageAuthorRole",
+          "messageCount"
+        ]);
+    }
+
+    function validAdminSosTicketUpdate() {
+      return validSosTicketDocumentShape()
+        && request.resource.data.requesterId == resource.data.requesterId
+        && request.resource.data.requesterDisplayName == resource.data.requesterDisplayName
+        && request.resource.data.requesterRole == resource.data.requesterRole
+        && request.resource.data.topic == resource.data.topic
+        && request.resource.data.mainCategory == resource.data.mainCategory
+        && request.resource.data.subCategory == resource.data.subCategory
+        && request.resource.data.urgencyLevel == resource.data.urgencyLevel
+        && request.resource.data.location == resource.data.location
+        && request.resource.data.details == resource.data.details
+        && request.resource.data.contactInfo == resource.data.contactInfo
+        && request.resource.data.isConfidential == resource.data.isConfidential
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.lastMessageAuthorId == request.auth.uid
+        && request.resource.data.lastMessageAuthorRole == "admin"
+        && request.resource.data.messageCount == resource.data.messageCount + 1
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "status",
+          "assignedTo",
+          "updatedAt",
+          "lastMessageAt",
+          "lastMessagePreview",
+          "lastMessageAuthorId",
+          "lastMessageAuthorRole",
+          "closedAt",
+          "messageCount"
+        ])
+        && (
+          (
+            request.resource.data.status == "ปิดงาน"
+            && request.resource.data.closedAt is timestamp
+          )
+          || (
+            request.resource.data.status != "ปิดงาน"
+            && request.resource.data.closedAt == null
+          )
+        );
+    }
+
+    function validSosTicketMessageCreate(ticketId) {
+      return exists(/databases/$(database)/documents/sos_tickets/$(ticketId))
+        && request.resource.data.keys().hasOnly([
+          "ticketId",
+          "authorId",
+          "authorName",
+          "authorRole",
+          "body",
+          "createdAt"
+        ])
+        && request.resource.data.ticketId == ticketId
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.authorName is string
+        && request.resource.data.authorName.size() > 0
+        && (
+          (isAdmin() && request.resource.data.authorRole == "admin")
+          || (!isAdmin() && request.resource.data.authorRole == "teacher")
+        )
+        && request.resource.data.body is string
+        && request.resource.data.body.size() > 0
+        && request.resource.data.createdAt is timestamp;
+    }
+
     function validVideoReviewStatus(status) {
       return status in ["pending_feedback", "coaching", "reviewed"];
     }
@@ -767,6 +1002,30 @@ service cloud.firestore {
       allow update: if (isTeacher() && resource.data.teacherId == request.auth.uid && validTeacherInnovationUpdate())
         || (isAdmin() && validAdminInnovationUpdate());
       allow delete: if isAdmin();
+    }
+
+    match /sos_tickets/{ticketId} {
+      allow get, list: if isAdmin() || (signedIn() && resource.data.requesterId == request.auth.uid);
+      allow create: if isTeacher() && validTeacherSosTicketCreate();
+      allow update: if (isTeacher() && resource.data.requesterId == request.auth.uid && validTeacherSosTicketUpdate())
+        || (isAdmin() && validAdminSosTicketUpdate());
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow get, list: if isAdmin()
+          || (
+            signedIn()
+            && get(/databases/$(database)/documents/sos_tickets/$(ticketId)).data.requesterId == request.auth.uid
+          );
+        allow create: if (
+          isAdmin()
+          || (
+            isTeacher()
+            && get(/databases/$(database)/documents/sos_tickets/$(ticketId)).data.requesterId == request.auth.uid
+          )
+        ) && validSosTicketMessageCreate(ticketId);
+        allow update, delete: if false;
+      }
     }
 
     match /duSosCases/{caseId} {

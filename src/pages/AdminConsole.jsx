@@ -205,7 +205,7 @@ export default function AdminConsole() {
                 <code>users/&lt;รหัสผู้ใช้&gt;/enrollments/&lt;รหัสหลักสูตร&gt;</code>
               </p>
               <p>
-                ฟีเจอร์ทิกเก็ตใช้ <code>supportTickets/&lt;ticketId&gt;</code> และ{" "}
+                ฟีเจอร์ทิกเก็ตใช้ <code>sos_tickets/&lt;ticketId&gt;</code> และ{" "}
                 <code>messages</code> ใต้ทิกเก็ตแต่ละใบ
               </p>
               <p>ทุก listener ทำงานแบบเรียลไทม์ และฝั่งแอดมินจะเห็นการอัปเดตทันทีโดยไม่ต้องรีเฟรชหน้า</p>
