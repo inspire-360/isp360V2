@@ -196,6 +196,17 @@ export function useSupportTickets({ currentUser, userProfile, userRole, isAdminV
       throw buildSosClientError("บัญชีนี้ยังไม่มีสิทธิ์ส่งคำร้องถึง DU");
     }
 
+    const normalizedTopic = String(topic || "").trim();
+    const normalizedLocation = String(location || "").trim();
+    const normalizedDetails = String(details || "").trim();
+    const normalizedContactInfo = String(contactInfo || "").trim();
+
+    if (!normalizedTopic || !normalizedLocation || !normalizedDetails || !normalizedContactInfo) {
+      throw buildSosClientError(
+        "กรุณากรอกหัวข้อ สถานที่ รายละเอียด และช่องทางติดต่อให้ครบถ้วนก่อนส่งคำร้อง",
+      );
+    }
+
     setCreatingTicket(true);
 
     try {
@@ -208,20 +219,19 @@ export function useSupportTickets({ currentUser, userProfile, userRole, isAdminV
             userProfile,
             fallbackLabel: "ครูผู้ส่งคำร้อง",
           });
-      const normalizedDetails = String(details || "").trim();
       const batch = writeBatch(db);
 
       batch.set(ticketRef, {
         requesterId: currentUser.uid,
         requesterDisplayName,
         requesterRole: "teacher",
-        topic: String(topic || "").trim(),
+        topic: normalizedTopic,
         mainCategory,
         subCategory,
         urgencyLevel,
-        location: String(location || "").trim(),
+        location: normalizedLocation,
         details: normalizedDetails,
-        contactInfo: String(contactInfo || "").trim(),
+        contactInfo: normalizedContactInfo,
         isConfidential: Boolean(isConfidential),
         status: "รอดำเนินการ",
         assignedTo: "",
@@ -244,6 +254,7 @@ export function useSupportTickets({ currentUser, userProfile, userRole, isAdminV
       });
       await batch.commit();
 
+      window.alert("ส่งข้อมูลสำเร็จ");
       setActiveTicketId(ticketRef.id);
     } catch (error) {
       logSosFirestoreError({
@@ -266,6 +277,7 @@ export function useSupportTickets({ currentUser, userProfile, userRole, isAdminV
       const enhancedError =
         error instanceof Error ? error : new Error("ไม่สามารถสร้างคำร้องใหม่ได้");
       enhancedError.userMessage = getReadableSosFirestoreError(error);
+      window.alert(enhancedError.userMessage);
       throw enhancedError;
     } finally {
       setCreatingTicket(false);

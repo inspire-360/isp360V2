@@ -6,12 +6,13 @@ import {
   signInWithPopup,
   updateProfile
 } from 'firebase/auth'; 
-import { doc, setDoc, getDoc } from 'firebase/firestore'; 
+import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore'; 
 import { auth, db } from '../lib/firebase';
 import { useNavigate, Link } from 'react-router-dom';
 import { LogIn, MessageCircle, Mail, Lock, Sparkles, ArrowRight, Loader2, CheckCircle } from 'lucide-react'; 
 import { useLine } from '../contexts/LineContext';
 import { consumeLineLoginRedirectPath } from '../utils/lineAuth';
+import { สร้างแพตช์ซ่อมโปรไฟล์ครู } from '../utils/teacherUserProfile';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -93,10 +94,11 @@ export default function Login() {
           const { firstName, lastName } = splitName(lineProfile.displayName);
 
           const lineData = {
-            name: lineProfile.displayName, 
-            photoURL: lineProfile.pictureUrl, 
+            name: lineProfile.displayName || `ผู้ใช้ LINE ${lineProfile.userId}`, 
+            photoURL: lineProfile.pictureUrl || "", 
             lineUserId: lineProfile.userId,
-            lastLogin: new Date()
+            lastLogin: serverTimestamp(),
+            updatedAt: serverTimestamp(),
           };
 
           if (!userSnap.exists()) {
@@ -104,20 +106,28 @@ export default function Login() {
             await setDoc(userRef, {
               uid: user.uid,
               email: `line_${lineProfile.userId}@inspire.com`, // Email โชว์ในระบบ (สวยงามกว่า virtual)
-              role: 'learner',
+              role: 'Teacher',
+              activePath: '/course/teacher',
+              progress: 0,
+              progressPercent: 0,
+              status: 'active',
               firstName: firstName,
               lastName: lastName,
               prefix: 'คุณ',
               position: 'อื่นๆ',
               school: '',
-              createdAt: new Date(),
+              createdAt: serverTimestamp(),
               badges: [],
               pdpaAccepted: true,
+              pdpaAcceptedAt: serverTimestamp(),
               ...lineData
             });
           } else {
             // สมาชิกเก่า -> อัปเดตข้อมูลล่าสุด (เผื่อเปลี่ยนชื่อ/รูปใน LINE)
-            await setDoc(userRef, lineData, { merge: true });
+            await setDoc(userRef, {
+              ...สร้างแพตช์ซ่อมโปรไฟล์ครู(userSnap.data()),
+              ...lineData
+            }, { merge: true });
           }
 
           setLineStatus('เสร็จสมบูรณ์! กำลังไปที่ Dashboard...');
@@ -163,32 +173,40 @@ export default function Login() {
       const { firstName, lastName } = splitName(user.displayName);
 
       const googleData = {
-        name: user.displayName,
-        photoURL: user.photoURL,
-        lastLogin: new Date()
+        name: user.displayName || user.email || "ผู้ใช้งาน",
+        photoURL: user.photoURL || "",
+        lastLogin: serverTimestamp(),
+        updatedAt: serverTimestamp()
       };
 
       if (!userSnap.exists()) {
         await setDoc(userRef, {
           uid: user.uid,
           email: user.email,
-          role: 'learner',
+          role: 'Teacher',
+          activePath: '/course/teacher',
+          progress: 0,
+          progressPercent: 0,
+          status: 'active',
           firstName: firstName,
           lastName: lastName,
           prefix: 'คุณ',
           position: 'อื่นๆ',
           school: '',
-          createdAt: new Date(),
+          createdAt: serverTimestamp(),
           badges: [],
           pdpaAccepted: true,
+          pdpaAcceptedAt: serverTimestamp(),
+          lineUserId: "",
           ...googleData
         });
       } else {
         // อัปเดตข้อมูลล่าสุด แต่ไม่เขียนทับข้อมูลที่ User แก้ไขเอง (ใช้ merge)
         await setDoc(userRef, {
-            lastLogin: new Date(),
+            ...สร้างแพตช์ซ่อมโปรไฟล์ครู(userSnap.data()),
             // อัปเดตเฉพาะรูป ถ้าอยากให้รูป Google เป็นปัจจุบันเสมอ
-            photoURL: user.photoURL 
+            photoURL: user.photoURL,
+            ...googleData
         }, { merge: true });
       }
       navigate('/dashboard');

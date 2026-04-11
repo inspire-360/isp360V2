@@ -3,6 +3,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
 import { auth, db } from "../lib/firebase";
 import { normalizeUserRole } from "../utils/userRoles";
+import { สร้างโปรไฟล์สำรองจากบัญชีผู้ใช้ } from "../utils/teacherUserProfile";
 
 const AuthContext = createContext();
 
@@ -38,15 +39,15 @@ export function AuthProvider({ children }) {
             setUserProfile(profile);
             setUserRole(normalizeUserRole(profile.role));
           } else {
-            setUserProfile(null);
-            setUserRole("learner");
+            setUserProfile(สร้างโปรไฟล์สำรองจากบัญชีผู้ใช้(user));
+            setUserRole("teacher");
           }
           setLoading(false);
         },
         (error) => {
-          console.error("Error subscribing user role:", error);
-          setUserProfile(null);
-          setUserRole("learner");
+          console.error("ไม่สามารถอ่านข้อมูลโปรไฟล์ผู้ใช้แบบเรียลไทม์ได้", error);
+          setUserProfile(สร้างโปรไฟล์สำรองจากบัญชีผู้ใช้(user));
+          setUserRole("teacher");
           setLoading(false);
         },
       );

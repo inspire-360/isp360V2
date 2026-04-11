@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, Download, Handshake, Lightbulb, Loader2, PlayCircle, ShieldCheck, Users } from "lucide-react";
+import { ArrowUpRight, Download, Handshake, Lightbulb, Loader2, PlayCircle, RefreshCcw, ShieldCheck, Users } from "lucide-react";
 import { collection, collectionGroup, getDocs } from "firebase/firestore";
 import LearningProgressDashboard from "../components/LearningProgressDashboard";
 import OnlineUsers from "../components/OnlineUsers";
@@ -8,6 +8,7 @@ import SupportTicketWorkspace from "../components/SupportTicketWorkspace";
 import { db } from "../lib/firebase";
 import { buildEnrollmentInsight, resolveDisplayName } from "../utils/duMemberInsights";
 import { downloadCsvFile } from "../utils/csvExport";
+import { ซ่อมโปรไฟล์ครูเก่า } from "../utils/repairTeacherProfiles";
 
 const serializeExportValue = (value) => {
   if (value == null) return "";
@@ -63,6 +64,7 @@ const buildMissionResponseRows = ({ enrollments, userNameById }) =>
 
 export default function AdminConsole() {
   const [exporting, setExporting] = useState(false);
+  const [repairingProfiles, setRepairingProfiles] = useState(false);
 
   const handleExportAnswers = async () => {
     setExporting(true);
@@ -122,6 +124,30 @@ export default function AdminConsole() {
     }
   };
 
+  const handleRepairTeacherProfiles = async () => {
+    const shouldContinue = window.confirm(
+      "ยืนยันการซ่อมข้อมูลผู้ใช้งานเก่าที่ขาดบทบาทครูหรือเส้นทางเริ่มต้นหรือไม่",
+    );
+
+    if (!shouldContinue) return;
+
+    setRepairingProfiles(true);
+
+    try {
+      const summary = await ซ่อมโปรไฟล์ครูเก่า(db);
+      window.alert(
+        summary.repairedCount > 0
+          ? `ซ่อมข้อมูลผู้ใช้สำเร็จ ${summary.repairedCount} รายการ จากที่ตรวจสอบทั้งหมด ${summary.scannedCount} รายการ`
+          : `ตรวจสอบข้อมูลผู้ใช้ทั้งหมด ${summary.scannedCount} รายการแล้ว ไม่พบข้อมูลที่ต้องซ่อมเพิ่ม`,
+      );
+    } catch (error) {
+      console.error("เกิดข้อผิดพลาดระหว่างซ่อมข้อมูลผู้ใช้เก่า", error);
+      window.alert("เกิดข้อผิดพลาดระหว่างซ่อมข้อมูลผู้ใช้เก่า กรุณาลองใหม่อีกครั้ง");
+    } finally {
+      setRepairingProfiles(false);
+    }
+  };
+
   return (
     <div className="brand-shell space-y-8">
       <section className="brand-panel-strong overflow-hidden p-6 md:p-8">
@@ -171,6 +197,19 @@ export default function AdminConsole() {
             >
               {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
               ส่งออกคำตอบเป็น CSV
+            </button>
+            <button
+              type="button"
+              onClick={handleRepairTeacherProfiles}
+              disabled={repairingProfiles}
+              className="brand-button-secondary border-white/[0.20] bg-white/[0.10] text-white hover:text-white disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {repairingProfiles ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <RefreshCcw size={16} />
+              )}
+              ซ่อมข้อมูลผู้ใช้เก่า
             </button>
             <Link
               to="/du/members"

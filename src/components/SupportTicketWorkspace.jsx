@@ -267,6 +267,7 @@ export default function SupportTicketWorkspace({ isAdminView = false }) {
 
   const handleCreateTicket = async (event) => {
     event.preventDefault();
+    setFormError("");
 
     if (
       !ticketForm.topic.trim() ||
@@ -275,6 +276,7 @@ export default function SupportTicketWorkspace({ isAdminView = false }) {
       !ticketForm.contactInfo.trim()
     ) {
       setFormError("กรุณากรอกหัวข้อ สถานที่ รายละเอียด และช่องทางติดต่อให้ครบ");
+      window.alert("กรุณากรอกหัวข้อ สถานที่ รายละเอียด และช่องทางติดต่อให้ครบถ้วนก่อนส่งคำร้อง");
       return;
     }
 

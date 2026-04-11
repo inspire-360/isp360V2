@@ -1,8 +1,10 @@
 import {
   collection,
+  deleteDoc,
   doc,
   getDocs,
   serverTimestamp,
+  setDoc,
   writeBatch,
 } from "firebase/firestore";
 import { buildExpertSeedSummary, buildSeedExpertsFromCatalog } from "../data/expertSeedCatalog";
@@ -36,6 +38,7 @@ export async function seedExpertsDirectory() {
 
   for (const expertChunk of expertChunks) {
     const batch = writeBatch(db);
+    const expertRepairs = [];
 
     expertChunk.forEach((expert) => {
       const expertRef = doc(db, EXPERTS_COLLECTION, expert.id);
@@ -43,9 +46,9 @@ export async function seedExpertsDirectory() {
 
       if (existingExpert) {
         if (!existingExpert.createdAt) {
-          throw new Error(
-            `ไม่สามารถอัปเดตข้อมูลผู้เชี่ยวชาญ ${expert.displayName} ได้ เพราะเอกสารเดิมไม่มีค่า createdAt`,
-          );
+          expertRepairs.push({ expertRef, expert });
+          updatedCount += 1;
+          return;
         }
 
         updatedCount += 1;
@@ -66,6 +69,15 @@ export async function seedExpertsDirectory() {
     });
 
     await batch.commit();
+
+    for (const repairItem of expertRepairs) {
+      await deleteDoc(repairItem.expertRef);
+      await setDoc(repairItem.expertRef, {
+        ...repairItem.expert,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    }
   }
 
   return {

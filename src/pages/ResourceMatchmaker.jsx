@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import {
+  formatExpertServiceModes,
   formatMarketplaceDateTime,
   getExpertCapacityMeta,
   getMatchRequestStatusMeta,
@@ -117,7 +118,7 @@ const ExpertDirectoryCard = memo(function ExpertDirectoryCard({ expert, isSelect
       <div className="mt-4 flex flex-wrap gap-3 text-xs text-slate-500">
         <span>พื้นที่ดูแล: {expert.region || "ไม่จำกัดพื้นที่"}</span>
         <span>
-          รูปแบบงาน: {Array.isArray(expert.serviceModes) && expert.serviceModes.length > 0 ? expert.serviceModes.join(" | ") : "ยังไม่ได้ระบุ"}
+          รูปแบบงาน: {Array.isArray(expert.serviceModes) && expert.serviceModes.length > 0 ? formatExpertServiceModes(expert.serviceModes).join(" | ") : "ยังไม่ได้ระบุ"}
         </span>
       </div>
     </button>
@@ -154,6 +155,7 @@ export default function ResourceMatchmaker() {
     assigningExpert,
     completingRequest,
     seedingExperts,
+    expertsError,
     createRequest,
     assignExpertToRequest,
     completeRequest,
@@ -731,6 +733,12 @@ export default function ResourceMatchmaker() {
             </div>
           ) : null}
 
+          {expertsError ? (
+            <div className="mt-6 rounded-[24px] border border-rose-200 bg-rose-50 px-5 py-4 text-sm leading-7 text-rose-700">
+              {expertsError}
+            </div>
+          ) : null}
+
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
               <div className="rounded-3xl border border-slate-200 bg-white px-4 py-3">
                 <p className="text-xs tracking-[0.08em] text-slate-400">ผู้เชี่ยวชาญทั้งหมด</p>
@@ -772,6 +780,21 @@ export default function ResourceMatchmaker() {
               ))
             )}
           </div>
+
+          {selectedExpert ? (
+            <div className="mt-6 rounded-[28px] border border-slate-200 bg-slate-50 p-5">
+              <p className="text-sm font-semibold text-ink">ผู้เชี่ยวชาญที่กำลังเลือก</p>
+              <p className="mt-3 text-lg font-semibold text-ink">{selectedExpert.displayName}</p>
+              <p className="mt-1 text-sm text-slate-500">
+                {(selectedExpert.title || "ยังไม่ได้ระบุตำแหน่ง") +
+                  " | " +
+                  (selectedExpert.organization || "ยังไม่ได้ระบุหน่วยงาน")}
+              </p>
+              <p className="mt-3 text-sm leading-7 text-slate-600">
+                {selectedExpert.bio || "ยังไม่มีคำอธิบายเพิ่มเติมของผู้เชี่ยวชาญคนนี้"}
+              </p>
+            </div>
+          ) : null}
         </section>
       ) : null}
     </div>

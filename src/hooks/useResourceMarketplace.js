@@ -14,6 +14,7 @@ import { db } from "../lib/firebase";
 import {
   EXPERTS_COLLECTION,
   MATCH_REQUESTS_COLLECTION,
+  expandExpertDirectoryRecords,
   sortExpertsByName,
   sortMatchRequests,
 } from "../data/resourceMatchmaking";
@@ -36,6 +37,7 @@ export function useResourceMarketplace({ currentUser, userProfile, userRole, isA
   const [assigningExpert, setAssigningExpert] = useState(false);
   const [completingRequest, setCompletingRequest] = useState(false);
   const [seedingExperts, setSeedingExperts] = useState(false);
+  const [expertsError, setExpertsError] = useState("");
 
   useEffect(() => {
     if (!currentUser?.uid) {
@@ -85,30 +87,43 @@ export function useResourceMarketplace({ currentUser, userProfile, userRole, isA
   useEffect(() => {
     if (!isAdminView || !currentUser?.uid) {
       setExperts([]);
+      setExpertsError("");
       setLoadingExperts(false);
       return undefined;
     }
 
     setLoadingExperts(true);
 
-    const expertsQuery = query(collection(db, EXPERTS_COLLECTION), orderBy("displayName", "asc"));
+    const expertsQuery = query(collection(db, EXPERTS_COLLECTION));
 
     const unsubscribe = onSnapshot(
       expertsQuery,
       (snapshot) => {
-        const nextExperts = snapshot.docs
-          .map((item) => ({
+        const nextExperts = expandExpertDirectoryRecords(
+          snapshot.docs.map((item) => ({
             id: item.id,
             ...item.data(),
+          })),
+        )
+          .map((item) => ({
+            ...item,
           }))
           .sort(sortExpertsByName);
 
         startTransition(() => {
           setExperts(nextExperts);
+          setExpertsError("");
           setLoadingExperts(false);
         });
       },
-      () => {
+      (error) => {
+        console.error("ไม่สามารถดึงรายชื่อผู้เชี่ยวชาญจาก Firestore ได้", {
+          รหัสข้อผิดพลาด: error?.code || "ไม่ทราบรหัส",
+          ข้อความระบบ: error?.message || "ไม่มีข้อความจากระบบ",
+          คอลเลกชัน: EXPERTS_COLLECTION,
+          ผู้ใช้งาน: currentUser?.uid || "ไม่พบรหัสผู้ใช้",
+        });
+        setExpertsError("ไม่สามารถดึงรายชื่อผู้เชี่ยวชาญได้ กรุณาตรวจสอบสิทธิ์แอดมินและข้อมูลในคอลเลกชัน experts");
         setLoadingExperts(false);
       },
     );
@@ -245,6 +260,7 @@ export function useResourceMarketplace({ currentUser, userProfile, userRole, isA
     assigningExpert,
     completingRequest,
     seedingExperts,
+    expertsError,
     createRequest,
     assignExpertToRequest,
     completeRequest,

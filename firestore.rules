@@ -39,9 +39,54 @@ service cloud.firestore {
     }
 
     function validSelfUserCreate(userId) {
-      return request.resource.data.uid == userId
+      return request.resource.data.keys().hasOnly([
+          "uid",
+          "prefix",
+          "firstName",
+          "lastName",
+          "name",
+          "position",
+          "school",
+          "email",
+          "role",
+          "activePath",
+          "progress",
+          "progressPercent",
+          "status",
+          "photoURL",
+          "createdAt",
+          "updatedAt",
+          "lastLogin",
+          "pdpaAccepted",
+          "pdpaAcceptedAt",
+          "badges",
+          "lineUserId"
+        ])
+        && request.resource.data.uid == userId
         && request.resource.data.uid == request.auth.uid
-        && request.resource.data.role == "learner";
+        && request.resource.data.prefix is string
+        && request.resource.data.firstName is string
+        && request.resource.data.lastName is string
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.position is string
+        && request.resource.data.school is string
+        && request.resource.data.email is string
+        && request.resource.data.role in ["teacher", "Teacher"]
+        && request.resource.data.activePath == "/course/teacher"
+        && request.resource.data.progress is int
+        && request.resource.data.progress == 0
+        && request.resource.data.progressPercent is int
+        && request.resource.data.progressPercent == 0
+        && request.resource.data.status == "active"
+        && request.resource.data.photoURL is string
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp
+        && request.resource.data.lastLogin is timestamp
+        && request.resource.data.pdpaAccepted == true
+        && request.resource.data.pdpaAcceptedAt is timestamp
+        && request.resource.data.badges is list
+        && request.resource.data.lineUserId is string;
     }
 
     function validSelfUserUpdate(userId) {
@@ -56,12 +101,18 @@ service cloud.firestore {
           "name",
           "position",
           "school",
+          "activePath",
+          "progress",
+          "progressPercent",
+          "status",
           "photoURL",
           "updatedAt",
           "lastLogin",
+          "lastProgressAt",
           "lineUserId",
           "pdpaAccepted",
-          "pdpaAcceptedAt"
+          "pdpaAcceptedAt",
+          "badges"
         ]);
     }
 
@@ -369,7 +420,7 @@ service cloud.firestore {
         && request.resource.data.requesterId.size() > 0
         && request.resource.data.requesterDisplayName is string
         && request.resource.data.requesterDisplayName.size() > 0
-        && request.resource.data.requesterRole == "teacher"
+        && request.resource.data.requesterRole in ["teacher", "Teacher"]
         && request.resource.data.topic is string
         && request.resource.data.topic.size() > 0
         && validSosMainCategory(request.resource.data.mainCategory)
@@ -393,7 +444,7 @@ service cloud.firestore {
         && request.resource.data.lastMessagePreview is string
         && request.resource.data.lastMessagePreview.size() > 0
         && request.resource.data.lastMessageAuthorId is string
-        && request.resource.data.lastMessageAuthorRole in ["teacher", "admin"]
+        && request.resource.data.lastMessageAuthorRole in ["teacher", "Teacher", "admin"]
         && (
           request.resource.data.closedAt == null
           || request.resource.data.closedAt is timestamp
@@ -408,7 +459,7 @@ service cloud.firestore {
         && request.resource.data.status == "รอดำเนินการ"
         && request.resource.data.assignedTo == ""
         && request.resource.data.lastMessageAuthorId == request.auth.uid
-        && request.resource.data.lastMessageAuthorRole == "teacher"
+        && request.resource.data.lastMessageAuthorRole in ["teacher", "Teacher"]
         && request.resource.data.closedAt == null
         && request.resource.data.messageCount == 1;
     }
@@ -431,7 +482,7 @@ service cloud.firestore {
         && request.resource.data.assignedTo == resource.data.assignedTo
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.lastMessageAuthorId == request.auth.uid
-        && request.resource.data.lastMessageAuthorRole == "teacher"
+        && request.resource.data.lastMessageAuthorRole in ["teacher", "Teacher"]
         && request.resource.data.closedAt == resource.data.closedAt
         && request.resource.data.messageCount == resource.data.messageCount + 1
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -500,7 +551,7 @@ service cloud.firestore {
         && request.resource.data.authorName.size() > 0
         && (
           (isAdmin() && request.resource.data.authorRole == "admin")
-          || (!isAdmin() && request.resource.data.authorRole == "teacher")
+          || (!isAdmin() && request.resource.data.authorRole in ["teacher", "Teacher"])
         )
         && request.resource.data.body is string
         && request.resource.data.body.size() > 0
@@ -1006,7 +1057,7 @@ service cloud.firestore {
 
     match /sos_tickets/{ticketId} {
       allow get, list: if isAdmin() || (signedIn() && resource.data.requesterId == request.auth.uid);
-      allow create: if isTeacher() && validTeacherSosTicketCreate();
+      allow create: if signedIn() && validTeacherSosTicketCreate();
       allow update: if (isTeacher() && resource.data.requesterId == request.auth.uid && validTeacherSosTicketUpdate())
         || (isAdmin() && validAdminSosTicketUpdate());
       allow delete: if false;
