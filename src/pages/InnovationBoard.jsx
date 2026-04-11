@@ -21,6 +21,8 @@ import {
 import { useInnovationBoard } from "../hooks/useInnovationBoard";
 import { isAdminRole } from "../utils/userRoles";
 
+const dragInnovationMime = "application/x-du-innovation-id";
+
 const stageIconByValue = {
   idea: Lightbulb,
   prototype: FlaskConical,
@@ -57,7 +59,10 @@ const InnovationCard = memo(function InnovationCard({
             {innovation.teacherName || "ยังไม่ระบุชื่อครู"} | {innovation.schoolName || "ยังไม่ระบุโรงเรียน"}
           </p>
         </div>
-        <span className="rounded-2xl border border-slate-200 bg-slate-50 p-2 text-slate-400">
+        <span
+          draggable={false}
+          className="rounded-2xl border border-slate-200 bg-slate-50 p-2 text-slate-400"
+        >
           <GripVertical size={16} />
         </span>
       </div>
@@ -84,6 +89,7 @@ const InnovationCard = memo(function InnovationCard({
 
       <button
         type="button"
+        draggable={false}
         onClick={() => onSelect(innovation.id)}
         className="mt-4 w-full rounded-full border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:border-primary/20 hover:bg-white"
       >
@@ -117,10 +123,10 @@ const InnovationStageColumn = memo(function InnovationStageColumn({
 
   return (
     <section
-      onDragEnter={() => onDragEnterStage(stage.value)}
-      onDragOver={(event) => onDragOverStage(event, stage.value)}
-      onDragLeave={(event) => onDragLeaveStage(event, stage.value)}
-      onDrop={(event) => onDropStage(event, stage.value)}
+      onDragEnterCapture={() => onDragEnterStage(stage.value)}
+      onDragOverCapture={(event) => onDragOverStage(event, stage.value)}
+      onDragLeaveCapture={(event) => onDragLeaveStage(event, stage.value)}
+      onDropCapture={(event) => onDropStage(event, stage.value)}
       className={`relative overflow-hidden rounded-[30px] border bg-white/92 p-5 shadow-[0_22px_60px_rgba(15,23,42,0.08)] transition ${
         dropStage === stage.value
           ? "border-primary/25 shadow-[0_28px_70px_rgba(13,17,100,0.14)]"
@@ -235,6 +241,7 @@ export default function InnovationBoard() {
     setDraggingInnovationId(innovation.id);
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", innovation.id);
+    event.dataTransfer.setData(dragInnovationMime, innovation.id);
   };
 
   const handleDragEnd = () => {
@@ -250,6 +257,7 @@ export default function InnovationBoard() {
 
   const handleDragOverStage = (event, stageValue) => {
     event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
     if (dropStage !== stageValue) {
       setDropStage(stageValue);
     }
@@ -262,8 +270,12 @@ export default function InnovationBoard() {
 
   const handleDropStage = async (event, stageValue) => {
     event.preventDefault();
+    event.stopPropagation();
 
-    const innovationId = event.dataTransfer.getData("text/plain");
+    const innovationId =
+      event.dataTransfer.getData(dragInnovationMime) ||
+      event.dataTransfer.getData("text/plain") ||
+      draggingInnovationId;
     const innovation = innovations.find((item) => item.id === innovationId);
 
     setDraggingInnovationId("");

@@ -16,6 +16,7 @@ export const normalizeUserRole = (role = "") => {
 
 export const isAdminRole = (role = "") => normalizeUserRole(role) === "admin";
 export const isTeacherRole = (role = "") => normalizeUserRole(role) === "teacher";
+export const isLearnerRole = (role = "") => normalizeUserRole(role) === "learner";
 
 export const getRoleLabel = (role = "") => {
   const normalized = normalizeUserRole(role);

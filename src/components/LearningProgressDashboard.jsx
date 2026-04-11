@@ -48,7 +48,7 @@ const LearningProgressRow = memo(function LearningProgressRow({ row }) {
 });
 
 export default function LearningProgressDashboard() {
-  const { rows, summary, loading } = useLearningDashboard();
+  const { rows, summary, loading, listenerError, listenerInfo } = useLearningDashboard();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const deferredSearch = useDeferredValue(search);
@@ -116,6 +116,21 @@ export default function LearningProgressDashboard() {
           ))}
         </select>
       </div>
+
+      <div className="mt-4 flex flex-wrap gap-3 text-xs leading-6 text-slate-500">
+        <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
+          กำลังฟังคอลเลกชัน {listenerInfo.usersCollection}
+        </span>
+        <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
+          กำลังฟังกลุ่มย่อย {listenerInfo.enrollmentsCollectionGroup}
+        </span>
+      </div>
+
+      {listenerError ? (
+        <div className="mt-4 rounded-[24px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+          {listenerError}
+        </div>
+      ) : null}
 
       <div className="mt-6 overflow-hidden rounded-[26px] border border-slate-100 bg-white">
         <div className="overflow-x-auto">

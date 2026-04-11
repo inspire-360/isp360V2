@@ -45,6 +45,28 @@ const patchInnovationList = (previousInnovations, snapshot) => {
   return Array.from(innovationMap.values()).sort(sortInnovations);
 };
 
+const patchInnovationStageLocally = ({
+  previousInnovations,
+  innovationId,
+  nextStage,
+  operatorId,
+  operatorName,
+}) =>
+  previousInnovations
+    .map((innovation) =>
+      innovation.id === innovationId
+        ? {
+            ...innovation,
+            stage: nextStage,
+            updatedAt: new Date(),
+            lastMovedAt: new Date(),
+            lastMovedById: operatorId,
+            lastMovedByName: operatorName,
+          }
+        : innovation,
+    )
+    .sort(sortInnovations);
+
 export function useInnovationBoard({ currentUser, userProfile, isAdminView }) {
   const [innovations, setInnovations] = useState([]);
   const [activeInnovationId, setActiveInnovationId] = useState("");
@@ -79,7 +101,12 @@ export function useInnovationBoard({ currentUser, userProfile, isAdminView }) {
           setLoadingInnovations(false);
         });
       },
-      () => {
+      (error) => {
+        console.error("ไม่สามารถติดตามคอลเลกชันนวัตกรรมแบบเรียลไทม์ได้", {
+          รหัสข้อผิดพลาด: error?.code || "ไม่ทราบรหัส",
+          ข้อความระบบ: error?.message || "ไม่มีข้อความจากระบบ",
+          คอลเลกชัน: INNOVATIONS_COLLECTION,
+        });
         setLoadingInnovations(false);
       },
     );
@@ -96,7 +123,24 @@ export function useInnovationBoard({ currentUser, userProfile, isAdminView }) {
     if (!currentUser?.uid || !isAdminView || !innovation?.id || !nextStage) return;
     if (innovation.stage === nextStage) return;
 
+    const operatorName = resolveDisplayName({
+      currentUser,
+      userProfile,
+    });
+
     setMovingInnovationId(innovation.id);
+    startTransition(() => {
+      setInnovations((previousInnovations) =>
+        patchInnovationStageLocally({
+          previousInnovations,
+          innovationId: innovation.id,
+          nextStage,
+          operatorId: currentUser.uid,
+          operatorName,
+        }),
+      );
+      setActiveInnovationId(innovation.id);
+    });
 
     try {
       await updateDoc(doc(db, INNOVATIONS_COLLECTION, innovation.id), {
@@ -104,11 +148,17 @@ export function useInnovationBoard({ currentUser, userProfile, isAdminView }) {
         updatedAt: serverTimestamp(),
         lastMovedAt: serverTimestamp(),
         lastMovedById: currentUser.uid,
-        lastMovedByName: resolveDisplayName({
-          currentUser,
-          userProfile,
-        }),
+        lastMovedByName: operatorName,
       });
+    } catch (error) {
+      startTransition(() => {
+        setInnovations((previousInnovations) =>
+          previousInnovations
+            .map((item) => (item.id === innovation.id ? innovation : item))
+            .sort(sortInnovations),
+        );
+      });
+      throw error;
     } finally {
       setMovingInnovationId("");
     }

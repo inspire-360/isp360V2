@@ -5,7 +5,7 @@ import {
   buildEnrollmentInsight,
   resolveDisplayName,
 } from "../utils/duMemberInsights";
-import { getRoleLabel } from "../utils/userRoles";
+import { getRoleLabel, isLearnerRole } from "../utils/userRoles";
 import { formatSupportTicketDateTime, toSupportTicketMillis } from "../data/supportTickets";
 
 const buildStatusMeta = (enrollment = {}) => {
@@ -71,6 +71,46 @@ const sortRows = (left, right) => {
   return left.name.localeCompare(right.name, "th");
 };
 
+const buildDashboardRow = ({ userId, userRecord, spotlightEnrollment }) => {
+  const status = buildStatusMeta(spotlightEnrollment || {});
+  const progressPercent = spotlightEnrollment?.progressPercent || 0;
+  const score = status.score;
+  const name = resolveDisplayName(userRecord || { email: userId });
+  const roleLabel = getRoleLabel(userRecord?.role);
+
+  return {
+    userId,
+    name,
+    roleLabel,
+    courseTitle: spotlightEnrollment?.courseTitle || "ยังไม่เริ่มหลักสูตร",
+    progressPercent,
+    status,
+    scoreText: `คะแนน: ${score}/100`,
+    scoreValue: score,
+    completedLessonsCount: spotlightEnrollment?.completedLessonsCount || 0,
+    lessonCount: spotlightEnrollment?.lessonCount || 0,
+    activeLessonTitle: spotlightEnrollment?.activeLessonTitle || "",
+    updatedAtLabel: spotlightEnrollment
+      ? formatSupportTicketDateTime(
+          spotlightEnrollment.lastSavedAt ||
+            spotlightEnrollment.updatedAt ||
+            spotlightEnrollment.lastAccess,
+        )
+      : "ยังไม่มีการบันทึก",
+    enrollmentDocumentId: spotlightEnrollment?.id || "",
+    enrollmentPath: spotlightEnrollment?.path || "",
+    searchText: [
+      name,
+      roleLabel,
+      spotlightEnrollment?.courseTitle || "ยังไม่เริ่มหลักสูตร",
+      spotlightEnrollment?.activeLessonTitle || "",
+      status.label,
+    ]
+      .join(" ")
+      .toLowerCase(),
+  };
+};
+
 export function useLearningDashboard() {
   const [rowsById, setRowsById] = useState({});
   const [rowOrder, setRowOrder] = useState([]);
@@ -78,6 +118,7 @@ export function useLearningDashboard() {
     users: true,
     enrollments: true,
   });
+  const [listenerError, setListenerError] = useState("");
 
   const usersByIdRef = useRef(new Map());
   const enrollmentsByPathRef = useRef(new Map());
@@ -96,43 +137,20 @@ export function useLearningDashboard() {
         .map((path) => enrollmentsByPathRef.current.get(path))
         .filter(Boolean);
 
-      if (enrollments.length === 0) {
+      if (enrollments.length === 0 && !isLearnerRole(userRecord?.role)) {
         nextRowsByIdMap.delete(userId);
         return;
       }
 
       const spotlightEnrollment = buildSpotlightEnrollment(enrollments);
-      const status = buildStatusMeta(spotlightEnrollment || {});
-      const progressPercent = spotlightEnrollment?.progressPercent || 0;
-      const score = status.score;
-
-      nextRowsByIdMap.set(userId, {
+      nextRowsByIdMap.set(
         userId,
-        name: resolveDisplayName(userRecord || { email: userId }),
-        roleLabel: getRoleLabel(userRecord?.role),
-        courseTitle: spotlightEnrollment?.courseTitle || "ยังไม่มีหลักสูตร",
-        progressPercent,
-        status,
-        scoreText: `คะแนน: ${score}/100`,
-        scoreValue: score,
-        completedLessonsCount: spotlightEnrollment?.completedLessonsCount || 0,
-        lessonCount: spotlightEnrollment?.lessonCount || 0,
-        activeLessonTitle: spotlightEnrollment?.activeLessonTitle || "",
-        updatedAtLabel: formatSupportTicketDateTime(
-          spotlightEnrollment?.lastSavedAt ||
-            spotlightEnrollment?.updatedAt ||
-            spotlightEnrollment?.lastAccess,
-        ),
-        searchText: [
-          resolveDisplayName(userRecord || { email: userId }),
-          getRoleLabel(userRecord?.role),
-          spotlightEnrollment?.courseTitle || "",
-          spotlightEnrollment?.activeLessonTitle || "",
-          status.label,
-        ]
-          .join(" ")
-          .toLowerCase(),
-      });
+        buildDashboardRow({
+          userId,
+          userRecord,
+          spotlightEnrollment,
+        }),
+      );
     });
 
     rowsByIdRef.current = nextRowsByIdMap;
@@ -180,10 +198,17 @@ export function useLearningDashboard() {
           });
         });
 
+        setListenerError("");
         setLoadingState((previous) => ({ ...previous, users: false }));
         rebuildRows(affectedUserIds);
       },
-      () => {
+      (error) => {
+        console.error("ไม่สามารถติดตามคอลเลกชัน users สำหรับแดชบอร์ดผู้เรียนได้", {
+          รหัสข้อผิดพลาด: error?.code || "ไม่ทราบรหัส",
+          ข้อความระบบ: error?.message || "ไม่มีข้อความจากระบบ",
+          คอลเลกชัน: "users",
+        });
+        setListenerError("ไม่สามารถซิงก์ข้อมูลผู้เรียนจากคอลเลกชันผู้ใช้ได้");
         setLoadingState((previous) => ({ ...previous, users: false }));
       },
     );
@@ -220,10 +245,17 @@ export function useLearningDashboard() {
           userEnrollmentPathsRef.current.set(userId, nextSet);
         });
 
+        setListenerError("");
         setLoadingState((previous) => ({ ...previous, enrollments: false }));
         rebuildRows(affectedUserIds);
       },
-      () => {
+      (error) => {
+        console.error("ไม่สามารถติดตามกลุ่มย่อย enrollments สำหรับแดชบอร์ดผู้เรียนได้", {
+          รหัสข้อผิดพลาด: error?.code || "ไม่ทราบรหัส",
+          ข้อความระบบ: error?.message || "ไม่มีข้อความจากระบบ",
+          กลุ่มย่อย: "enrollments",
+        });
+        setListenerError("ไม่สามารถซิงก์ข้อมูลความคืบหน้าจากกลุ่มย่อยบทเรียนได้");
         setLoadingState((previous) => ({ ...previous, enrollments: false }));
       },
     );
@@ -265,5 +297,10 @@ export function useLearningDashboard() {
     rows,
     summary,
     loading: Object.values(loadingState).some(Boolean),
+    listenerError,
+    listenerInfo: {
+      usersCollection: "users",
+      enrollmentsCollectionGroup: "enrollments",
+    },
   };
 }
