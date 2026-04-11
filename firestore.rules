@@ -122,6 +122,147 @@ service cloud.firestore {
         ]);
     }
 
+    function validSupportTicketStatus(status) {
+      return status in ["pending", "investigating", "resolved"];
+    }
+
+    function validSupportTicketPriority(priority) {
+      return priority in ["high", "medium", "low"];
+    }
+
+    function validSupportTicketCategory(category) {
+      return category in ["learning", "platform", "account", "wellbeing", "other"];
+    }
+
+    function validSupportTicketCreate() {
+      return request.resource.data.keys().hasOnly([
+          "requesterId",
+          "requesterName",
+          "requesterEmail",
+          "requesterRole",
+          "subject",
+          "category",
+          "priority",
+          "status",
+          "createdAt",
+          "updatedAt",
+          "lastMessageAt",
+          "lastMessagePreview",
+          "lastMessageAuthorId",
+          "lastMessageAuthorRole",
+          "assignedAdminId",
+          "assignedAdminName",
+          "resolvedAt",
+          "messageCount"
+        ])
+        && request.resource.data.requesterId == request.auth.uid
+        && request.resource.data.requesterName is string
+        && request.resource.data.requesterEmail is string
+        && request.resource.data.requesterRole is string
+        && request.resource.data.subject is string
+        && request.resource.data.subject.size() > 0
+        && validSupportTicketCategory(request.resource.data.category)
+        && validSupportTicketPriority(request.resource.data.priority)
+        && request.resource.data.status == "pending"
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp
+        && request.resource.data.lastMessageAt is timestamp
+        && request.resource.data.lastMessagePreview is string
+        && request.resource.data.lastMessagePreview.size() > 0
+        && request.resource.data.lastMessageAuthorId == request.auth.uid
+        && request.resource.data.lastMessageAuthorRole is string
+        && request.resource.data.assignedAdminId == ""
+        && request.resource.data.assignedAdminName == ""
+        && request.resource.data.resolvedAt == null
+        && request.resource.data.messageCount is int
+        && request.resource.data.messageCount == 1;
+    }
+
+    function validOwnerTicketUpdate() {
+      return request.resource.data.requesterId == resource.data.requesterId
+        && request.resource.data.requesterName == resource.data.requesterName
+        && request.resource.data.requesterEmail == resource.data.requesterEmail
+        && request.resource.data.requesterRole == resource.data.requesterRole
+        && request.resource.data.subject == resource.data.subject
+        && request.resource.data.category == resource.data.category
+        && request.resource.data.priority == resource.data.priority
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.assignedAdminId == resource.data.assignedAdminId
+        && request.resource.data.assignedAdminName == resource.data.assignedAdminName
+        && request.resource.data.resolvedAt == resource.data.resolvedAt
+        && request.resource.data.updatedAt is timestamp
+        && request.resource.data.lastMessageAt is timestamp
+        && request.resource.data.lastMessagePreview is string
+        && request.resource.data.lastMessageAuthorId == request.auth.uid
+        && request.resource.data.lastMessageAuthorRole is string
+        && request.resource.data.messageCount is int
+        && request.resource.data.messageCount == resource.data.messageCount + 1
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "updatedAt",
+          "lastMessageAt",
+          "lastMessagePreview",
+          "lastMessageAuthorId",
+          "lastMessageAuthorRole",
+          "messageCount"
+        ]);
+    }
+
+    function validAdminTicketUpdate() {
+      return request.resource.data.requesterId == resource.data.requesterId
+        && request.resource.data.requesterName == resource.data.requesterName
+        && request.resource.data.requesterEmail == resource.data.requesterEmail
+        && request.resource.data.requesterRole == resource.data.requesterRole
+        && request.resource.data.subject == resource.data.subject
+        && request.resource.data.category == resource.data.category
+        && request.resource.data.priority == resource.data.priority
+        && validSupportTicketStatus(request.resource.data.status)
+        && request.resource.data.updatedAt is timestamp
+        && request.resource.data.lastMessageAt is timestamp
+        && request.resource.data.lastMessagePreview is string
+        && request.resource.data.lastMessageAuthorId == request.auth.uid
+        && request.resource.data.lastMessageAuthorRole == "admin"
+        && request.resource.data.assignedAdminId is string
+        && request.resource.data.assignedAdminName is string
+        && (
+          (request.resource.data.status == "resolved" && request.resource.data.resolvedAt is timestamp)
+          || (request.resource.data.status != "resolved" && request.resource.data.resolvedAt == null)
+        )
+        && request.resource.data.messageCount is int
+        && request.resource.data.messageCount == resource.data.messageCount + 1
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "status",
+          "updatedAt",
+          "lastMessageAt",
+          "lastMessagePreview",
+          "lastMessageAuthorId",
+          "lastMessageAuthorRole",
+          "assignedAdminId",
+          "assignedAdminName",
+          "resolvedAt",
+          "messageCount"
+        ]);
+    }
+
+    function validSupportTicketMessageCreate(ticketId) {
+      return exists(/databases/$(database)/documents/supportTickets/$(ticketId))
+        && request.resource.data.keys().hasOnly([
+          "ticketId",
+          "authorId",
+          "authorName",
+          "authorRole",
+          "body",
+          "createdAt"
+        ])
+        && request.resource.data.ticketId == ticketId
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.authorName is string
+        && request.resource.data.authorName.size() > 0
+        && request.resource.data.authorRole is string
+        && request.resource.data.body is string
+        && request.resource.data.body.size() > 0
+        && request.resource.data.createdAt is timestamp;
+    }
+
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
@@ -153,6 +294,30 @@ service cloud.firestore {
       allow create: if isAdmin() || (signedIn() && validOwnerSosCreate(request.auth.uid));
       allow update: if isAdmin() || (signedIn() && validOwnerSosUpdate(request.auth.uid));
       allow delete: if isAdmin();
+    }
+
+    match /supportTickets/{ticketId} {
+      allow get, list: if isAdmin() || (signedIn() && resource.data.requesterId == request.auth.uid);
+      allow create: if signedIn() && validSupportTicketCreate();
+      allow update: if (signedIn() && resource.data.requesterId == request.auth.uid && validOwnerTicketUpdate())
+        || (isAdmin() && validAdminTicketUpdate());
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow get, list: if isAdmin()
+          || (
+            signedIn()
+            && get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.requesterId == request.auth.uid
+          );
+        allow create: if (
+          isAdmin()
+          || (
+            signedIn()
+            && get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.requesterId == request.auth.uid
+          )
+        ) && validSupportTicketMessageCreate(ticketId);
+        allow update, delete: if false;
+      }
     }
 
     match /{document=**} {
