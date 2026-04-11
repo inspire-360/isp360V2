@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, Download, Loader2, ShieldCheck, Users } from "lucide-react";
+import { ArrowUpRight, Download, Loader2, PlayCircle, ShieldCheck, Users } from "lucide-react";
 import { collection, collectionGroup, getDocs } from "firebase/firestore";
 import LearningProgressDashboard from "../components/LearningProgressDashboard";
 import OnlineUsers from "../components/OnlineUsers";
@@ -142,6 +142,13 @@ export default function AdminConsole() {
           </div>
 
           <div className="flex flex-wrap gap-3">
+            <Link
+              to="/du/video-coach"
+              className="brand-button-secondary border-white/[0.20] bg-white/[0.10] text-white hover:text-white"
+            >
+              เปิดห้องโค้ชวิดีโอ
+              <PlayCircle size={16} />
+            </Link>
             <button
               type="button"
               onClick={handleExportAnswers}

@@ -17,6 +17,7 @@ const MyCourses = lazy(() => import("../pages/MyCourses"));
 const Profile = lazy(() => import("../pages/Profile"));
 const Register = lazy(() => import("../pages/Register"));
 const SOSCenter = lazy(() => import("../pages/SOSCenter"));
+const VideoAnnotation = lazy(() => import("../pages/VideoAnnotation"));
 
 const RouteLoader = () => (
   <div className="flex min-h-screen items-center justify-center bg-white">
@@ -28,7 +29,7 @@ const ProtectedRoute = ({ children }) => {
   const { currentUser, loading } = useAuth();
 
   if (loading) {
-    return <div className="flex h-screen items-center justify-center">Loading...</div>;
+    return <div className="flex h-screen items-center justify-center">กำลังโหลดข้อมูลผู้ใช้งาน</div>;
   }
 
   if (!currentUser) {
@@ -48,7 +49,7 @@ const AdminRoute = ({ children }) => {
   const { currentUser, loading, userRole } = useAuth();
 
   if (loading) {
-    return <div className="flex h-screen items-center justify-center">Loading...</div>;
+    return <div className="flex h-screen items-center justify-center">กำลังตรวจสอบสิทธิ์การใช้งาน</div>;
   }
 
   if (!currentUser) {
@@ -116,6 +117,14 @@ export default function AppRoutes() {
             element={
               <AdminRoute>
                 <MemberControl />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/du/video-coach"
+            element={
+              <AdminRoute>
+                <VideoAnnotation />
               </AdminRoute>
             }
           />

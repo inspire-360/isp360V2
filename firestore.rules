@@ -263,6 +263,140 @@ service cloud.firestore {
         && request.resource.data.createdAt is timestamp;
     }
 
+    function validVideoReviewStatus(status) {
+      return status in ["pending_feedback", "coaching", "reviewed"];
+    }
+
+    function canReadVideoData(videoData) {
+      return isAdmin()
+        || (signedIn() && videoData.teacherId == request.auth.uid)
+        || (
+          signedIn()
+          && videoData.assignedCoachIds is list
+          && request.auth.uid in videoData.assignedCoachIds
+        );
+    }
+
+    function canReadVideoDoc(videoId) {
+      return exists(/databases/$(database)/documents/videos/$(videoId))
+        && canReadVideoData(get(/databases/$(database)/documents/videos/$(videoId)).data);
+    }
+
+    function validVideoDocumentShape() {
+      return request.resource.data.keys().hasOnly([
+          "teacherId",
+          "teacherName",
+          "title",
+          "description",
+          "subject",
+          "schoolName",
+          "videoUrl",
+          "durationSeconds",
+          "reviewStatus",
+          "assignedCoachIds",
+          "submittedAt",
+          "updatedAt",
+          "lastCommentAt",
+          "lastCommentPreview",
+          "commentCount"
+        ])
+        && request.resource.data.teacherId is string
+        && request.resource.data.teacherId.size() > 0
+        && request.resource.data.teacherName is string
+        && request.resource.data.teacherName.size() > 0
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.description is string
+        && request.resource.data.subject is string
+        && request.resource.data.schoolName is string
+        && request.resource.data.videoUrl is string
+        && request.resource.data.videoUrl.size() > 0
+        && (
+          request.resource.data.durationSeconds == null
+          || request.resource.data.durationSeconds is int
+        )
+        && validVideoReviewStatus(request.resource.data.reviewStatus)
+        && request.resource.data.assignedCoachIds is list
+        && request.resource.data.submittedAt is timestamp
+        && request.resource.data.updatedAt is timestamp
+        && (
+          request.resource.data.lastCommentAt == null
+          || request.resource.data.lastCommentAt is timestamp
+        )
+        && request.resource.data.lastCommentPreview is string
+        && request.resource.data.commentCount is int
+        && request.resource.data.commentCount >= 0;
+    }
+
+    function validTeacherVideoCreate() {
+      return validVideoDocumentShape()
+        && request.resource.data.teacherId == request.auth.uid
+        && request.resource.data.reviewStatus == "pending_feedback"
+        && request.resource.data.lastCommentAt == null
+        && request.resource.data.lastCommentPreview == ""
+        && request.resource.data.commentCount == 0;
+    }
+
+    function validAdminVideoCreate() {
+      return validVideoDocumentShape()
+        && request.resource.data.lastCommentAt == null
+        && request.resource.data.lastCommentPreview == ""
+        && request.resource.data.commentCount == 0;
+    }
+
+    function validAdminVideoUpdate() {
+      return validVideoDocumentShape()
+        && request.resource.data.teacherId == resource.data.teacherId
+        && request.resource.data.submittedAt == resource.data.submittedAt;
+    }
+
+    function validVideoCommentBase(videoId) {
+      return exists(/databases/$(database)/documents/videos/$(videoId))
+        && request.resource.data.keys().hasOnly([
+          "videoId",
+          "teacherId",
+          "authorId",
+          "authorName",
+          "authorRole",
+          "body",
+          "timestampSeconds",
+          "createdAt",
+          "updatedAt"
+        ])
+        && request.resource.data.videoId == videoId
+        && request.resource.data.teacherId
+          == get(/databases/$(database)/documents/videos/$(videoId)).data.teacherId
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.authorName is string
+        && request.resource.data.authorName.size() > 0
+        && request.resource.data.authorRole == "admin"
+        && request.resource.data.body is string
+        && request.resource.data.body.size() > 0
+        && request.resource.data.timestampSeconds is int
+        && request.resource.data.timestampSeconds >= 0
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    function validVideoCommentCreate(videoId) {
+      return validVideoCommentBase(videoId);
+    }
+
+    function validVideoCommentUpdate(videoId) {
+      return validVideoCommentBase(videoId)
+        && request.resource.data.videoId == resource.data.videoId
+        && request.resource.data.teacherId == resource.data.teacherId
+        && request.resource.data.authorId == resource.data.authorId
+        && request.resource.data.authorName == resource.data.authorName
+        && request.resource.data.authorRole == resource.data.authorRole
+        && request.resource.data.timestampSeconds == resource.data.timestampSeconds
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "body",
+          "updatedAt"
+        ]);
+    }
+
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
@@ -287,6 +421,22 @@ service cloud.firestore {
       allow get, list: if signedIn();
       allow create, update: if isOwner(userId) && validPresenceWrite(userId);
       allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    match /videos/{videoId} {
+      allow get: if canReadVideoData(resource.data);
+      allow list: if isAdmin();
+      allow create: if (signedIn() && validTeacherVideoCreate())
+        || (isAdmin() && validAdminVideoCreate());
+      allow update: if isAdmin() && validAdminVideoUpdate();
+      allow delete: if isAdmin();
+
+      match /video_comments/{commentId} {
+        allow get, list: if canReadVideoDoc(videoId);
+        allow create: if isAdmin() && validVideoCommentCreate(videoId);
+        allow update: if isAdmin() && validVideoCommentUpdate(videoId);
+        allow delete: if isAdmin();
+      }
     }
 
     match /duSosCases/{caseId} {
