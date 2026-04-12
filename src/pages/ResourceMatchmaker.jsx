@@ -190,6 +190,109 @@ const ExpertRosterRow = memo(function ExpertRosterRow({
   );
 });
 
+const DirectoryCategoryButton = memo(function DirectoryCategoryButton({
+  label,
+  count,
+  isActive,
+  onClick,
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex w-full items-center justify-between gap-3 rounded-[18px] border px-4 py-3 text-left transition ${
+        isActive
+          ? "border-white/20 bg-white/12 text-white shadow-[0_16px_40px_rgba(15,23,42,0.18)]"
+          : "border-white/10 bg-white/5 text-white/72 hover:border-white/16 hover:bg-white/10"
+      }`}
+    >
+      <span className="text-sm font-medium">{label}</span>
+      <span
+        className={`inline-flex min-w-[38px] justify-center rounded-full px-2 py-1 text-xs font-semibold ${
+          isActive ? "bg-white/16 text-white" : "bg-white/10 text-white/70"
+        }`}
+      >
+        {count}
+      </span>
+    </button>
+  );
+});
+
+const SelectedExpertPanel = memo(function SelectedExpertPanel({
+  expert,
+  entry,
+}) {
+  if (!expert) {
+    return (
+      <div className="rounded-[30px] border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm leading-7 text-slate-500">
+        ยังไม่ได้เลือกผู้เชี่ยวชาญสำหรับคำร้องนี้
+      </div>
+    );
+  }
+
+  const capacityMeta = getExpertCapacityMeta(expert.capacityStatus);
+
+  return (
+    <article className="overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+      <div className="border-b border-slate-100 bg-slate-950 px-5 py-5 text-white">
+        <p className="text-xs tracking-[0.16em] text-white/56">ผู้เชี่ยวชาญที่กำลังเลือก</p>
+        <h3 className="mt-3 text-2xl font-semibold">{expert.displayName}</h3>
+        <p className="mt-2 text-sm leading-7 text-white/70">
+          {expert.primaryExpertise || "ยังไม่ได้ระบุความเชี่ยวชาญหลัก"}
+        </p>
+      </div>
+
+      <div className="space-y-5 px-5 py-5">
+        <div className="flex flex-wrap gap-2">
+          <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${capacityMeta.tone}`}>
+            {capacityMeta.label}
+          </span>
+          <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+            {entry?.specialty || expert.title || "ยังไม่ได้ระบุสาขา"}
+          </span>
+          <span
+            className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${
+              entry?.isSynced
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border-slate-200 bg-slate-50 text-slate-600"
+            }`}
+          >
+            {entry?.isSynced ? "เชื่อมฐานข้อมูลแล้ว" : "ใช้จากรายชื่อมาตรฐาน"}
+          </span>
+        </div>
+
+        <div className="grid gap-4">
+          <div>
+            <p className="text-xs tracking-[0.12em] text-slate-400">หมวดหลัก</p>
+            <p className="mt-1 text-sm font-medium text-ink">{entry?.category || "ยังไม่ได้ระบุ"}</p>
+          </div>
+          <div>
+            <p className="text-xs tracking-[0.12em] text-slate-400">หน่วยงาน</p>
+            <p className="mt-1 text-sm font-medium text-ink">{expert.organization || "เครือข่ายผู้เชี่ยวชาญ DU"}</p>
+          </div>
+          <div>
+            <p className="text-xs tracking-[0.12em] text-slate-400">พื้นที่ดูแล</p>
+            <p className="mt-1 text-sm font-medium text-ink">{expert.region || "สนับสนุนได้ทั่วทั้งเครือข่าย"}</p>
+          </div>
+          <div>
+            <p className="text-xs tracking-[0.12em] text-slate-400">รูปแบบงาน</p>
+            <p className="mt-1 text-sm font-medium text-ink">
+              {formatExpertServiceModes(expert.serviceModes).join(" / ")}
+            </p>
+          </div>
+        </div>
+
+        <div className="border-t border-slate-100 pt-5">
+          <p className="text-xs tracking-[0.12em] text-slate-400">ภาพรวมผู้เชี่ยวชาญ</p>
+          <p className="mt-2 text-sm leading-7 text-slate-600">
+            {expert.bio || "พร้อมสนับสนุนครูตามสาขาความเชี่ยวชาญที่ระบุ"}
+          </p>
+        </div>
+      </div>
+    </article>
+  );
+});
+
 export default function ResourceMatchmaker() {
   const { currentUser, userProfile, userRole } = useAuth();
   const adminView = isAdminRole(userRole);
@@ -337,6 +440,36 @@ export default function ResourceMatchmaker() {
       .filter((section) => section.groups.length > 0);
   }, [directoryCategory, directoryKeyword, expertDirectorySections]);
   const hasDirectoryMatches = filteredExpertDirectorySections.length > 0;
+  const directoryEntries = useMemo(
+    () =>
+      expertDirectorySections.flatMap((section) =>
+        section.groups.flatMap((group) =>
+          group.experts.map((entry) => ({
+            ...entry,
+            category: section.category,
+            categoryDescription: section.description,
+            specialty: group.specialty,
+            specialtyDescription: group.description,
+          })),
+        ),
+      ),
+    [expertDirectorySections],
+  );
+  const filteredDirectorySummary = useMemo(
+    () =>
+      filteredExpertDirectorySections.reduce(
+        (accumulator, section) => {
+          accumulator.categories += 1;
+          section.groups.forEach((group) => {
+            accumulator.groups += 1;
+            accumulator.experts += group.experts.length;
+          });
+          return accumulator;
+        },
+        { categories: 0, groups: 0, experts: 0 },
+      ),
+    [filteredExpertDirectorySections],
+  );
 
   const currentAssignForm =
     assignForm.requestId === (activeRequest?.id || "")
@@ -346,6 +479,11 @@ export default function ResourceMatchmaker() {
           expertId: activeRequest?.matchedExpertId || "",
           adminNote: activeRequest?.adminNote || "",
         };
+  const selectedDirectoryEntry = useMemo(
+    () =>
+      directoryEntries.find((entry) => entry.resolvedExpert?.id === currentAssignForm.expertId) || null,
+    [currentAssignForm.expertId, directoryEntries],
+  );
 
   const selectedExpert = useMemo(
     () => directoryExperts.find((expert) => expert.id === currentAssignForm.expertId) || null,
@@ -836,214 +974,236 @@ export default function ResourceMatchmaker() {
       ) : null}
 
       {adminView ? (
-        <section className="brand-panel p-6 md:p-8">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="brand-chip border-primary/10 bg-primary/5 text-primary">
-                <Users size={14} />
-                ฐานข้อมูลผู้เชี่ยวชาญ
-              </p>
-              <h2 className="mt-3 font-display text-2xl font-bold text-ink">ไดเรกทอรีผู้เชี่ยวชาญสำหรับจับคู่คำร้องแบบมืออาชีพ</h2>
-              <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
-                หน้านี้ใช้รายชื่อมาตรฐานของเครือข่ายเป็นโครงหลักเสมอ และจะซิงก์รายละเอียดจากฐานข้อมูลจริงเข้ามาอัตโนมัติ
-                เมื่อเชื่อมได้สำเร็จ เพื่อให้ทั้งการแสดงผลและดรอปดาวน์เลือกผู้เชี่ยวชาญใช้งานต่อได้ไม่สะดุด
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-3 lg:items-end">
-              <button
-                type="button"
-                onClick={handleSeedExperts}
-                disabled={seedingExperts}
-                className="brand-button-primary disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                {seedingExperts ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                นำเข้าฐานผู้เชี่ยวชาญเริ่มต้น
-              </button>
-              <p className="max-w-md text-right text-xs leading-6 text-slate-500">
-                ชุดข้อมูลเริ่มต้นนี้เตรียมผู้เชี่ยวชาญ {expertSeedSummary.expertCount} รายการ และเว้นโครงหมวดที่รอเพิ่มข้อมูลในอนาคตไว้อีก{" "}
-                {expertSeedSummary.placeholderCategories.length} หมวด
-              </p>
-            </div>
-          </div>
-
-          {seedFeedback ? (
-            <div className="mt-6 rounded-[24px] border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm leading-7 text-emerald-700">
-              {seedFeedback}
-            </div>
-          ) : null}
-
-          {seedError ? (
-            <div className="mt-6 rounded-[24px] border border-rose-200 bg-rose-50 px-5 py-4 text-sm leading-7 text-rose-700">
-              {seedError}
-            </div>
-          ) : null}
-
-          {expertsError ? (
-            <div className="mt-6 rounded-[24px] border border-amber-200 bg-amber-50 px-5 py-4 text-sm leading-7 text-amber-800">
-              {expertsError} ระบบยังคงแสดงรายชื่อจากชุดมาตรฐานให้เลือกจับคู่ได้ตามปกติ
-            </div>
-          ) : null}
-
-          <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-[26px] border border-slate-200 bg-white px-5 py-4">
-              <p className="text-xs tracking-[0.08em] text-slate-400">รายชื่อทั้งหมดในสารบบ</p>
-              <p className="mt-2 text-3xl font-bold text-ink">{directorySummary.total}</p>
-            </div>
-            <div className="rounded-[26px] border border-emerald-200 bg-emerald-50 px-5 py-4">
-              <p className="text-xs tracking-[0.08em] text-emerald-700">พร้อมเลือกจับคู่</p>
-              <p className="mt-2 text-3xl font-bold text-emerald-700">{directorySummary.available}</p>
-            </div>
-            <div className="rounded-[26px] border border-sky-200 bg-sky-50 px-5 py-4">
-              <p className="text-xs tracking-[0.08em] text-sky-700">เชื่อมฐานข้อมูลแล้ว</p>
-              <p className="mt-2 text-3xl font-bold text-sky-700">{directorySummary.synced}</p>
-            </div>
-            <div className="rounded-[26px] border border-amber-200 bg-amber-50 px-5 py-4">
-              <p className="text-xs tracking-[0.08em] text-amber-700">คิวแน่น</p>
-              <p className="mt-2 text-3xl font-bold text-amber-700">{directorySummary.limited}</p>
-            </div>
-          </div>
-
-          <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="space-y-5">
-              <div className="rounded-[30px] border border-slate-200 bg-slate-50/80 p-5">
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
-                  <label className="space-y-2 text-sm font-semibold text-ink">
-                    <span>ค้นหารายชื่อหรือสาขาความเชี่ยวชาญ</span>
-                    <input
-                      value={directoryKeyword}
-                      onChange={(event) => setDirectoryKeyword(event.target.value)}
-                      placeholder="พิมพ์ชื่อผู้เชี่ยวชาญ สาขา หรือหมวดงาน"
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
-                    />
-                  </label>
-
-                  <label className="space-y-2 text-sm font-semibold text-ink">
-                    <span>กรองตามหมวดใหญ่</span>
-                    <select
-                      value={directoryCategory}
-                      onChange={(event) => setDirectoryCategory(event.target.value)}
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
-                    >
-                      <option value="all">ทุกหมวด</option>
-                      {directoryCategoryOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label} ({option.count} รายชื่อ)
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+        <section className="brand-panel overflow-hidden p-0">
+          <div className="grid xl:grid-cols-[290px_minmax(0,1fr)]">
+            <aside className="border-b border-white/10 bg-slate-950 px-6 py-6 text-white md:px-8 xl:border-b-0 xl:border-r">
+              <div className="space-y-6 xl:sticky xl:top-6">
+                <div className="space-y-4">
+                  <span className="brand-chip border-white/12 bg-white/10 text-white/78">
+                    <Users size={14} />
+                    สารบบผู้เชี่ยวชาญ
+                  </span>
+                  <div className="space-y-3">
+                    <h2 className="font-display text-3xl font-bold leading-tight">
+                      ไดเรกทอรีผู้เชี่ยวชาญ
+                    </h2>
+                    <p className="text-sm leading-7 text-white/68">
+                      เลือกหมวดก่อน แล้วค่อยไล่รายชื่อในพื้นที่ทำงานด้านขวา เพื่อจับคู่คำร้องได้เป็นระบบและเร็วขึ้น
+                    </p>
+                  </div>
                 </div>
 
-                <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-500">
-                  <span className="rounded-full border border-slate-200 bg-white px-3 py-2">
-                    ดรอปดาวน์จับคู่จะใช้รายชื่อชุดเดียวกับไดเรกทอรีนี้
-                  </span>
-                  {loadingExperts ? (
-                    <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-2 text-sky-700">
-                      กำลังเชื่อมข้อมูลจริงจากฐานข้อมูล
-                    </span>
-                  ) : null}
+                <div className="grid gap-3">
+                  <button
+                    type="button"
+                    onClick={handleSeedExperts}
+                    disabled={seedingExperts}
+                    className="inline-flex items-center justify-center gap-2 rounded-[18px] bg-white px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {seedingExperts ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                    นำเข้าฐานผู้เชี่ยวชาญเริ่มต้น
+                  </button>
+                  <p className="text-xs leading-6 text-white/52">
+                    ชุดข้อมูลนี้เตรียมผู้เชี่ยวชาญ {expertSeedSummary.expertCount} รายการ และเว้นโครงหมวดที่รอเพิ่มข้อมูลอีก{" "}
+                    {expertSeedSummary.placeholderCategories.length} หมวด
+                  </p>
+                </div>
+
+                <div className="grid gap-3">
+                  <div className="rounded-[22px] border border-white/10 bg-white/6 px-4 py-4">
+                    <p className="text-xs tracking-[0.14em] text-white/45">รายชื่อในสารบบ</p>
+                    <p className="mt-2 text-3xl font-bold">{directorySummary.total}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-[22px] border border-emerald-400/30 bg-emerald-400/10 px-4 py-4">
+                      <p className="text-xs tracking-[0.14em] text-emerald-100/80">พร้อมจับคู่</p>
+                      <p className="mt-2 text-2xl font-bold text-emerald-100">{directorySummary.available}</p>
+                    </div>
+                    <div className="rounded-[22px] border border-sky-400/30 bg-sky-400/10 px-4 py-4">
+                      <p className="text-xs tracking-[0.14em] text-sky-100/80">ซิงก์แล้ว</p>
+                      <p className="mt-2 text-2xl font-bold text-sky-100">{directorySummary.synced}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <p className="text-xs tracking-[0.16em] text-white/42">หมวดสำหรับนำทาง</p>
+                  <div className="space-y-2">
+                    <DirectoryCategoryButton
+                      label="ทุกหมวด"
+                      count={directorySummary.total}
+                      isActive={directoryCategory === "all"}
+                      onClick={() => setDirectoryCategory("all")}
+                    />
+                    {directoryCategoryOptions.map((option) => (
+                      <DirectoryCategoryButton
+                        key={option.value}
+                        label={option.label}
+                        count={option.count}
+                        isActive={directoryCategory === option.value}
+                        onClick={() => setDirectoryCategory(option.value)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </aside>
+
+            <div className="px-6 py-6 md:px-8">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div className="max-w-3xl">
+                  <p className="text-xs tracking-[0.16em] text-slate-400">พื้นที่ทำงานหลัก</p>
+                  <h3 className="mt-3 text-2xl font-semibold text-ink">
+                    ค้นหา สำรวจ และเลือกผู้เชี่ยวชาญจากสารบบชุดเดียวกันกับดรอปดาวน์จับคู่
+                  </h3>
+                  <p className="mt-2 text-sm leading-7 text-slate-600">
+                    รายการนี้ยึดรายชื่อมาตรฐานของเครือข่ายเป็นฐานก่อนเสมอ จึงไม่ปล่อยให้หน้าโล่งแม้ระหว่างซิงก์ข้อมูลจริงจาก Firestore
+                  </p>
+                </div>
+                <div className="rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
+                  <p>หมวดที่แสดงอยู่ {filteredDirectorySummary.categories} หมวด</p>
+                  <p className="mt-1">สาขาย่อยที่กำลังเห็น {filteredDirectorySummary.groups} กลุ่ม</p>
+                  <p className="mt-1">รายชื่อที่พบ {filteredDirectorySummary.experts} คน</p>
                 </div>
               </div>
 
-              {hasDirectoryMatches ? (
-                filteredExpertDirectorySections.map((section) => (
-                  <article key={section.category} className="rounded-[30px] border border-slate-200 bg-slate-50/80 p-5">
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="max-w-3xl">
-                        <p className="text-lg font-semibold text-ink">{section.category}</p>
-                        <p className="mt-2 text-sm leading-7 text-slate-600">{section.description}</p>
-                      </div>
-                      <div className="rounded-[22px] border border-white bg-white px-4 py-3 text-sm text-slate-600">
-                        <p>จำนวนสาขาย่อย {section.groups.length} กลุ่ม</p>
+              {seedFeedback ? (
+                <div className="mt-6 rounded-[24px] border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm leading-7 text-emerald-700">
+                  {seedFeedback}
+                </div>
+              ) : null}
+
+              {seedError ? (
+                <div className="mt-6 rounded-[24px] border border-rose-200 bg-rose-50 px-5 py-4 text-sm leading-7 text-rose-700">
+                  {seedError}
+                </div>
+              ) : null}
+
+              {expertsError ? (
+                <div className="mt-6 rounded-[24px] border border-amber-200 bg-amber-50 px-5 py-4 text-sm leading-7 text-amber-800">
+                  {expertsError} ระบบยังคงแสดงรายชื่อจากชุดมาตรฐานให้เลือกจับคู่ได้ตามปกติ
+                </div>
+              ) : null}
+
+              <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+                <div className="space-y-5">
+                  <div className="rounded-[28px] border border-slate-200 bg-slate-50/85 p-5">
+                    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
+                      <label className="space-y-2 text-sm font-semibold text-ink">
+                        <span>ค้นหารายชื่อหรือสาขาความเชี่ยวชาญ</span>
+                        <input
+                          value={directoryKeyword}
+                          onChange={(event) => setDirectoryKeyword(event.target.value)}
+                          placeholder="พิมพ์ชื่อผู้เชี่ยวชาญ สาขา หรือหมวดงาน"
+                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
+                        />
+                      </label>
+
+                      <div className="rounded-[22px] border border-white bg-white px-4 py-4 text-sm leading-7 text-slate-600">
+                        <p>ดรอปดาวน์จับคู่จะใช้รายชื่อชุดเดียวกับสารบบนี้</p>
                         <p className="mt-1">
-                          เชื่อมกับฐานข้อมูลแล้ว{" "}
-                          {section.groups.reduce((sum, group) => sum + group.syncedCount, 0)} รายชื่อ
+                          {loadingExperts ? "กำลังเชื่อมข้อมูลจริงจากฐานข้อมูล" : "พร้อมเลือกผู้เชี่ยวชาญจากรายการนี้ได้ทันที"}
                         </p>
                       </div>
                     </div>
+                  </div>
 
-                    <div className="mt-5 overflow-hidden rounded-[28px] border border-white bg-white">
-                      {section.groups.map((group, index) => (
-                        <div
-                          key={`${section.category}-${group.specialty}`}
-                          className={`grid gap-5 px-5 py-5 xl:grid-cols-[300px_minmax(0,1fr)] ${
-                            index === 0 ? "" : "border-t border-slate-100"
-                          }`}
-                        >
-                          <div className="space-y-3">
-                            <div>
-                              <p className="text-base font-semibold text-ink">{group.specialty}</p>
-                              <p className="mt-2 text-sm leading-7 text-slate-600">{group.description}</p>
+                  {hasDirectoryMatches ? (
+                    filteredExpertDirectorySections.map((section) => (
+                      <article key={section.category} className="overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-[0_14px_40px_rgba(15,23,42,0.04)]">
+                        <div className="border-b border-slate-100 px-5 py-5">
+                          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                            <div className="max-w-3xl">
+                              <p className="text-lg font-semibold text-ink">{section.category}</p>
+                              <p className="mt-2 text-sm leading-7 text-slate-600">{section.description}</p>
                             </div>
                             <div className="flex flex-wrap gap-2 text-xs text-slate-500">
                               <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
-                                รายชื่อในกลุ่ม {group.experts.length} คน
+                                สาขาย่อย {section.groups.length} กลุ่ม
                               </span>
                               <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-sky-700">
-                                ซิงก์แล้ว {group.syncedCount} คน
+                                ซิงก์แล้ว {section.groups.reduce((sum, group) => sum + group.syncedCount, 0)} คน
                               </span>
                             </div>
                           </div>
-
-                          {group.experts.length > 0 ? (
-                            <div className="space-y-3">
-                              {group.experts.map((entry) => (
-                                <ExpertRosterRow
-                                  key={`${group.specialty}-${entry.displayName}`}
-                                  entry={entry}
-                                  isSelected={currentAssignForm.expertId === entry.resolvedExpert?.id}
-                                  onSelect={(expertId) =>
-                                    setAssignForm((previous) => ({
-                                      ...previous,
-                                      requestId: activeRequest?.id || "",
-                                      expertId,
-                                    }))
-                                  }
-                                />
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-500">
-                              กลุ่มนี้เตรียมโครงสร้างไว้แล้วและยังรอการเพิ่มรายชื่อผู้เชี่ยวชาญในอนาคต
-                            </div>
-                          )}
                         </div>
-                      ))}
+
+                        <div>
+                          {section.groups.map((group, index) => (
+                            <div
+                              key={`${section.category}-${group.specialty}`}
+                              className={`grid gap-5 px-5 py-5 xl:grid-cols-[280px_minmax(0,1fr)] ${
+                                index === 0 ? "" : "border-t border-slate-100"
+                              }`}
+                            >
+                              <div className="space-y-3">
+                                <div>
+                                  <p className="text-base font-semibold text-ink">{group.specialty}</p>
+                                  <p className="mt-2 text-sm leading-7 text-slate-600">{group.description}</p>
+                                </div>
+                                <div className="flex flex-wrap gap-2 text-xs text-slate-500">
+                                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                                    รายชื่อ {group.experts.length} คน
+                                  </span>
+                                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-700">
+                                    พร้อมเลือก {group.availableCount} คน
+                                  </span>
+                                </div>
+                              </div>
+
+                              {group.experts.length > 0 ? (
+                                <div className="space-y-3">
+                                  {group.experts.map((entry) => (
+                                    <ExpertRosterRow
+                                      key={`${group.specialty}-${entry.displayName}`}
+                                      entry={entry}
+                                      isSelected={currentAssignForm.expertId === entry.resolvedExpert?.id}
+                                      onSelect={(expertId) =>
+                                        setAssignForm((previous) => ({
+                                          ...previous,
+                                          requestId: activeRequest?.id || "",
+                                          expertId,
+                                        }))
+                                      }
+                                    />
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-500">
+                                  กลุ่มนี้เตรียมโครงสร้างไว้แล้วและยังรอการเพิ่มรายชื่อผู้เชี่ยวชาญในอนาคต
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </article>
+                    ))
+                  ) : (
+                    <div className="rounded-[30px] border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">
+                      <p className="text-lg font-semibold text-ink">ยังไม่พบรายชื่อที่ตรงกับคำค้นนี้</p>
+                      <p className="mt-2 text-sm leading-7 text-slate-500">
+                        ลองเปลี่ยนคำค้นหรือสลับหมวดจากแถบนำทางด้านซ้ายเพื่อดูรายชื่อกลุ่มอื่น
+                      </p>
                     </div>
-                  </article>
-                ))
-              ) : (
-                <div className="rounded-[30px] border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">
-                  <p className="text-lg font-semibold text-ink">ยังไม่พบรายชื่อที่ตรงกับคำค้นนี้</p>
-                  <p className="mt-2 text-sm leading-7 text-slate-500">
-                    ลองเปลี่ยนคำค้นหรือสลับหมวดใหญ่เพื่อดูรายชื่อผู้เชี่ยวชาญกลุ่มอื่น
-                  </p>
+                  )}
                 </div>
-              )}
-            </div>
 
-            <aside className="space-y-4">
-              <div className="rounded-[30px] border border-slate-200 bg-white p-5">
-                <p className="text-sm font-semibold text-ink">ผู้เชี่ยวชาญที่กำลังเลือก</p>
-                <p className="mt-2 text-sm leading-7 text-slate-600">
-                  คลิกรายชื่อจากไดเรกทอรีหรือเลือกจากดรอปดาวน์ในกล่องจับคู่ ระบบจะอัปเดตข้อมูลฝั่งนี้ทันที
-                </p>
+                <aside className="space-y-4 xl:sticky xl:top-6 xl:self-start">
+                  <div className="rounded-[30px] border border-slate-200 bg-slate-50/80 p-5">
+                    <p className="text-xs tracking-[0.16em] text-slate-400">สถานะการเลือก</p>
+                    <h4 className="mt-3 text-xl font-semibold text-ink">ผู้เชี่ยวชาญที่กำลังจะถูกจับคู่</h4>
+                    <p className="mt-2 text-sm leading-7 text-slate-600">
+                      คลิกจากรายชื่อหลักเพื่ออัปเดตแผงนี้ แล้วค่อยกลับไปกดบันทึกในกล่องจับคู่ด้านบน
+                    </p>
+                  </div>
+
+                  <SelectedExpertPanel
+                    expert={selectedExpert}
+                    entry={selectedDirectoryEntry}
+                  />
+                </aside>
               </div>
-
-              {selectedExpert ? (
-                <ExpertDirectoryCard
-                  expert={selectedExpert}
-                  isSelected
-                  onSelect={() => {}}
-                />
-              ) : (
-                <div className="rounded-[30px] border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm leading-7 text-slate-500">
-                  ยังไม่ได้เลือกผู้เชี่ยวชาญสำหรับคำร้องนี้
-                </div>
-              )}
-            </aside>
+            </div>
           </div>
         </section>
       ) : null}
