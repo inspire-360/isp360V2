@@ -15,6 +15,7 @@ import {
 } from "firebase/firestore";
 import {
   buildVideoCommentPreview,
+  resolvePlayableVideoSource,
   sortVideoComments,
   VIDEO_COMMENTS_SUBCOLLECTION,
   VIDEOS_COLLECTION,
@@ -132,6 +133,7 @@ const buildVideoRows = ({ enrollments, teachers, reviewDocs }) => {
             String(moduleFourMissionTwo.subjectName || reviewDoc.subject || teacherProfile.position || "").trim(),
           schoolName: String(reviewDoc.schoolName || teacherProfile.school || "").trim(),
           videoUrl,
+          playerSource: resolvePlayableVideoSource(videoUrl),
           durationSeconds:
             reviewDoc.durationSeconds == null
               ? null

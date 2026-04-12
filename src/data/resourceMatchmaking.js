@@ -1,5 +1,7 @@
 export const EXPERTS_COLLECTION = "experts";
 export const MATCH_REQUESTS_COLLECTION = "match_requests";
+export const normalizeMarketplaceExpertName = (value = "") =>
+  String(value || "").replace(/\s+/g, " ").trim();
 
 export const matchRequestStatusOptions = [
   {
@@ -134,11 +136,11 @@ const buildSingleExpertRecord = ({
 
   const normalizedExpert = {
     id:
-      String(sourceData.displayName || "").trim() === String(displayName || "").trim()
+      normalizeMarketplaceExpertName(sourceData.displayName) === normalizeMarketplaceExpertName(displayName)
         ? sourceId
         : createExpertSelectionId(sourceId, displayName, index),
     sourceId,
-    displayName: String(displayName || "").trim() || "ผู้เชี่ยวชาญ",
+    displayName: normalizeMarketplaceExpertName(displayName) || "ผู้เชี่ยวชาญ",
     title,
     organization: String(sourceData.organization || sourceData.orgName || "").trim() || "เครือข่ายผู้เชี่ยวชาญ DU",
     primaryExpertise: String(primaryExpertise || title).trim(),
@@ -192,9 +194,9 @@ export const expandExpertDirectoryRecords = (records = []) =>
       return [];
     }
 
-    const displayName = String(
+    const displayName = normalizeMarketplaceExpertName(
       sourceData.displayName || sourceData.name || sourceData.fullName || sourceId,
-    ).trim();
+    );
     const primaryExpertise = String(
       sourceData.primaryExpertise ||
         sourceData.specialty ||

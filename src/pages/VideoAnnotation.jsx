@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useMemo, useRef, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Clapperboard,
   Loader2,
@@ -13,6 +13,7 @@ import {
 import { useAuth } from "../contexts/AuthContext";
 import {
   formatVideoDateTime,
+  parseVideoTimecodeInput,
   formatVideoTimecode,
   getVideoReviewStatusMeta,
   videoReviewStatusOptions,
@@ -23,6 +24,7 @@ const VideoCommentItem = memo(function VideoCommentItem({
   comment,
   isActive,
   isSeeking,
+  canSeek,
   onSeek,
 }) {
   return (
@@ -30,11 +32,12 @@ const VideoCommentItem = memo(function VideoCommentItem({
       <button
         type="button"
         onClick={() => onSeek(comment)}
+        disabled={!canSeek}
         className={`w-full rounded-[24px] border px-4 py-4 text-left transition ${
           isActive || isSeeking
             ? "border-primary/30 bg-primary/5 shadow-[0_16px_35px_rgba(13,17,100,0.12)]"
             : "border-slate-200 bg-white hover:border-secondary/25 hover:bg-secondary/5"
-        }`}
+        } ${!canSeek ? "cursor-not-allowed opacity-70" : ""}`}
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span className="inline-flex rounded-full border border-primary/10 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary">
@@ -45,7 +48,13 @@ const VideoCommentItem = memo(function VideoCommentItem({
         <p className="mt-3 text-sm leading-7 text-slate-700">{comment.body}</p>
         <div className="mt-3 flex items-center justify-between gap-3 text-xs text-slate-500">
           <span>{comment.authorName || "ผู้ดูแล DU"}</span>
-          <span>{isSeeking ? "กำลังเลื่อนไปยังช่วงนี้" : "คลิกเพื่อเปิดวิดีโอตรงช่วงนี้"}</span>
+          <span>
+            {!canSeek
+              ? "ใช้เวลานี้เป็นจุดอ้างอิง"
+              : isSeeking
+                ? "กำลังเลื่อนไปยังช่วงนี้"
+                : "คลิกเพื่อเปิดวิดีโอตรงช่วงนี้"}
+          </span>
         </div>
       </button>
     </li>
@@ -55,12 +64,20 @@ const VideoCommentItem = memo(function VideoCommentItem({
 export default function VideoAnnotation() {
   const { currentUser, userProfile, userRole } = useAuth();
   const videoRef = useRef(null);
+  const youtubeContainerRef = useRef(null);
+  const youtubePlayerRef = useRef(null);
+  const youtubeTickerRef = useRef(null);
   const [draftComment, setDraftComment] = useState("");
   const [capturedSeconds, setCapturedSeconds] = useState(null);
   const [currentSecond, setCurrentSecond] = useState(0);
   const [durationSeconds, setDurationSeconds] = useState(0);
   const [seekingCommentId, setSeekingCommentId] = useState("");
   const [formError, setFormError] = useState("");
+  const [manualTimecode, setManualTimecode] = useState("00:00");
+  const [playerNotice, setPlayerNotice] = useState("");
+  const [youtubeApiReady, setYoutubeApiReady] = useState(
+    () => typeof window !== "undefined" && Boolean(window.YT?.Player),
+  );
 
   const {
     videos,
@@ -82,13 +99,185 @@ export default function VideoAnnotation() {
     userRole,
   });
 
+  const activeStatusMeta = getVideoReviewStatusMeta(activeVideo?.reviewStatus);
+  const selectedCommentCount = Number(activeVideo?.commentCount || comments.length || 0);
+  const playerSource = activeVideo?.playerSource || null;
+  const playerProvider = playerSource?.provider || "";
+  const playerVideoId = playerSource?.videoId || "";
+  const canPlayVideo = Boolean(playerSource?.canPlay);
+  const canTrackTimeline = Boolean(playerSource?.canTrackTimeline);
+  const manualSeconds = useMemo(
+    () => parseVideoTimecodeInput(manualTimecode),
+    [manualTimecode],
+  );
+
+  const clearYoutubeTicker = useCallback(() => {
+    if (youtubeTickerRef.current) {
+      window.clearInterval(youtubeTickerRef.current);
+      youtubeTickerRef.current = null;
+    }
+  }, []);
+
+  const destroyYoutubePlayer = useCallback(() => {
+    clearYoutubeTicker();
+    if (youtubePlayerRef.current?.destroy) {
+      youtubePlayerRef.current.destroy();
+    }
+    youtubePlayerRef.current = null;
+    if (youtubeContainerRef.current) {
+      youtubeContainerRef.current.innerHTML = "";
+    }
+  }, [clearYoutubeTicker]);
+
+  const syncYoutubeProgress = useCallback(() => {
+    const player = youtubePlayerRef.current;
+    if (!player) return;
+
+    const nextCurrentSecond = Math.max(0, Math.floor(player.getCurrentTime?.() || 0));
+    const nextDurationSeconds = Math.max(0, Math.floor(player.getDuration?.() || 0));
+
+    setCurrentSecond((previous) => (previous === nextCurrentSecond ? previous : nextCurrentSecond));
+    if (nextDurationSeconds > 0) {
+      setDurationSeconds((previous) =>
+        previous === nextDurationSeconds ? previous : nextDurationSeconds,
+      );
+    }
+  }, []);
+
   useEffect(() => {
     setDraftComment("");
     setFormError("");
     setCapturedSeconds(null);
     setCurrentSecond(0);
     setDurationSeconds(Number(activeVideo?.durationSeconds || 0));
-  }, [activeVideoId, activeVideo?.durationSeconds]);
+    setManualTimecode("00:00");
+    if (!playerProvider) {
+      setPlayerNotice("");
+      return;
+    }
+
+    if (playerProvider === "google_drive") {
+      setPlayerNotice("ลิงก์จากกูเกิลไดรฟ์เล่นได้ แต่ระบบยังไม่สามารถอ่านเวลาอัตโนมัติจากตัวเล่นชนิดนี้ จึงควรระบุเวลาเป็นข้อความเอง");
+      return;
+    }
+
+    if (playerProvider === "unsupported") {
+      setPlayerNotice("ลิงก์นี้ยังไม่อยู่ในรูปแบบที่ระบบเล่นในหน้าโค้ชได้ กรุณาเปิดจากลิงก์ต้นฉบับหรือเปลี่ยนเป็นยูทูบ ไฟล์วิดีโอ หรือกูเกิลไดรฟ์");
+      return;
+    }
+
+    setPlayerNotice("");
+  }, [activeVideoId, activeVideo?.durationSeconds, playerProvider]);
+
+  useEffect(() => {
+    if (playerProvider === "youtube") {
+      return undefined;
+    }
+
+    destroyYoutubePlayer();
+    return undefined;
+  }, [destroyYoutubePlayer, playerProvider]);
+
+  useEffect(() => {
+    if (playerProvider !== "youtube" || typeof window === "undefined") {
+      return undefined;
+    }
+
+    if (window.YT?.Player) {
+      setYoutubeApiReady(true);
+      return undefined;
+    }
+
+    const previousReadyHandler = window.onYouTubeIframeAPIReady;
+    const nextReadyHandler = () => {
+      previousReadyHandler?.();
+      setYoutubeApiReady(true);
+    };
+
+    window.onYouTubeIframeAPIReady = nextReadyHandler;
+
+    if (!document.getElementById("du-youtube-player-api")) {
+      const script = document.createElement("script");
+      script.id = "du-youtube-player-api";
+      script.src = "https://www.youtube.com/iframe_api";
+      document.body.appendChild(script);
+    }
+
+    return () => {
+      if (window.onYouTubeIframeAPIReady === nextReadyHandler) {
+        window.onYouTubeIframeAPIReady = previousReadyHandler;
+      }
+    };
+  }, [playerProvider]);
+
+  useEffect(() => {
+    if (
+      playerProvider !== "youtube" ||
+      !youtubeApiReady ||
+      !playerVideoId ||
+      !youtubeContainerRef.current ||
+      typeof window === "undefined" ||
+      !window.YT?.Player
+    ) {
+      return undefined;
+    }
+
+    destroyYoutubePlayer();
+
+    const player = new window.YT.Player(youtubeContainerRef.current, {
+      videoId: playerVideoId,
+      playerVars: {
+        rel: 0,
+        playsinline: 1,
+      },
+      events: {
+        onReady: () => {
+          syncYoutubeProgress();
+          clearYoutubeTicker();
+          youtubeTickerRef.current = window.setInterval(syncYoutubeProgress, 500);
+        },
+        onStateChange: () => {
+          syncYoutubeProgress();
+          if (!youtubeTickerRef.current) {
+            youtubeTickerRef.current = window.setInterval(syncYoutubeProgress, 500);
+          }
+        },
+        onError: () => {
+          setPlayerNotice("ไม่สามารถเล่นวิดีโอจากยูทูบรายการนี้ได้ กรุณาตรวจสอบว่าลิงก์ยังเปิดให้เข้าถึงอยู่");
+        },
+      },
+    });
+
+    youtubePlayerRef.current = player;
+
+    return () => {
+      destroyYoutubePlayer();
+    };
+  }, [
+    activeVideo?.id,
+    clearYoutubeTicker,
+    destroyYoutubePlayer,
+    playerProvider,
+    playerVideoId,
+    syncYoutubeProgress,
+    youtubeApiReady,
+  ]);
+
+  useEffect(() => {
+    if (
+      !activeVideo?.id ||
+      playerProvider !== "youtube" ||
+      !durationSeconds ||
+      durationSeconds === Number(activeVideo.durationSeconds || 0)
+    ) {
+      return;
+    }
+
+    saveDuration({
+      video: activeVideo,
+      durationSeconds,
+    }).catch(() => undefined);
+  }, [activeVideo, durationSeconds, playerProvider, saveDuration]);
 
   const summary = useMemo(
     () => ({
@@ -99,9 +288,6 @@ export default function VideoAnnotation() {
     }),
     [videos],
   );
-
-  const activeStatusMeta = getVideoReviewStatusMeta(activeVideo?.reviewStatus);
-  const selectedCommentCount = Number(activeVideo?.commentCount || comments.length || 0);
 
   const closestCommentId = useMemo(() => {
     if (!comments.length) return "";
@@ -121,6 +307,57 @@ export default function VideoAnnotation() {
     return nearestComment.id;
   }, [comments, currentSecond]);
 
+  const resolveCurrentPlaybackSecond = () => {
+    if (playerSource?.provider === "youtube") {
+      return Math.max(0, Math.floor(youtubePlayerRef.current?.getCurrentTime?.() || 0));
+    }
+
+    return Math.max(0, Math.floor(videoRef.current?.currentTime || 0));
+  };
+
+  const pauseCurrentPlayer = () => {
+    if (playerSource?.provider === "youtube") {
+      youtubePlayerRef.current?.pauseVideo?.();
+      return;
+    }
+
+    videoRef.current?.pause?.();
+  };
+
+  const seekCurrentPlayer = async (nextSecond, { autoPlay = false } = {}) => {
+    const safeSecond = Math.max(0, Math.floor(Number(nextSecond) || 0));
+
+    if (playerSource?.provider === "youtube") {
+      const player = youtubePlayerRef.current;
+      if (!player) return;
+      player.seekTo?.(safeSecond, true);
+      if (autoPlay) {
+        player.playVideo?.();
+      } else {
+        player.pauseVideo?.();
+      }
+      setCurrentSecond(safeSecond);
+      return;
+    }
+
+    const element = videoRef.current;
+    if (!element) return;
+
+    element.currentTime = safeSecond;
+    setCurrentSecond(safeSecond);
+
+    if (autoPlay) {
+      try {
+        await element.play();
+      } catch {
+        element.pause();
+      }
+      return;
+    }
+
+    element.pause();
+  };
+
   const handleTimeUpdate = (event) => {
     const nextSecond = Math.max(0, Math.floor(event.currentTarget.currentTime || 0));
     setCurrentSecond((previous) => (previous === nextSecond ? previous : nextSecond));
@@ -139,41 +376,38 @@ export default function VideoAnnotation() {
   };
 
   const captureMoment = () => {
-    const element = videoRef.current;
-    if (!element) return;
+    if (!canTrackTimeline) {
+      setFormError("ลิงก์วิดีโอชนิดนี้ยังไม่รองรับการอ่านเวลาจากตัวเล่น กรุณาระบุเวลาเป็นรูปแบบ นาที:วินาที แทน");
+      return;
+    }
 
-    element.pause();
-    const nextSecond = Math.max(0, Math.floor(element.currentTime || 0));
+    pauseCurrentPlayer();
+    const nextSecond = resolveCurrentPlaybackSecond();
     setCapturedSeconds(nextSecond);
     setCurrentSecond(nextSecond);
     setFormError("");
   };
 
   const jumpBy = (offsetSeconds) => {
-    const element = videoRef.current;
-    if (!element) return;
+    if (!canTrackTimeline) return;
 
-    const duration = Number.isFinite(element.duration) ? element.duration : Number(durationSeconds || 0);
-    const rawSecond = element.currentTime + offsetSeconds;
+    const duration = Number(durationSeconds || 0);
+    const rawSecond = resolveCurrentPlaybackSecond() + offsetSeconds;
     const upperBound = duration > 0 ? duration : Math.max(0, rawSecond);
     const nextSecond = Math.max(0, Math.min(upperBound, rawSecond));
-
-    element.currentTime = nextSecond;
-    setCurrentSecond(Math.floor(nextSecond));
+    void seekCurrentPlayer(nextSecond, { autoPlay: false });
   };
 
   const handleSeekComment = async (comment) => {
-    const element = videoRef.current;
-    if (!element) return;
+    if (!canTrackTimeline) {
+      setFormError("ลิงก์ชนิดนี้ยังไม่รองรับการเลื่อนไปยังเวลาคอมเมนต์อัตโนมัติ กรุณาเปิดดูจากเวลาที่แสดงบนคอมเมนต์แทน");
+      return;
+    }
 
     setSeekingCommentId(comment.id);
-    element.currentTime = Number(comment.timestampSeconds || 0);
-    setCurrentSecond(Math.max(0, Math.floor(comment.timestampSeconds || 0)));
 
     try {
-      await element.play();
-    } catch {
-      element.pause();
+      await seekCurrentPlayer(Number(comment.timestampSeconds || 0), { autoPlay: true });
     } finally {
       window.setTimeout(() => setSeekingCommentId(""), 1000);
     }
@@ -193,9 +427,15 @@ export default function VideoAnnotation() {
       return;
     }
 
-    const element = videoRef.current;
-    const fallbackSecond = Math.max(0, Math.floor(element?.currentTime || 0));
-    const nextSecond = Number.isFinite(capturedSeconds) ? capturedSeconds : fallbackSecond;
+    const fallbackSecond = resolveCurrentPlaybackSecond();
+    const nextSecond = canTrackTimeline
+      ? (Number.isFinite(capturedSeconds) ? capturedSeconds : fallbackSecond)
+      : manualSeconds;
+
+    if (!Number.isFinite(nextSecond)) {
+      setFormError("กรุณาระบุเวลาเป็นรูปแบบ นาที:วินาที เช่น 02:15 ก่อนบันทึกคอมเมนต์");
+      return;
+    }
 
     try {
       await addComment({
@@ -376,28 +616,80 @@ export default function VideoAnnotation() {
             {activeVideo?.id ? (
               <>
                 <div className="overflow-hidden rounded-[32px] border border-slate-100 bg-slate-950 shadow-[0_28px_80px_rgba(15,23,42,0.25)]">
-                  <video
-                    ref={videoRef}
-                    src={activeVideo.videoUrl}
-                    controls
-                    preload="metadata"
-                    onTimeUpdate={handleTimeUpdate}
-                    onLoadedMetadata={handleLoadedMetadata}
-                    className="aspect-video w-full bg-black"
-                  >
-                    เบราว์เซอร์นี้ยังไม่รองรับการเล่นวิดีโอ
-                  </video>
+                  {playerSource?.provider === "youtube" ? (
+                    <div ref={youtubeContainerRef} className="aspect-video w-full bg-black" />
+                  ) : playerSource?.provider === "google_drive" ? (
+                    <iframe
+                      src={playerSource.embedUrl}
+                      title={activeVideo.title || "วิดีโอการสอนจริง"}
+                      allow="autoplay; fullscreen"
+                      allowFullScreen
+                      className="aspect-video w-full border-0 bg-black"
+                    />
+                  ) : canPlayVideo ? (
+                    <video
+                      ref={videoRef}
+                      src={playerSource?.playbackUrl || activeVideo.videoUrl}
+                      controls
+                      preload="metadata"
+                      onTimeUpdate={handleTimeUpdate}
+                      onLoadedMetadata={handleLoadedMetadata}
+                      className="aspect-video w-full bg-black"
+                    >
+                      เบราว์เซอร์นี้ยังไม่รองรับการเล่นวิดีโอ
+                    </video>
+                  ) : (
+                    <div className="flex aspect-video flex-col items-center justify-center gap-4 bg-slate-950 px-6 text-center text-white">
+                      <Clapperboard size={30} className="text-white/60" />
+                      <div>
+                        <p className="text-lg font-semibold">ยังไม่สามารถเล่นลิงก์นี้ในหน้าโค้ชได้</p>
+                        <p className="mt-2 text-sm leading-7 text-white/70">
+                          กรุณาเปิดจากลิงก์ต้นฉบับ หรือเปลี่ยนลิงก์ให้เป็นยูทูบ กูเกิลไดรฟ์ หรือไฟล์วิดีโอโดยตรง
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600">
+                    แหล่งวิดีโอ: {playerSource?.providerLabel || "ยังไม่ได้ระบุ"}
+                  </span>
+                  {playerSource?.originalUrl ? (
+                    <a
+                      href={playerSource.originalUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-primary transition hover:border-primary/25 hover:bg-primary/5"
+                    >
+                      เปิดลิงก์ต้นฉบับ
+                    </a>
+                  ) : null}
+                </div>
+
+                {playerNotice ? (
+                  <div className="rounded-[24px] border border-amber-200 bg-amber-50 px-5 py-4 text-sm leading-7 text-amber-800">
+                    {playerNotice}
+                  </div>
+                ) : null}
 
                 <div className="grid gap-3 md:grid-cols-4">
                   <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4">
-                    <p className="text-xs tracking-[0.08em] text-slate-400">เวลาปัจจุบัน</p>
-                    <p className="mt-2 text-2xl font-bold text-ink">{formatVideoTimecode(currentSecond)}</p>
+                    <p className="text-xs tracking-[0.08em] text-slate-400">
+                      {canTrackTimeline ? "เวลาปัจจุบัน" : "เวลาที่กรอกเอง"}
+                    </p>
+                    <p className="mt-2 text-2xl font-bold text-ink">
+                      {canTrackTimeline
+                        ? formatVideoTimecode(currentSecond)
+                        : (manualTimecode || "00:00")}
+                    </p>
                   </div>
                   <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4">
                     <p className="text-xs tracking-[0.08em] text-slate-400">เวลาที่จะบันทึก</p>
                     <p className="mt-2 text-2xl font-bold text-ink">
-                      {formatVideoTimecode(capturedSeconds ?? currentSecond)}
+                      {canTrackTimeline
+                        ? formatVideoTimecode(capturedSeconds ?? currentSecond)
+                        : (manualSeconds == null ? "รอระบุ" : formatVideoTimecode(manualSeconds))}
                     </p>
                   </div>
                   <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4">
@@ -416,7 +708,8 @@ export default function VideoAnnotation() {
                   <button
                     type="button"
                     onClick={() => jumpBy(-10)}
-                    className="brand-button-secondary"
+                    disabled={!canTrackTimeline}
+                    className="brand-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <SkipBack size={16} />
                     ย้อนกลับ 10 วินาที
@@ -424,22 +717,26 @@ export default function VideoAnnotation() {
                   <button
                     type="button"
                     onClick={captureMoment}
-                    className="brand-button-primary"
+                    disabled={!canTrackTimeline}
+                    className="brand-button-primary disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <PauseCircle size={16} />
-                    หยุดและจับเวลาตรงนี้
+                    {canTrackTimeline ? "หยุดและจับเวลาตรงนี้" : "ใช้เวลาที่กรอกเอง"}
                   </button>
                   <button
                     type="button"
                     onClick={() => jumpBy(10)}
-                    className="brand-button-secondary"
+                    disabled={!canTrackTimeline}
+                    className="brand-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     เดินหน้า 10 วินาที
                     <SkipForward size={16} />
                   </button>
                   <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">
                     {savingDuration ? <Loader2 size={16} className="animate-spin text-primary" /> : <PlayCircle size={16} className="text-primary" />}
-                    ระบบจะบันทึกความยาววิดีโอให้อัตโนมัติเมื่อโหลดเสร็จ
+                    {canTrackTimeline
+                      ? "ระบบจะบันทึกความยาววิดีโอให้อัตโนมัติเมื่อโหลดเสร็จ"
+                      : "ลิงก์ชนิดนี้ยังใช้เวลาจากตัวเล่นอัตโนมัติไม่ได้"}
                   </div>
                 </div>
 
@@ -459,12 +756,28 @@ export default function VideoAnnotation() {
                   <div className="mt-4 grid gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
                     <div className="rounded-[24px] border border-slate-200 bg-white px-4 py-4">
                       <p className="text-xs tracking-[0.08em] text-slate-400">ตำแหน่งที่จะผูกกับคอมเมนต์</p>
-                      <p className="mt-2 text-3xl font-bold text-ink">
-                        {formatVideoTimecode(capturedSeconds ?? currentSecond)}
-                      </p>
-                      <p className="mt-2 text-sm leading-7 text-slate-500">
-                        เวลานี้จะถูกใช้ตอนกดบันทึก และครูสามารถคลิกย้อนกลับมาดูช่วงนี้ได้ทันที
-                      </p>
+                      {canTrackTimeline ? (
+                        <>
+                          <p className="mt-2 text-3xl font-bold text-ink">
+                            {formatVideoTimecode(capturedSeconds ?? currentSecond)}
+                          </p>
+                          <p className="mt-2 text-sm leading-7 text-slate-500">
+                            เวลานี้จะถูกใช้ตอนกดบันทึก และครูสามารถคลิกย้อนกลับมาดูช่วงนี้ได้ทันที
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <input
+                            value={manualTimecode}
+                            onChange={(event) => setManualTimecode(event.target.value)}
+                            placeholder="02:15"
+                            className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-lg font-semibold text-ink outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
+                          />
+                          <p className="mt-2 text-sm leading-7 text-slate-500">
+                            กรอกเวลาในรูปแบบ นาที:วินาที หรือ ชั่วโมง:นาที:วินาที เช่น 02:15 หรือ 01:02:15
+                          </p>
+                        </>
+                      )}
                     </div>
 
                     <div className="space-y-3">
@@ -479,19 +792,26 @@ export default function VideoAnnotation() {
                         />
                       </label>
 
+                      {!canTrackTimeline ? (
+                        <div className="rounded-[20px] border border-slate-200 bg-white px-4 py-3 text-sm leading-7 text-slate-500">
+                          ระบบจะใช้เวลาจากช่องด้านซ้ายแทนการอ่านจากตัวเล่นอัตโนมัติ
+                        </div>
+                      ) : null}
+
                       {formError ? <p className="text-sm font-medium text-rose-600">{formError}</p> : null}
 
                       <div className="flex flex-wrap gap-3">
                         <button
                           type="button"
                           onClick={captureMoment}
-                          className="brand-button-secondary"
+                          disabled={!canTrackTimeline}
+                          className="brand-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          ใช้เวลาปัจจุบัน
+                          {canTrackTimeline ? "ใช้เวลาปัจจุบัน" : "ใช้เวลาจากช่องซ้าย"}
                         </button>
                         <button
                           type="submit"
-                          disabled={savingComment}
+                          disabled={savingComment || (!canTrackTimeline && manualSeconds == null)}
                           className="brand-button-primary disabled:cursor-not-allowed disabled:opacity-70"
                         >
                           {savingComment ? <Loader2 size={16} className="animate-spin" /> : <MessageSquareText size={16} />}
@@ -526,7 +846,9 @@ export default function VideoAnnotation() {
                 คอมเมนต์เรียลไทม์
               </h2>
               <p className="mt-2 text-sm leading-7 text-slate-600">
-                คลิกคอมเมนต์รายการใดก็ได้เพื่อให้วิดีโอย้อนกลับไปยังช่วงเวลานั้นทันที
+                {canTrackTimeline
+                  ? "คลิกคอมเมนต์รายการใดก็ได้เพื่อให้วิดีโอย้อนกลับไปยังช่วงเวลานั้นทันที"
+                  : "ผู้เล่นชนิดนี้ยังไม่รองรับการข้ามเวลาอัตโนมัติ แต่คอมเมนต์ทุกชิ้นจะยังเก็บเวลาอ้างอิงไว้ให้ครูดูตามได้"}
               </p>
             </div>
             <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600">
@@ -569,6 +891,7 @@ export default function VideoAnnotation() {
                     comment={comment}
                     isActive={closestCommentId === comment.id}
                     isSeeking={seekingCommentId === comment.id}
+                    canSeek={canTrackTimeline}
                     onSeek={handleSeekComment}
                   />
                 ))}

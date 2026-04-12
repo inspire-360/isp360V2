@@ -19,7 +19,7 @@ import {
   matchRequestStatusOptions,
   preferredFormatOptions,
 } from "../data/resourceMatchmaking";
-import { buildExpertSeedSummary } from "../data/expertSeedCatalog";
+import { buildExpertDirectorySections, buildExpertSeedSummary } from "../data/expertSeedCatalog";
 import { useResourceMarketplace } from "../hooks/useResourceMarketplace";
 import { isAdminRole, isTeacherRole } from "../utils/userRoles";
 
@@ -202,9 +202,26 @@ export default function ResourceMatchmaker() {
     [experts],
   );
 
-  const activeExperts = useMemo(
-    () => experts.filter((expert) => expert.isActive !== false),
+  const expertDirectorySections = useMemo(
+    () => buildExpertDirectorySections(experts),
     [experts],
+  );
+  const expertSelectGroups = useMemo(
+    () =>
+      expertDirectorySections
+        .map((section) => ({
+          category: section.category,
+          groups: section.groups
+            .map((group) => ({
+              specialty: group.specialty,
+              options: group.experts
+                .map((item) => item.matchedExpert)
+                .filter((expert) => expert && expert.isActive !== false),
+            }))
+            .filter((group) => group.options.length > 0),
+        }))
+        .filter((section) => section.groups.length > 0),
+    [expertDirectorySections],
   );
 
   const currentAssignForm =
@@ -395,7 +412,7 @@ export default function ResourceMatchmaker() {
                   onChange={(event) =>
                     setRequestForm((previous) => ({ ...previous, requestTitle: event.target.value }))
                   }
-                  placeholder="ตัวอย่าง: อยากได้ผู้เชี่ยวชาญ AI ช่วยออกแบบกิจกรรม Active Learning"
+                  placeholder="ตัวอย่าง: อยากได้ผู้เชี่ยวชาญด้านปัญญาประดิษฐ์ช่วยออกแบบกิจกรรมการเรียนรู้เชิงรุก"
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
                 />
               </label>
@@ -614,15 +631,30 @@ export default function ResourceMatchmaker() {
                               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
                             >
                               <option value="">กรุณาเลือกผู้เชี่ยวชาญ</option>
-                              {activeExperts.map((expert) => (
-                                <option key={expert.id} value={expert.id}>
-                                {(expert.displayName || "ผู้เชี่ยวชาญ") +
-                                    " | " +
-                                    (expert.primaryExpertise || "ยังไม่ได้ระบุ")}
-                                </option>
-                              ))}
+                              {expertSelectGroups.map((section) =>
+                                section.groups.map((group) => (
+                                  <optgroup
+                                    key={`${section.category}-${group.specialty}`}
+                                    label={`${group.specialty} • ${section.category}`}
+                                  >
+                                    {group.options.map((expert) => (
+                                      <option key={`${group.specialty}-${expert.id}`} value={expert.id}>
+                                        {(expert.displayName || "ผู้เชี่ยวชาญ") +
+                                          " • " +
+                                          group.specialty}
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                )),
+                              )}
                             </select>
                           </label>
+
+                          {expertSelectGroups.length === 0 ? (
+                            <p className="rounded-[20px] border border-dashed border-slate-300 bg-white px-4 py-3 text-sm leading-7 text-slate-500">
+                              ยังไม่มีรายชื่อผู้เชี่ยวชาญที่พร้อมเลือกในดรอปดาวน์ กรุณานำเข้าฐานข้อมูลผู้เชี่ยวชาญก่อน
+                            </p>
+                          ) : null}
 
                           <label className="block">
                             <span className="mb-2 block text-sm font-medium text-slate-600">บันทึกจากทีม DU</span>
@@ -699,7 +731,7 @@ export default function ResourceMatchmaker() {
               </p>
               <h2 className="mt-3 font-display text-2xl font-bold text-ink">เลือกคนที่เหมาะกับโจทย์ของครูได้จากไดเรกทอรีกลาง</h2>
               <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
-                ระบบนี้อ้างอิงคอลเลกชัน <code>experts</code> แบบเรียลไทม์
+                ระบบนี้อ้างอิงฐานข้อมูลผู้เชี่ยวชาญแบบเรียลไทม์
                 เมื่ออัปเดตรายชื่อหรือสถานะความพร้อมรับงาน รายการด้านล่างจะเปลี่ยนทันที
               </p>
             </div>
@@ -754,45 +786,107 @@ export default function ResourceMatchmaker() {
               </div>
           </div>
 
-          <div className="mt-6 grid gap-4 xl:grid-cols-2">
+          <div className="mt-6 space-y-5">
             {loadingExperts ? (
-              <div className="col-span-full flex min-h-[260px] items-center justify-center rounded-[28px] border border-slate-200 bg-slate-50">
+              <div className="flex min-h-[260px] items-center justify-center rounded-[28px] border border-slate-200 bg-slate-50">
                 <Loader2 size={26} className="animate-spin text-primary" />
               </div>
-            ) : activeExperts.length === 0 ? (
-              <div className="col-span-full rounded-[28px] border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center text-sm leading-7 text-slate-500">
-                ยังไม่มีผู้เชี่ยวชาญที่เปิดรับงานในคอลเลกชัน <code>experts</code>
-              </div>
             ) : (
-              activeExperts.map((expert) => (
-                <ExpertDirectoryCard
-                  key={expert.id}
-                  expert={expert}
-                  isSelected={currentAssignForm.expertId === expert.id}
-                  onSelect={(expertId) =>
-                    setAssignForm((previous) => ({
-                      ...previous,
-                      requestId: activeRequest?.id || "",
-                      expertId,
-                    }))
-                  }
-                />
+              expertDirectorySections.map((section) => (
+                <article key={section.category} className="rounded-[30px] border border-slate-200 bg-slate-50/80 p-5">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="max-w-3xl">
+                      <p className="text-lg font-semibold text-ink">{section.category}</p>
+                      <p className="mt-2 text-sm leading-7 text-slate-600">{section.description}</p>
+                    </div>
+                    <div className="rounded-[22px] border border-white bg-white px-4 py-3 text-sm text-slate-600">
+                      <p>จำนวนสาขาย่อย {section.groups.length} กลุ่ม</p>
+                      <p className="mt-1">
+                        พบชื่อที่เชื่อมกับฐานข้อมูลแล้ว{" "}
+                        {section.groups.reduce((sum, group) => sum + group.availableCount, 0)} รายชื่อ
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 overflow-hidden rounded-[26px] border border-white bg-white">
+                    {section.groups.map((group, index) => (
+                      <div
+                        key={`${section.category}-${group.specialty}`}
+                        className={`grid gap-4 px-5 py-5 lg:grid-cols-[280px_minmax(0,1fr)] ${
+                          index === 0 ? "" : "border-t border-slate-100"
+                        }`}
+                      >
+                        <div>
+                          <p className="text-base font-semibold text-ink">{group.specialty}</p>
+                          <p className="mt-2 text-sm leading-7 text-slate-600">{group.description}</p>
+                          <p className="mt-3 text-xs uppercase tracking-[0.18em] text-slate-400">
+                            พร้อมเลือกได้ {group.availableCount}/{group.experts.length} รายชื่อ
+                          </p>
+                        </div>
+
+                        {group.experts.length > 0 ? (
+                          <div className="flex flex-wrap gap-3">
+                            {group.experts.map((entry) => {
+                              const expert = entry.matchedExpert;
+                              const isSelectable = Boolean(expert && expert.isActive !== false);
+                              const isSelected = currentAssignForm.expertId === expert?.id;
+
+                              return (
+                                <button
+                                  key={`${group.specialty}-${entry.displayName}`}
+                                  type="button"
+                                  onClick={() =>
+                                    isSelectable
+                                      ? setAssignForm((previous) => ({
+                                          ...previous,
+                                          requestId: activeRequest?.id || "",
+                                          expertId: expert.id,
+                                        }))
+                                      : undefined
+                                  }
+                                  disabled={!isSelectable}
+                                  className={`min-w-[220px] rounded-[22px] border px-4 py-4 text-left transition ${
+                                    isSelected
+                                      ? "border-primary/25 bg-primary/5 shadow-[0_18px_40px_rgba(13,17,100,0.10)]"
+                                      : isSelectable
+                                        ? "border-slate-200 bg-slate-50 hover:border-secondary/25 hover:bg-secondary/5"
+                                        : "border-dashed border-slate-200 bg-slate-50 text-slate-400"
+                                  }`}
+                                >
+                                  <p className="font-semibold text-ink">{entry.displayName}</p>
+                                  <p className="mt-2 text-sm text-slate-500">
+                                    {expert?.primaryExpertise || group.specialty}
+                                  </p>
+                                  <p className="mt-3 text-xs leading-6 text-slate-500">
+                                    {isSelectable
+                                      ? `${expert.organization || "เครือข่ายผู้เชี่ยวชาญ DU"} • ${formatExpertServiceModes(expert.serviceModes).join(" / ")}`
+                                      : "ยังไม่พบระเบียนของรายชื่อนี้ในคอลเลกชันผู้เชี่ยวชาญ"}
+                                  </p>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-500">
+                            กลุ่มนี้เตรียมโครงสร้างไว้แล้วและยังรอการเพิ่มรายชื่อผู้เชี่ยวชาญในอนาคต
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </article>
               ))
             )}
           </div>
 
           {selectedExpert ? (
-            <div className="mt-6 rounded-[28px] border border-slate-200 bg-slate-50 p-5">
-              <p className="text-sm font-semibold text-ink">ผู้เชี่ยวชาญที่กำลังเลือก</p>
-              <p className="mt-3 text-lg font-semibold text-ink">{selectedExpert.displayName}</p>
-              <p className="mt-1 text-sm text-slate-500">
-                {(selectedExpert.title || "ยังไม่ได้ระบุตำแหน่ง") +
-                  " | " +
-                  (selectedExpert.organization || "ยังไม่ได้ระบุหน่วยงาน")}
-              </p>
-              <p className="mt-3 text-sm leading-7 text-slate-600">
-                {selectedExpert.bio || "ยังไม่มีคำอธิบายเพิ่มเติมของผู้เชี่ยวชาญคนนี้"}
-              </p>
+            <div className="mt-6">
+              <p className="mb-3 text-sm font-semibold text-ink">ผู้เชี่ยวชาญที่กำลังเลือก</p>
+              <ExpertDirectoryCard
+                expert={selectedExpert}
+                isSelected
+                onSelect={() => {}}
+              />
             </div>
           ) : null}
         </section>
