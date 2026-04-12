@@ -222,10 +222,24 @@ export default function Dashboard() {
 
     try {
       await setDoc(doc(db, "users", currentUser.uid, "enrollments", course.id), {
+        courseId: course.id,
+        courseTitle: course.title,
+        completedLessons: [],
+        completedLessonsCount: 0,
         enrolledAt: new Date(),
         progress: 0,
-        status: "active",
+        progressPercent: 0,
+        lessonCount: Number(course.lessonCount || 0),
+        moduleCount: Number(course.modules || 0),
+        currentModuleIndex: 0,
+        activeModuleIndex: 0,
+        activeLessonIndex: 0,
+        activeModuleTitle: "",
+        activeLessonId: "",
+        activeLessonTitle: "",
+        status: "not_started",
         lastAccess: new Date(),
+        lastSavedAt: new Date(),
         accessCodeUsed: course.requiresCode ? accessCode.trim().toUpperCase() : "none",
       });
 
@@ -233,9 +247,21 @@ export default function Dashboard() {
         ...previous,
         {
           id: course.id,
+          courseId: course.id,
+          courseTitle: course.title,
+          completedLessons: [],
+          completedLessonsCount: 0,
           progress: 0,
           progressPercent: 0,
-          status: "active",
+          lessonCount: Number(course.lessonCount || 0),
+          moduleCount: Number(course.modules || 0),
+          currentModuleIndex: 0,
+          activeModuleIndex: 0,
+          activeLessonIndex: 0,
+          activeModuleTitle: "",
+          activeLessonId: "",
+          activeLessonTitle: "",
+          status: "not_started",
         },
       ]);
       navigate(course.path);

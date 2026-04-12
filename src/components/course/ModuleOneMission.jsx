@@ -244,7 +244,14 @@ export default function ModuleOneMission({
   }, [allResponses, strategySource]);
   const internalInsights = useMemo(() => collectInsights(allResponses["m1-mission-1"]), [allResponses]);
   const externalInsights = useMemo(() => collectInsights(allResponses["m1-mission-2"]), [allResponses]);
-  const internalCloud = useMemo(() => buildCloudNodes(internalInsights, 10), [internalInsights]);
+  const strengthCloud = useMemo(
+    () => buildCloudNodes(internalInsights.filter((item) => item.lensCode === "S"), 10),
+    [internalInsights],
+  );
+  const weaknessCloud = useMemo(
+    () => buildCloudNodes(internalInsights.filter((item) => item.lensCode === "W"), 10),
+    [internalInsights],
+  );
   const opportunityCloud = useMemo(
     () => buildCloudNodes(externalInsights.filter((item) => item.lensCode === "O"), 10),
     [externalInsights],
@@ -639,22 +646,28 @@ export default function ModuleOneMission({
           </div>
         </div>
 
-        <div className="mt-5 grid gap-4 xl:grid-cols-3">
+        <div className="mt-5 grid gap-4 xl:grid-cols-4">
           {renderCloudGroup({
-            title: "คลังสัญญาณภายใน",
-            helper: "ดึงจาก Mission 1 เพื่อหยิบจุดแข็งหรือจุดอ่อนมาเป็นฐานคิดของกลยุทธ์",
-            tokens: internalCloud,
-            emptyText: "ยังไม่มีคำตอบจาก Mission 1 มากพอสำหรับสร้างคลังสัญญาณภายใน",
+            title: "คลังจุดแข็ง (S)",
+            helper: "ดึงจาก Mission 1 เฉพาะคำตอบจุดแข็ง เพื่อใช้ต่อยอดทำ SO หรือ ST strategy",
+            tokens: strengthCloud,
+            emptyText: "ยังไม่มีคำตอบฝั่งจุดแข็งจาก Mission 1",
           })}
           {renderCloudGroup({
-            title: "คลังโอกาส",
-            helper: "ดึงจาก Mission 2 เฉพาะคำตอบโอกาส เพื่อจับคู่ทำ SO หรือ WO strategy",
+            title: "คลังจุดอ่อน (W)",
+            helper: "ดึงจาก Mission 1 เฉพาะคำตอบจุดอ่อน เพื่อใช้วางแผนกลยุทธ์แบบ WO หรือ WT",
+            tokens: weaknessCloud,
+            emptyText: "ยังไม่มีคำตอบฝั่งจุดอ่อนจาก Mission 1",
+          })}
+          {renderCloudGroup({
+            title: "คลังโอกาส (O)",
+            helper: "ดึงจาก Mission 2 เฉพาะคำตอบฝั่งโอกาส เพื่อจับคู่ทำ SO หรือ WO strategy",
             tokens: opportunityCloud,
             emptyText: "ยังไม่มีคำตอบฝั่งโอกาสจาก Mission 2",
           })}
           {renderCloudGroup({
-            title: "คลังอุปสรรค",
-            helper: "ดึงจาก Mission 2 เฉพาะคำตอบอุปสรรค เพื่อจับคู่ทำ ST หรือ WT strategy",
+            title: "คลังอุปสรรค (T)",
+            helper: "ดึงจาก Mission 2 เฉพาะคำตอบฝั่งอุปสรรค เพื่อจับคู่ทำ ST หรือ WT strategy",
             tokens: threatCloud,
             emptyText: "ยังไม่มีคำตอบฝั่งอุปสรรคจาก Mission 2",
           })}
@@ -694,21 +707,21 @@ export default function ModuleOneMission({
                     const signalPairs =
                       strategy.strategyType === "SO"
                         ? [
-                            { field: "internalSignal", label: "S", tokens: internalCloud.filter((token) => token.lensCode === "S") },
+                            { field: "internalSignal", label: "S", tokens: strengthCloud },
                             { field: "externalSignal", label: "O", tokens: opportunityCloud },
                           ]
                         : strategy.strategyType === "WO"
                           ? [
-                              { field: "internalSignal", label: "W", tokens: internalCloud.filter((token) => token.lensCode === "W") },
+                              { field: "internalSignal", label: "W", tokens: weaknessCloud },
                               { field: "externalSignal", label: "O", tokens: opportunityCloud },
                             ]
                           : strategy.strategyType === "WT"
                             ? [
-                                { field: "internalSignal", label: "W", tokens: internalCloud.filter((token) => token.lensCode === "W") },
+                                { field: "internalSignal", label: "W", tokens: weaknessCloud },
                                 { field: "externalSignal", label: "T", tokens: threatCloud },
                               ]
                             : [
-                                { field: "internalSignal", label: "S", tokens: internalCloud.filter((token) => token.lensCode === "S") },
+                                { field: "internalSignal", label: "S", tokens: strengthCloud },
                                 { field: "externalSignal", label: "T", tokens: threatCloud },
                               ];
 

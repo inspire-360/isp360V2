@@ -157,7 +157,7 @@ export const buildResetPayload = (operatorName) => {
     score: 0,
     progress: 0,
     progressPercent: 0,
-    status: "active",
+    status: "not_started",
     lastAccess: timestamp,
     lastSavedAt: timestamp,
     resetAt: timestamp,

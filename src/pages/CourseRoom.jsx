@@ -157,6 +157,12 @@ const getUnlockedModuleIndexFromLessons = (completedLessons = []) => {
   return getSafeModuleIndex(unlockedIndex);
 };
 
+const resolveEnrollmentStatus = (completedCount = 0) => {
+  if (completedCount >= totalCourseLessons) return "completed";
+  if (completedCount <= 0) return "not_started";
+  return "active";
+};
+
 const buildEnrollmentMeta = ({
   completedLessons = [],
   unlockedModuleIndex = 0,
@@ -178,6 +184,7 @@ const buildEnrollmentMeta = ({
     completedLessonsCount: completedCount,
     lessonCount: totalCourseLessons,
     moduleCount: currentCourse.modules.length,
+    progress: progressPercent,
     progressPercent,
     currentModuleIndex: getSafeModuleIndex(unlockedModuleIndex),
     activeModuleIndex: safeModuleIndex,
@@ -185,9 +192,27 @@ const buildEnrollmentMeta = ({
     activeModuleTitle: activeModuleData?.title || "",
     activeLessonId: activeLessonData?.id || "",
     activeLessonTitle: activeLessonData?.title || "",
-    status: completedCount >= totalCourseLessons ? "completed" : "active",
+    status: resolveEnrollmentStatus(completedCount),
   };
 };
+
+const doesEnrollmentMetaNeedPatch = (enrollment = {}, expectedMeta = {}) =>
+  [
+    "courseId",
+    "courseTitle",
+    "completedLessonsCount",
+    "lessonCount",
+    "moduleCount",
+    "progress",
+    "progressPercent",
+    "currentModuleIndex",
+    "activeModuleIndex",
+    "activeLessonIndex",
+    "activeModuleTitle",
+    "activeLessonId",
+    "activeLessonTitle",
+    "status",
+  ].some((field) => enrollment?.[field] !== expectedMeta?.[field]);
 
 export default function CourseRoom() {
   const { currentUser } = useAuth();
@@ -327,6 +352,7 @@ export default function CourseRoom() {
               {
                 enrolledAt: new Date(),
                 lastAccess: new Date(),
+                lastSavedAt: new Date(),
                 ...defaultProgressData,
                 ...buildEnrollmentMeta({
                   completedLessons: [],
@@ -355,35 +381,45 @@ export default function CourseRoom() {
             typeof data.activeLessonIndex === "number"
               ? getSafeLessonIndex(nextActiveModuleIndex, data.activeLessonIndex)
               : getFirstPendingLessonIndex(nextActiveModuleIndex, completedLessons);
+          const expectedEnrollmentMeta = buildEnrollmentMeta({
+            completedLessons,
+            unlockedModuleIndex,
+            activeModule: nextActiveModuleIndex,
+            activeLesson: nextActiveLessonIndex,
+          });
+          const needsEnrollmentPatch =
+            unlockedModuleIndex !== storedUnlockedModuleIndex ||
+            doesEnrollmentMetaNeedPatch(data, expectedEnrollmentMeta);
 
-          if (unlockedModuleIndex !== storedUnlockedModuleIndex) {
+          if (needsEnrollmentPatch) {
             await setDoc(
               enrollRef,
               {
-                ...buildEnrollmentMeta({
-                  completedLessons,
-                  unlockedModuleIndex,
-                  activeModule: nextActiveModuleIndex,
-                  activeLesson: nextActiveLessonIndex,
-                }),
+                ...expectedEnrollmentMeta,
                 lastAccess: new Date(),
+                ...(data.lastSavedAt ? {} : { lastSavedAt: new Date() }),
               },
               { merge: true },
             );
           }
 
+          const normalizedEnrollmentData = {
+            ...data,
+            ...expectedEnrollmentMeta,
+          };
+
           setProgressData({
             ...defaultProgressData,
-            ...data,
+            ...normalizedEnrollmentData,
             completedLessons,
             currentModuleIndex: unlockedModuleIndex,
-            postTestAttempts: data.postTestAttempts || 0,
-            score: data.score || 0,
-            quizAttempts: data.quizAttempts || {},
-            quizCooldowns: data.quizCooldowns || {},
-            missionResponses: data.missionResponses || {},
-            moduleReports: data.moduleReports || {},
-            earnedBadges: data.earnedBadges || [],
+            postTestAttempts: normalizedEnrollmentData.postTestAttempts || 0,
+            score: normalizedEnrollmentData.score || 0,
+            quizAttempts: normalizedEnrollmentData.quizAttempts || {},
+            quizCooldowns: normalizedEnrollmentData.quizCooldowns || {},
+            missionResponses: normalizedEnrollmentData.missionResponses || {},
+            moduleReports: normalizedEnrollmentData.moduleReports || {},
+            earnedBadges: normalizedEnrollmentData.earnedBadges || [],
           });
           setExpandedModules((previous) => ({
             ...previous,
