@@ -4,6 +4,7 @@
     "indexes": "firestore.indexes.json"
   },
   "hosting": {
+    "site": "inspire-72132",
     "public": "dist",
     "ignore": [
       "firebase.json",
