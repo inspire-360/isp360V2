@@ -278,8 +278,8 @@ export default function VideoAnnotation() {
               เลือกวิดีโอจากครูที่ต้องการรีวิว
             </h2>
             <p className="max-w-2xl text-sm leading-7 text-slate-600">
-              หน้าเดียวนี้เชื่อมกับ <code>videos</code> และ <code>video_comments</code> แบบเรียลไทม์
-              เมื่อมีคอมเมนต์ใหม่ รายการด้านขวาจะอัปเดตทันทีโดยไม่ต้องรีเฟรช
+              รายการวิดีโอชุดนี้ดึงจากคำตอบของภารกิจโมดูล 5 ภารกิจ 1 ในช่องลิงก์คลิปการสอนจริง
+              และใช้ชื่อนวัตกรรมจากโมดูล 4 ภารกิจ 1 เป็นชื่อรายการสำหรับการโค้ชแบบเรียลไทม์
             </p>
           </div>
           <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600">
@@ -296,7 +296,7 @@ export default function VideoAnnotation() {
               </div>
             ) : videos.length === 0 ? (
               <div className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50 px-5 py-5 text-sm leading-7 text-slate-500">
-                ยังไม่มีเอกสารในคอลเลกชัน <code>videos</code> สำหรับการโค้ชรอบนี้
+                ยังไม่พบคำตอบที่มีลิงก์คลิปการสอนจริงจากโมดูล 5 ภารกิจ 1 สำหรับการโค้ชรอบนี้
               </div>
             ) : (
               videos.map((video) => {
@@ -507,7 +507,7 @@ export default function VideoAnnotation() {
                 <TimerReset size={32} className="text-slate-300" />
                 <p className="mt-4 text-xl font-semibold text-ink">ยังไม่มีวิดีโอที่ถูกเลือก</p>
                 <p className="mt-2 max-w-xl text-sm leading-7 text-slate-500">
-                  เมื่อมีเอกสารในคอลเลกชัน <code>videos</code> และเลือกวิดีโอแล้ว
+                  เมื่อมีคำตอบในโมดูล 5 ภารกิจ 1 และเลือกวิดีโอแล้ว
                   พื้นที่เล่นวิดีโอและฟอร์มคอมเมนต์จะปรากฏที่นี่ทันที
                 </p>
               </div>

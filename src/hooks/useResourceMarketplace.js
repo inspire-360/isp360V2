@@ -2,6 +2,7 @@ import { startTransition, useEffect, useMemo, useState } from "react";
 import {
   collection,
   doc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -26,6 +27,18 @@ const resolveDisplayName = ({ currentUser, userProfile, userRole }) =>
   currentUser?.displayName ||
   currentUser?.email?.split("@")[0] ||
   (userRole === "admin" ? "ผู้ดูแล DU" : "ครู");
+
+const buildExpertRows = (snapshot) =>
+  expandExpertDirectoryRecords(
+    snapshot.docs.map((item) => ({
+      id: item.id,
+      ...item.data(),
+    })),
+  )
+    .map((item) => ({
+      ...item,
+    }))
+    .sort(sortExpertsByName);
 
 export function useResourceMarketplace({ currentUser, userProfile, userRole, isAdminView }) {
   const [requests, setRequests] = useState([]);
@@ -99,16 +112,7 @@ export function useResourceMarketplace({ currentUser, userProfile, userRole, isA
     const unsubscribe = onSnapshot(
       expertsQuery,
       (snapshot) => {
-        const nextExperts = expandExpertDirectoryRecords(
-          snapshot.docs.map((item) => ({
-            id: item.id,
-            ...item.data(),
-          })),
-        )
-          .map((item) => ({
-            ...item,
-          }))
-          .sort(sortExpertsByName);
+        const nextExperts = buildExpertRows(snapshot);
 
         startTransition(() => {
           setExperts(nextExperts);
@@ -123,13 +127,28 @@ export function useResourceMarketplace({ currentUser, userProfile, userRole, isA
           คอลเลกชัน: EXPERTS_COLLECTION,
           ผู้ใช้งาน: currentUser?.uid || "ไม่พบรหัสผู้ใช้",
         });
-        setExpertsError("ไม่สามารถดึงรายชื่อผู้เชี่ยวชาญได้ กรุณาตรวจสอบสิทธิ์แอดมินและข้อมูลในคอลเลกชัน experts");
+        setExpertsError("ไม่สามารถดึงรายชื่อผู้เชี่ยวชาญได้ กรุณาตรวจสอบสิทธิ์แอดมินและข้อมูลในคอลเลกชันผู้เชี่ยวชาญ");
         setLoadingExperts(false);
       },
     );
 
     return () => unsubscribe();
   }, [currentUser?.uid, isAdminView]);
+
+  const refreshExpertsDirectory = async () => {
+    if (!isAdminView || !currentUser?.uid) return [];
+
+    const snapshot = await getDocs(query(collection(db, EXPERTS_COLLECTION)));
+    const nextExperts = buildExpertRows(snapshot);
+
+    startTransition(() => {
+      setExperts(nextExperts);
+      setExpertsError("");
+      setLoadingExperts(false);
+    });
+
+    return nextExperts;
+  };
 
   const activeRequest = useMemo(
     () => requests.find((request) => request.id === activeRequestId) || null,
@@ -187,7 +206,9 @@ export function useResourceMarketplace({ currentUser, userProfile, userRole, isA
     setSeedingExperts(true);
 
     try {
-      return await runExpertSeedDirectory();
+      const result = await runExpertSeedDirectory();
+      await refreshExpertsDirectory();
+      return result;
     } finally {
       setSeedingExperts(false);
     }

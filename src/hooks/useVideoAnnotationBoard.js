@@ -1,13 +1,16 @@
 import { startTransition, useEffect, useMemo, useState } from "react";
 import {
   collection,
+  collectionGroup,
   doc,
   increment,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
+  where,
   writeBatch,
 } from "firebase/firestore";
 import {
@@ -18,6 +21,15 @@ import {
 } from "../data/videoAnnotations";
 import { db } from "../lib/firebase";
 
+const USERS_COLLECTION = "users";
+const ENROLLMENTS_SUBCOLLECTION = "enrollments";
+const TEACHER_COURSE_ID = "course-teacher";
+const MODULE_FOUR_MISSION_ONE_ID = "m4-mission-1";
+const MODULE_FOUR_MISSION_TWO_ID = "m4-mission-2";
+const MODULE_FIVE_MISSION_ONE_ID = "m5-mission-1";
+const READY_REVIEW_STATUS = "pending_feedback";
+const REVIEW_STATUS_SET = new Set(["pending_feedback", "coaching", "reviewed"]);
+
 const resolveDisplayName = ({ currentUser, userProfile, userRole }) =>
   userProfile?.name ||
   [userProfile?.prefix, userProfile?.firstName, userProfile?.lastName].filter(Boolean).join(" ").trim() ||
@@ -25,11 +37,129 @@ const resolveDisplayName = ({ currentUser, userProfile, userRole }) =>
   currentUser?.email?.split("@")[0] ||
   (userRole === "admin" ? "ผู้ดูแล DU" : "ครู");
 
+const toVideoMillis = (value) => {
+  if (!value) return 0;
+  if (typeof value.toMillis === "function") return value.toMillis();
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
+};
+
+const buildDerivedVideoId = (teacherId = "", enrollmentId = "") =>
+  [String(teacherId || "").trim(), String(enrollmentId || "").trim()]
+    .filter(Boolean)
+    .join("__");
+
+const normalizeReviewStatus = (value = "") =>
+  REVIEW_STATUS_SET.has(String(value || "").trim()) ? String(value || "").trim() : READY_REVIEW_STATUS;
+
+const buildTeacherName = ({ teacherId, teacherProfile, reviewDoc }) =>
+  String(
+    reviewDoc?.teacherName ||
+      teacherProfile?.name ||
+      [teacherProfile?.prefix, teacherProfile?.firstName, teacherProfile?.lastName]
+        .filter(Boolean)
+        .join(" ")
+        .trim() ||
+      teacherProfile?.displayName ||
+      teacherId,
+  ).trim();
+
+const buildVideoRows = ({ enrollments, teachers, reviewDocs }) => {
+  const teacherMap = new Map(teachers.map((teacher) => [teacher.id, teacher]));
+  const reviewMap = new Map(reviewDocs.map((video) => [video.id, video]));
+
+  return enrollments
+    .flatMap((enrollment) => {
+      const missionResponses = enrollment.missionResponses || {};
+      const moduleFourMissionOne = missionResponses[MODULE_FOUR_MISSION_ONE_ID] || {};
+      const moduleFourMissionTwo = missionResponses[MODULE_FOUR_MISSION_TWO_ID] || {};
+      const moduleFiveMissionOne = missionResponses[MODULE_FIVE_MISSION_ONE_ID] || {};
+      const videoUrl = String(moduleFiveMissionOne.clipLink || "").trim();
+
+      if (!videoUrl) {
+        return [];
+      }
+
+      const videoId = buildDerivedVideoId(enrollment.teacherId, enrollment.enrollmentId);
+      const teacherProfile = teacherMap.get(enrollment.teacherId) || {};
+      const reviewDoc = reviewMap.get(videoId) || {};
+      const submittedAt =
+        reviewDoc.submittedAt ||
+        moduleFiveMissionOne.submittedAt ||
+        moduleFiveMissionOne.updatedAt ||
+        enrollment.lastSavedAt ||
+        enrollment.lastAccess ||
+        enrollment.updatedAt ||
+        enrollment.createdAt ||
+        null;
+      const updatedAt =
+        reviewDoc.updatedAt ||
+        reviewDoc.lastCommentAt ||
+        moduleFiveMissionOne.updatedAt ||
+        moduleFiveMissionOne.submittedAt ||
+        enrollment.lastSavedAt ||
+        enrollment.lastAccess ||
+        enrollment.updatedAt ||
+        submittedAt;
+
+      return [
+        {
+          id: videoId,
+          teacherId: enrollment.teacherId,
+          enrollmentId: enrollment.enrollmentId,
+          sourceEnrollmentPath: enrollment.path,
+          teacherName: buildTeacherName({
+            teacherId: enrollment.teacherId,
+            teacherProfile,
+            reviewDoc,
+          }),
+          title:
+            String(
+              moduleFourMissionOne.innovationName ||
+                moduleFiveMissionOne.lessonPlanTitle ||
+                reviewDoc.title ||
+                "",
+            ).trim() || "วิดีโอการสอนจริง",
+          description:
+            String(
+              moduleFiveMissionOne.learningFocus ||
+                moduleFiveMissionOne.evidenceNote ||
+                moduleFiveMissionOne.classroomContext ||
+                reviewDoc.description ||
+                "",
+            ).trim(),
+          subject:
+            String(moduleFourMissionTwo.subjectName || reviewDoc.subject || teacherProfile.position || "").trim(),
+          schoolName: String(reviewDoc.schoolName || teacherProfile.school || "").trim(),
+          videoUrl,
+          durationSeconds:
+            reviewDoc.durationSeconds == null
+              ? null
+              : Math.max(0, Math.floor(Number(reviewDoc.durationSeconds) || 0)),
+          reviewStatus: normalizeReviewStatus(reviewDoc.reviewStatus),
+          assignedCoachIds: Array.isArray(reviewDoc.assignedCoachIds) ? reviewDoc.assignedCoachIds : [],
+          submittedAt,
+          updatedAt,
+          lastCommentAt: reviewDoc.lastCommentAt || null,
+          lastCommentPreview: String(reviewDoc.lastCommentPreview || "").trim(),
+          commentCount: Math.max(0, Math.floor(Number(reviewDoc.commentCount) || 0)),
+          hasReviewDocument: Boolean(reviewDoc.id),
+        },
+      ];
+    })
+    .sort((left, right) => toVideoMillis(right.updatedAt || right.submittedAt) - toVideoMillis(left.updatedAt || left.submittedAt));
+};
+
 export function useVideoAnnotationBoard({ currentUser, userProfile, userRole }) {
-  const [videos, setVideos] = useState([]);
+  const [teacherProfiles, setTeacherProfiles] = useState([]);
+  const [enrollments, setEnrollments] = useState([]);
+  const [reviewDocs, setReviewDocs] = useState([]);
   const [activeVideoId, setActiveVideoId] = useState("");
+  const [readyCommentVideoId, setReadyCommentVideoId] = useState("");
   const [comments, setComments] = useState([]);
-  const [loadingVideos, setLoadingVideos] = useState(true);
+  const [loadingTeacherProfiles, setLoadingTeacherProfiles] = useState(true);
+  const [loadingEnrollments, setLoadingEnrollments] = useState(true);
+  const [loadingReviewDocs, setLoadingReviewDocs] = useState(true);
   const [loadingComments, setLoadingComments] = useState(false);
   const [savingComment, setSavingComment] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
@@ -37,46 +167,181 @@ export function useVideoAnnotationBoard({ currentUser, userProfile, userRole }) 
 
   useEffect(() => {
     if (!currentUser?.uid) {
-      setVideos([]);
+      setTeacherProfiles([]);
+      setEnrollments([]);
+      setReviewDocs([]);
       setActiveVideoId("");
-      setLoadingVideos(false);
+      setReadyCommentVideoId("");
+      setComments([]);
+      setLoadingTeacherProfiles(false);
+      setLoadingEnrollments(false);
+      setLoadingReviewDocs(false);
       return undefined;
     }
 
-    setLoadingVideos(true);
+    setLoadingTeacherProfiles(true);
+    setLoadingEnrollments(true);
+    setLoadingReviewDocs(true);
 
-    const videosQuery = query(collection(db, VIDEOS_COLLECTION), orderBy("updatedAt", "desc"));
-
-    const unsubscribe = onSnapshot(
-      videosQuery,
+    const unsubscribeTeachers = onSnapshot(
+      query(collection(db, USERS_COLLECTION)),
       (snapshot) => {
-        const nextVideos = snapshot.docs.map((item) => ({
+        const nextTeachers = snapshot.docs.map((item) => ({
           id: item.id,
           ...item.data(),
         }));
 
         startTransition(() => {
-          setVideos(nextVideos);
-          setActiveVideoId((previous) => {
-            if (previous && nextVideos.some((video) => video.id === previous)) {
-              return previous;
-            }
-
-            return nextVideos[0]?.id || "";
-          });
-          setLoadingVideos(false);
+          setTeacherProfiles(nextTeachers);
+          setLoadingTeacherProfiles(false);
         });
       },
-      () => {
-        setLoadingVideos(false);
+      (error) => {
+        console.error("ไม่สามารถดึงรายชื่อครูสำหรับจับคู่วิดีโอได้", error);
+        setLoadingTeacherProfiles(false);
       },
     );
 
-    return () => unsubscribe();
+    const unsubscribeEnrollments = onSnapshot(
+      query(
+        collectionGroup(db, ENROLLMENTS_SUBCOLLECTION),
+        where("courseId", "==", TEACHER_COURSE_ID),
+      ),
+      (snapshot) => {
+        const nextEnrollments = snapshot.docs.map((item) => ({
+          id: item.id,
+          enrollmentId: item.id,
+          teacherId: item.ref.parent.parent?.id || "",
+          path: item.ref.path,
+          ...item.data(),
+        }));
+
+        startTransition(() => {
+          setEnrollments(nextEnrollments);
+          setLoadingEnrollments(false);
+        });
+      },
+      (error) => {
+        console.error("ไม่สามารถดึงคำตอบภารกิจของคอร์สครูได้", error);
+        setLoadingEnrollments(false);
+      },
+    );
+
+    const unsubscribeReviewDocs = onSnapshot(
+      query(collection(db, VIDEOS_COLLECTION)),
+      (snapshot) => {
+        const nextReviewDocs = snapshot.docs.map((item) => ({
+          id: item.id,
+          ...item.data(),
+        }));
+
+        startTransition(() => {
+          setReviewDocs(nextReviewDocs);
+          setLoadingReviewDocs(false);
+        });
+      },
+      (error) => {
+        console.error("ไม่สามารถดึงสถานะรีวิววิดีโอได้", error);
+        setLoadingReviewDocs(false);
+      },
+    );
+
+    return () => {
+      unsubscribeTeachers();
+      unsubscribeEnrollments();
+      unsubscribeReviewDocs();
+    };
   }, [currentUser?.uid]);
 
+  const videos = useMemo(
+    () =>
+      buildVideoRows({
+        enrollments,
+        teachers: teacherProfiles,
+        reviewDocs,
+      }),
+    [enrollments, reviewDocs, teacherProfiles],
+  );
+
+  const loadingVideos = loadingTeacherProfiles || loadingEnrollments || loadingReviewDocs;
+
+  const activeVideo = useMemo(
+    () => videos.find((video) => video.id === activeVideoId) || null,
+    [activeVideoId, videos],
+  );
+
+  const ensureVideoReviewDocument = async (video) => {
+    if (!video?.id) return;
+
+    const videoRef = doc(db, VIDEOS_COLLECTION, video.id);
+    await setDoc(
+      videoRef,
+      {
+        teacherId: video.teacherId || "",
+        teacherName: video.teacherName || "ยังไม่ระบุครู",
+        title: video.title || "วิดีโอการสอนจริง",
+        description: video.description || "",
+        subject: video.subject || "",
+        schoolName: video.schoolName || "",
+        videoUrl: video.videoUrl || "",
+        durationSeconds:
+          video.durationSeconds == null
+            ? null
+            : Math.max(0, Math.floor(Number(video.durationSeconds) || 0)),
+        reviewStatus: normalizeReviewStatus(video.reviewStatus),
+        assignedCoachIds: Array.isArray(video.assignedCoachIds) ? video.assignedCoachIds : [],
+        submittedAt: video.submittedAt || serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        lastCommentAt: video.lastCommentAt || null,
+        lastCommentPreview: String(video.lastCommentPreview || "").trim(),
+        commentCount: Math.max(0, Math.floor(Number(video.commentCount) || 0)),
+      },
+      { merge: true },
+    );
+  };
+
   useEffect(() => {
-    if (!activeVideoId) {
+    setActiveVideoId((previous) => {
+      if (previous && videos.some((video) => video.id === previous)) {
+        return previous;
+      }
+
+      return videos[0]?.id || "";
+    });
+  }, [videos]);
+
+  useEffect(() => {
+    if (!activeVideo?.id) {
+      setReadyCommentVideoId("");
+      return undefined;
+    }
+
+    let cancelled = false;
+    setReadyCommentVideoId("");
+
+    const prepareComments = async () => {
+      try {
+        await ensureVideoReviewDocument(activeVideo);
+        if (!cancelled) {
+          setReadyCommentVideoId(activeVideo.id);
+        }
+      } catch (error) {
+        console.error("ไม่สามารถเตรียมเอกสารรีวิววิดีโอสำหรับการโค้ชได้", error);
+        if (!cancelled) {
+          setReadyCommentVideoId("");
+        }
+      }
+    };
+
+    void prepareComments();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeVideo]);
+
+  useEffect(() => {
+    if (!readyCommentVideoId) {
       setComments([]);
       setLoadingComments(false);
       return undefined;
@@ -85,7 +350,7 @@ export function useVideoAnnotationBoard({ currentUser, userProfile, userRole }) 
     setLoadingComments(true);
 
     const commentsQuery = query(
-      collection(db, VIDEOS_COLLECTION, activeVideoId, VIDEO_COMMENTS_SUBCOLLECTION),
+      collection(db, VIDEOS_COLLECTION, readyCommentVideoId, VIDEO_COMMENTS_SUBCOLLECTION),
       orderBy("timestampSeconds", "asc"),
     );
 
@@ -104,18 +369,14 @@ export function useVideoAnnotationBoard({ currentUser, userProfile, userRole }) 
           setLoadingComments(false);
         });
       },
-      () => {
+      (error) => {
+        console.error("ไม่สามารถดึงไทม์ไลน์คอมเมนต์วิดีโอได้", error);
         setLoadingComments(false);
       },
     );
 
     return () => unsubscribe();
-  }, [activeVideoId]);
-
-  const activeVideo = useMemo(
-    () => videos.find((video) => video.id === activeVideoId) || null,
-    [activeVideoId, videos],
-  );
+  }, [readyCommentVideoId]);
 
   const addComment = async ({ video, body, timestampSeconds }) => {
     if (!currentUser?.uid || !video?.id) return;
@@ -124,6 +385,8 @@ export function useVideoAnnotationBoard({ currentUser, userProfile, userRole }) 
 
     try {
       const trimmedBody = String(body || "").trim();
+      await ensureVideoReviewDocument(video);
+
       const commentRef = doc(
         collection(db, VIDEOS_COLLECTION, video.id, VIDEO_COMMENTS_SUBCOLLECTION),
       );
@@ -140,7 +403,7 @@ export function useVideoAnnotationBoard({ currentUser, userProfile, userRole }) 
         teacherId: video.teacherId || "",
         authorId: currentUser.uid,
         authorName,
-        authorRole: userRole || "admin",
+        authorRole: "admin",
         body: trimmedBody,
         timestampSeconds: Math.max(0, Math.floor(Number(timestampSeconds) || 0)),
         createdAt: serverTimestamp(),
@@ -169,8 +432,9 @@ export function useVideoAnnotationBoard({ currentUser, userProfile, userRole }) 
     setUpdatingStatus(true);
 
     try {
+      await ensureVideoReviewDocument(video);
       await updateDoc(doc(db, VIDEOS_COLLECTION, video.id), {
-        reviewStatus: nextStatus,
+        reviewStatus: normalizeReviewStatus(nextStatus),
         updatedAt: serverTimestamp(),
       });
     } finally {
@@ -186,6 +450,7 @@ export function useVideoAnnotationBoard({ currentUser, userProfile, userRole }) 
     setSavingDuration(true);
 
     try {
+      await ensureVideoReviewDocument(video);
       await updateDoc(doc(db, VIDEOS_COLLECTION, video.id), {
         durationSeconds: nextDuration,
         updatedAt: serverTimestamp(),

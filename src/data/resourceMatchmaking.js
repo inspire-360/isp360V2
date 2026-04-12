@@ -184,6 +184,14 @@ export const expandExpertDirectoryRecords = (records = []) =>
       );
     }
 
+    const hasStandaloneIdentity = Boolean(
+      String(sourceData.displayName || sourceData.name || sourceData.fullName || "").trim(),
+    );
+
+    if (!hasStandaloneIdentity) {
+      return [];
+    }
+
     const displayName = String(
       sourceData.displayName || sourceData.name || sourceData.fullName || sourceId,
     ).trim();

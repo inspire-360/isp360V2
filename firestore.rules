@@ -536,8 +536,7 @@ service cloud.firestore {
     }
 
     function validSosTicketMessageCreate(ticketId) {
-      return exists(/databases/$(database)/documents/sos_tickets/$(ticketId))
-        && request.resource.data.keys().hasOnly([
+      return request.resource.data.keys().hasOnly([
           "ticketId",
           "authorId",
           "authorName",
@@ -556,6 +555,16 @@ service cloud.firestore {
         && request.resource.data.body is string
         && request.resource.data.body.size() > 0
         && request.resource.data.createdAt is timestamp;
+    }
+
+    function teacherOwnsSosTicketNowOrAfterCreate(ticketId) {
+      return (
+        exists(/databases/$(database)/documents/sos_tickets/$(ticketId))
+        && get(/databases/$(database)/documents/sos_tickets/$(ticketId)).data.requesterId == request.auth.uid
+      ) || (
+        !exists(/databases/$(database)/documents/sos_tickets/$(ticketId))
+        && getAfter(/databases/$(database)/documents/sos_tickets/$(ticketId)).data.requesterId == request.auth.uid
+      );
     }
 
     function validVideoReviewStatus(status) {
@@ -745,7 +754,10 @@ service cloud.firestore {
 
     function validExpertUpdate() {
       return validExpertDocumentShape()
-        && request.resource.data.createdAt == resource.data.createdAt;
+        && (
+          request.resource.data.createdAt == resource.data.createdAt
+          || resource.data.createdAt == null
+        );
     }
 
     function validTeacherMatchRequestCreate() {
@@ -1088,7 +1100,7 @@ service cloud.firestore {
           isAdmin()
           || (
             isTeacher()
-            && get(/databases/$(database)/documents/sos_tickets/$(ticketId)).data.requesterId == request.auth.uid
+            && teacherOwnsSosTicketNowOrAfterCreate(ticketId)
           )
         ) && validSosTicketMessageCreate(ticketId);
         allow update, delete: if false;
