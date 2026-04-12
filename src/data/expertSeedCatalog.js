@@ -189,7 +189,7 @@ export const expertSeedCatalog = [
   },
 ];
 
-const createExpertDocumentId = (displayName = "") => {
+export const createExpertDocumentId = (displayName = "") => {
   const normalized = Array.from(String(displayName || "").trim());
   const hash = normalized.reduce(
     (result, character) => ((result * 33) + character.codePointAt(0)) % 2147483647,
@@ -204,6 +204,52 @@ const buildExpertBio = ({ displayName, specialties, categories }) => {
   const categoryText = categories.slice(0, 2).join(" และ ");
 
   return `${displayName} อยู่ในฐานผู้เชี่ยวชาญ DU ด้าน ${specialtyText} พร้อมสนับสนุนครูในหมวด ${categoryText}`;
+};
+
+const buildCatalogExpertRecord = ({
+  displayName,
+  category,
+  specialty,
+  matchedExpert,
+}) => {
+  const normalizedDisplayName = normalizeExpertDisplayName(displayName);
+  const specialties = [specialty].filter(Boolean);
+  const categories = [category].filter(Boolean);
+
+  return {
+    id: matchedExpert?.id || createExpertDocumentId(normalizedDisplayName),
+    sourceId: matchedExpert?.sourceId || "",
+    displayName: matchedExpert?.displayName || normalizedDisplayName,
+    title: matchedExpert?.title || specialty || "ผู้เชี่ยวชาญ DU",
+    organization: matchedExpert?.organization || defaultOrganization,
+    primaryExpertise: matchedExpert?.primaryExpertise || specialty || "ผู้เชี่ยวชาญ DU",
+    expertiseTags: [
+      ...new Set([
+        ...(Array.isArray(matchedExpert?.expertiseTags) ? matchedExpert.expertiseTags : []),
+        ...specialties,
+        ...categories,
+      ]),
+    ],
+    serviceModes:
+      Array.isArray(matchedExpert?.serviceModes) && matchedExpert.serviceModes.length > 0
+        ? matchedExpert.serviceModes
+        : [...defaultServiceModes],
+    region: matchedExpert?.region || defaultRegion,
+    bio:
+      matchedExpert?.bio ||
+      buildExpertBio({
+        displayName: normalizedDisplayName,
+        specialties,
+        categories,
+      }),
+    contactEmail: matchedExpert?.contactEmail || "",
+    contactLine: matchedExpert?.contactLine || "",
+    isActive: matchedExpert?.isActive !== false,
+    capacityStatus: matchedExpert?.capacityStatus || "available",
+    category,
+    specialty,
+    syncState: matchedExpert ? "synced" : "catalog_only",
+  };
 };
 
 export const buildSeedExpertsFromCatalog = () => {
@@ -296,10 +342,18 @@ export const buildExpertDirectorySections = (expertRecords = []) => {
       const expertRows = groupEntry.experts.map((displayName) => {
         const normalizedDisplayName = normalizeExpertDisplayName(displayName);
         const matchedExpert = expertLookup.get(normalizedDisplayName) || null;
+        const resolvedExpert = buildCatalogExpertRecord({
+          displayName: normalizedDisplayName,
+          category: categoryEntry.category,
+          specialty: groupEntry.specialty,
+          matchedExpert,
+        });
 
         return {
           displayName: normalizedDisplayName,
           matchedExpert,
+          resolvedExpert,
+          isSynced: Boolean(matchedExpert),
         };
       });
 
@@ -307,8 +361,45 @@ export const buildExpertDirectorySections = (expertRecords = []) => {
         specialty: groupEntry.specialty,
         description: groupEntry.description || "",
         experts: expertRows,
-        availableCount: expertRows.filter((item) => item.matchedExpert?.isActive !== false && item.matchedExpert).length,
+        availableCount: expertRows.filter((item) => item.resolvedExpert?.isActive !== false).length,
+        syncedCount: expertRows.filter((item) => item.isSynced).length,
       };
     }),
   }));
+};
+
+export const buildExpertDirectoryExperts = (expertRecords = []) => {
+  const sections = buildExpertDirectorySections(expertRecords);
+  const expertMap = new Map();
+
+  sections
+    .flatMap((section) => section.groups)
+    .flatMap((group) => group.experts)
+    .map((entry) => entry.resolvedExpert)
+    .filter(Boolean)
+    .forEach((expert) => {
+      const existingExpert = expertMap.get(expert.id);
+
+      if (!existingExpert) {
+        expertMap.set(expert.id, expert);
+        return;
+      }
+
+      expertMap.set(expert.id, {
+        ...existingExpert,
+        expertiseTags: [
+          ...new Set([
+            ...(Array.isArray(existingExpert.expertiseTags) ? existingExpert.expertiseTags : []),
+            ...(Array.isArray(expert.expertiseTags) ? expert.expertiseTags : []),
+          ]),
+        ],
+        syncState: existingExpert.syncState === "synced" || expert.syncState === "synced"
+          ? "synced"
+          : "catalog_only",
+      });
+    });
+
+  return Array.from(expertMap.values()).sort((left, right) =>
+    String(left.displayName || "").localeCompare(String(right.displayName || ""), "th"),
+  );
 };

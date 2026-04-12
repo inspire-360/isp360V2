@@ -19,7 +19,11 @@ import {
   matchRequestStatusOptions,
   preferredFormatOptions,
 } from "../data/resourceMatchmaking";
-import { buildExpertDirectorySections, buildExpertSeedSummary } from "../data/expertSeedCatalog";
+import {
+  buildExpertDirectoryExperts,
+  buildExpertDirectorySections,
+  buildExpertSeedSummary,
+} from "../data/expertSeedCatalog";
 import { useResourceMarketplace } from "../hooks/useResourceMarketplace";
 import { isAdminRole, isTeacherRole } from "../utils/userRoles";
 
@@ -125,6 +129,67 @@ const ExpertDirectoryCard = memo(function ExpertDirectoryCard({ expert, isSelect
   );
 });
 
+const ExpertRosterRow = memo(function ExpertRosterRow({
+  entry,
+  isSelected,
+  onSelect,
+}) {
+  const expert = entry.resolvedExpert;
+  const capacityMeta = getExpertCapacityMeta(expert.capacityStatus);
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(expert.id)}
+      className={`group w-full rounded-[24px] border px-4 py-4 text-left transition ${
+        isSelected
+          ? "border-primary/30 bg-primary/[0.06] shadow-[0_18px_45px_rgba(13,17,100,0.10)]"
+          : "border-slate-200 bg-white hover:border-secondary/20 hover:bg-secondary/[0.04]"
+      }`}
+    >
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(220px,0.8fr)_minmax(220px,0.8fr)] xl:items-center">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-base font-semibold text-ink">{expert.displayName}</p>
+            <span
+              className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-semibold ${
+                entry.isSynced
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border-slate-200 bg-slate-50 text-slate-600"
+              }`}
+            >
+              {entry.isSynced ? "เชื่อมฐานข้อมูลแล้ว" : "ใช้จากรายชื่อมาตรฐาน"}
+            </span>
+          </div>
+          <p className="text-sm leading-7 text-slate-600">
+            {expert.bio || "พร้อมสนับสนุนครูตามสาขาความเชี่ยวชาญที่ระบุ"}
+          </p>
+        </div>
+
+        <div className="space-y-2 text-sm text-slate-600">
+          <p className="font-semibold text-ink">{expert.primaryExpertise || entry.displayName}</p>
+          <p>{expert.organization || "เครือข่ายผู้เชี่ยวชาญ DU"}</p>
+          <p>พื้นที่ดูแล: {expert.region || "สนับสนุนได้ทั่วทั้งเครือข่าย"}</p>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2 xl:justify-end">
+            <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${capacityMeta.tone}`}>
+              {capacityMeta.label}
+            </span>
+            <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+              {entry.specialty}
+            </span>
+          </div>
+          <p className="text-xs leading-6 text-slate-500 xl:text-right">
+            รูปแบบงาน: {formatExpertServiceModes(expert.serviceModes).join(" / ")}
+          </p>
+        </div>
+      </div>
+    </button>
+  );
+});
+
 export default function ResourceMatchmaker() {
   const { currentUser, userProfile, userRole } = useAuth();
   const adminView = isAdminRole(userRole);
@@ -142,6 +207,8 @@ export default function ResourceMatchmaker() {
   const [assignFormError, setAssignFormError] = useState("");
   const [seedFeedback, setSeedFeedback] = useState("");
   const [seedError, setSeedError] = useState("");
+  const [directoryKeyword, setDirectoryKeyword] = useState("");
+  const [directoryCategory, setDirectoryCategory] = useState("all");
 
   const {
     requests,
@@ -187,24 +254,36 @@ export default function ResourceMatchmaker() {
     [requests],
   );
 
-  const expertSummary = useMemo(
-    () =>
-      experts.reduce(
-        (accumulator, expert) => {
-          accumulator.total += 1;
-          if (expert.isActive !== false) accumulator.active += 1;
-          if (expert.capacityStatus === "available") accumulator.available += 1;
-          if (expert.capacityStatus === "limited") accumulator.limited += 1;
-          return accumulator;
-        },
-        { total: 0, active: 0, available: 0, limited: 0 },
-      ),
-    [experts],
-  );
-
   const expertDirectorySections = useMemo(
     () => buildExpertDirectorySections(experts),
     [experts],
+  );
+  const directoryExperts = useMemo(
+    () => buildExpertDirectoryExperts(experts),
+    [experts],
+  );
+  const directorySummary = useMemo(
+    () =>
+      directoryExperts.reduce(
+        (accumulator, expert) => {
+          accumulator.total += 1;
+          if (expert.isActive !== false) accumulator.available += 1;
+          if (expert.capacityStatus === "limited") accumulator.limited += 1;
+          if (expert.syncState === "synced") accumulator.synced += 1;
+          return accumulator;
+        },
+        { total: 0, available: 0, limited: 0, synced: 0 },
+      ),
+    [directoryExperts],
+  );
+  const directoryCategoryOptions = useMemo(
+    () =>
+      expertDirectorySections.map((section) => ({
+        value: section.category,
+        label: section.category,
+        count: section.groups.reduce((sum, group) => sum + group.experts.length, 0),
+      })),
+    [expertDirectorySections],
   );
   const expertSelectGroups = useMemo(
     () =>
@@ -215,7 +294,7 @@ export default function ResourceMatchmaker() {
             .map((group) => ({
               specialty: group.specialty,
               options: group.experts
-                .map((item) => item.matchedExpert)
+                .map((item) => item.resolvedExpert)
                 .filter((expert) => expert && expert.isActive !== false),
             }))
             .filter((group) => group.options.length > 0),
@@ -223,6 +302,41 @@ export default function ResourceMatchmaker() {
         .filter((section) => section.groups.length > 0),
     [expertDirectorySections],
   );
+  const filteredExpertDirectorySections = useMemo(() => {
+    const keyword = directoryKeyword.trim().toLowerCase();
+
+    return expertDirectorySections
+      .filter((section) => directoryCategory === "all" || section.category === directoryCategory)
+      .map((section) => ({
+        ...section,
+        groups: section.groups
+          .map((group) => ({
+            ...group,
+            experts: group.experts.filter((entry) => {
+              if (!keyword) return true;
+
+              const expert = entry.resolvedExpert;
+              const haystack = [
+                section.category,
+                group.specialty,
+                entry.displayName,
+                expert?.displayName,
+                expert?.primaryExpertise,
+                expert?.organization,
+                Array.isArray(expert?.expertiseTags) ? expert.expertiseTags.join(" ") : "",
+              ]
+                .filter(Boolean)
+                .join(" ")
+                .toLowerCase();
+
+              return haystack.includes(keyword);
+            }),
+          }))
+          .filter((group) => group.experts.length > 0 || (!keyword && group.description)),
+      }))
+      .filter((section) => section.groups.length > 0);
+  }, [directoryCategory, directoryKeyword, expertDirectorySections]);
+  const hasDirectoryMatches = filteredExpertDirectorySections.length > 0;
 
   const currentAssignForm =
     assignForm.requestId === (activeRequest?.id || "")
@@ -234,8 +348,8 @@ export default function ResourceMatchmaker() {
         };
 
   const selectedExpert = useMemo(
-    () => experts.find((expert) => expert.id === currentAssignForm.expertId) || null,
-    [experts, currentAssignForm.expertId],
+    () => directoryExperts.find((expert) => expert.id === currentAssignForm.expertId) || null,
+    [directoryExperts, currentAssignForm.expertId],
   );
 
   const handleCreateRequest = async (event) => {
@@ -269,7 +383,7 @@ export default function ResourceMatchmaker() {
       return;
     }
 
-    const expert = experts.find((item) => item.id === currentAssignForm.expertId);
+    const expert = directoryExperts.find((item) => item.id === currentAssignForm.expertId);
     if (!expert) {
       setAssignFormError("ไม่พบข้อมูลผู้เชี่ยวชาญที่เลือก");
       return;
@@ -368,7 +482,7 @@ export default function ResourceMatchmaker() {
                 {adminView ? "ผู้เชี่ยวชาญที่พร้อมรับงาน" : "เสร็จสิ้นแล้ว"}
               </p>
               <p className="mt-2 text-3xl font-bold">
-                {adminView ? expertSummary.available : requestSummary.completed}
+                {adminView ? directorySummary.available : requestSummary.completed}
               </p>
             </div>
           </div>
@@ -679,7 +793,7 @@ export default function ResourceMatchmaker() {
                             <button
                               type="button"
                               onClick={handleAssignExpert}
-                              disabled={assigningExpert || loadingExperts}
+                              disabled={assigningExpert}
                               className="brand-button-primary disabled:cursor-not-allowed disabled:opacity-70"
                             >
                               {assigningExpert ? <Loader2 size={16} className="animate-spin" /> : <Handshake size={16} />}
@@ -729,10 +843,10 @@ export default function ResourceMatchmaker() {
                 <Users size={14} />
                 ฐานข้อมูลผู้เชี่ยวชาญ
               </p>
-              <h2 className="mt-3 font-display text-2xl font-bold text-ink">เลือกคนที่เหมาะกับโจทย์ของครูได้จากไดเรกทอรีกลาง</h2>
+              <h2 className="mt-3 font-display text-2xl font-bold text-ink">ไดเรกทอรีผู้เชี่ยวชาญสำหรับจับคู่คำร้องแบบมืออาชีพ</h2>
               <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
-                ระบบนี้อ้างอิงฐานข้อมูลผู้เชี่ยวชาญแบบเรียลไทม์
-                เมื่ออัปเดตรายชื่อหรือสถานะความพร้อมรับงาน รายการด้านล่างจะเปลี่ยนทันที
+                หน้านี้ใช้รายชื่อมาตรฐานของเครือข่ายเป็นโครงหลักเสมอ และจะซิงก์รายละเอียดจากฐานข้อมูลจริงเข้ามาอัตโนมัติ
+                เมื่อเชื่อมได้สำเร็จ เพื่อให้ทั้งการแสดงผลและดรอปดาวน์เลือกผู้เชี่ยวชาญใช้งานต่อได้ไม่สะดุด
               </p>
             </div>
 
@@ -766,129 +880,171 @@ export default function ResourceMatchmaker() {
           ) : null}
 
           {expertsError ? (
-            <div className="mt-6 rounded-[24px] border border-rose-200 bg-rose-50 px-5 py-4 text-sm leading-7 text-rose-700">
-              {expertsError}
+            <div className="mt-6 rounded-[24px] border border-amber-200 bg-amber-50 px-5 py-4 text-sm leading-7 text-amber-800">
+              {expertsError} ระบบยังคงแสดงรายชื่อจากชุดมาตรฐานให้เลือกจับคู่ได้ตามปกติ
             </div>
           ) : null}
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-3xl border border-slate-200 bg-white px-4 py-3">
-                <p className="text-xs tracking-[0.08em] text-slate-400">ผู้เชี่ยวชาญทั้งหมด</p>
-                <p className="mt-2 text-2xl font-bold text-ink">{expertSummary.total}</p>
-              </div>
-              <div className="rounded-3xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-                <p className="text-xs tracking-[0.08em] text-emerald-700">พร้อมรับงาน</p>
-                <p className="mt-2 text-2xl font-bold text-emerald-700">{expertSummary.available}</p>
-              </div>
-              <div className="rounded-3xl border border-amber-200 bg-amber-50 px-4 py-3">
-                <p className="text-xs tracking-[0.08em] text-amber-700">คิวแน่น</p>
-                <p className="mt-2 text-2xl font-bold text-amber-700">{expertSummary.limited}</p>
-              </div>
+          <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-[26px] border border-slate-200 bg-white px-5 py-4">
+              <p className="text-xs tracking-[0.08em] text-slate-400">รายชื่อทั้งหมดในสารบบ</p>
+              <p className="mt-2 text-3xl font-bold text-ink">{directorySummary.total}</p>
+            </div>
+            <div className="rounded-[26px] border border-emerald-200 bg-emerald-50 px-5 py-4">
+              <p className="text-xs tracking-[0.08em] text-emerald-700">พร้อมเลือกจับคู่</p>
+              <p className="mt-2 text-3xl font-bold text-emerald-700">{directorySummary.available}</p>
+            </div>
+            <div className="rounded-[26px] border border-sky-200 bg-sky-50 px-5 py-4">
+              <p className="text-xs tracking-[0.08em] text-sky-700">เชื่อมฐานข้อมูลแล้ว</p>
+              <p className="mt-2 text-3xl font-bold text-sky-700">{directorySummary.synced}</p>
+            </div>
+            <div className="rounded-[26px] border border-amber-200 bg-amber-50 px-5 py-4">
+              <p className="text-xs tracking-[0.08em] text-amber-700">คิวแน่น</p>
+              <p className="mt-2 text-3xl font-bold text-amber-700">{directorySummary.limited}</p>
+            </div>
           </div>
 
-          <div className="mt-6 space-y-5">
-            {loadingExperts ? (
-              <div className="flex min-h-[260px] items-center justify-center rounded-[28px] border border-slate-200 bg-slate-50">
-                <Loader2 size={26} className="animate-spin text-primary" />
+          <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="space-y-5">
+              <div className="rounded-[30px] border border-slate-200 bg-slate-50/80 p-5">
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
+                  <label className="space-y-2 text-sm font-semibold text-ink">
+                    <span>ค้นหารายชื่อหรือสาขาความเชี่ยวชาญ</span>
+                    <input
+                      value={directoryKeyword}
+                      onChange={(event) => setDirectoryKeyword(event.target.value)}
+                      placeholder="พิมพ์ชื่อผู้เชี่ยวชาญ สาขา หรือหมวดงาน"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
+                    />
+                  </label>
+
+                  <label className="space-y-2 text-sm font-semibold text-ink">
+                    <span>กรองตามหมวดใหญ่</span>
+                    <select
+                      value={directoryCategory}
+                      onChange={(event) => setDirectoryCategory(event.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
+                    >
+                      <option value="all">ทุกหมวด</option>
+                      {directoryCategoryOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label} ({option.count} รายชื่อ)
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-500">
+                  <span className="rounded-full border border-slate-200 bg-white px-3 py-2">
+                    ดรอปดาวน์จับคู่จะใช้รายชื่อชุดเดียวกับไดเรกทอรีนี้
+                  </span>
+                  {loadingExperts ? (
+                    <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-2 text-sky-700">
+                      กำลังเชื่อมข้อมูลจริงจากฐานข้อมูล
+                    </span>
+                  ) : null}
+                </div>
               </div>
-            ) : (
-              expertDirectorySections.map((section) => (
-                <article key={section.category} className="rounded-[30px] border border-slate-200 bg-slate-50/80 p-5">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="max-w-3xl">
-                      <p className="text-lg font-semibold text-ink">{section.category}</p>
-                      <p className="mt-2 text-sm leading-7 text-slate-600">{section.description}</p>
-                    </div>
-                    <div className="rounded-[22px] border border-white bg-white px-4 py-3 text-sm text-slate-600">
-                      <p>จำนวนสาขาย่อย {section.groups.length} กลุ่ม</p>
-                      <p className="mt-1">
-                        พบชื่อที่เชื่อมกับฐานข้อมูลแล้ว{" "}
-                        {section.groups.reduce((sum, group) => sum + group.availableCount, 0)} รายชื่อ
-                      </p>
-                    </div>
-                  </div>
 
-                  <div className="mt-5 overflow-hidden rounded-[26px] border border-white bg-white">
-                    {section.groups.map((group, index) => (
-                      <div
-                        key={`${section.category}-${group.specialty}`}
-                        className={`grid gap-4 px-5 py-5 lg:grid-cols-[280px_minmax(0,1fr)] ${
-                          index === 0 ? "" : "border-t border-slate-100"
-                        }`}
-                      >
-                        <div>
-                          <p className="text-base font-semibold text-ink">{group.specialty}</p>
-                          <p className="mt-2 text-sm leading-7 text-slate-600">{group.description}</p>
-                          <p className="mt-3 text-xs uppercase tracking-[0.18em] text-slate-400">
-                            พร้อมเลือกได้ {group.availableCount}/{group.experts.length} รายชื่อ
-                          </p>
-                        </div>
-
-                        {group.experts.length > 0 ? (
-                          <div className="flex flex-wrap gap-3">
-                            {group.experts.map((entry) => {
-                              const expert = entry.matchedExpert;
-                              const isSelectable = Boolean(expert && expert.isActive !== false);
-                              const isSelected = currentAssignForm.expertId === expert?.id;
-
-                              return (
-                                <button
-                                  key={`${group.specialty}-${entry.displayName}`}
-                                  type="button"
-                                  onClick={() =>
-                                    isSelectable
-                                      ? setAssignForm((previous) => ({
-                                          ...previous,
-                                          requestId: activeRequest?.id || "",
-                                          expertId: expert.id,
-                                        }))
-                                      : undefined
-                                  }
-                                  disabled={!isSelectable}
-                                  className={`min-w-[220px] rounded-[22px] border px-4 py-4 text-left transition ${
-                                    isSelected
-                                      ? "border-primary/25 bg-primary/5 shadow-[0_18px_40px_rgba(13,17,100,0.10)]"
-                                      : isSelectable
-                                        ? "border-slate-200 bg-slate-50 hover:border-secondary/25 hover:bg-secondary/5"
-                                        : "border-dashed border-slate-200 bg-slate-50 text-slate-400"
-                                  }`}
-                                >
-                                  <p className="font-semibold text-ink">{entry.displayName}</p>
-                                  <p className="mt-2 text-sm text-slate-500">
-                                    {expert?.primaryExpertise || group.specialty}
-                                  </p>
-                                  <p className="mt-3 text-xs leading-6 text-slate-500">
-                                    {isSelectable
-                                      ? `${expert.organization || "เครือข่ายผู้เชี่ยวชาญ DU"} • ${formatExpertServiceModes(expert.serviceModes).join(" / ")}`
-                                      : "ยังไม่พบระเบียนของรายชื่อนี้ในคอลเลกชันผู้เชี่ยวชาญ"}
-                                  </p>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-500">
-                            กลุ่มนี้เตรียมโครงสร้างไว้แล้วและยังรอการเพิ่มรายชื่อผู้เชี่ยวชาญในอนาคต
-                          </div>
-                        )}
+              {hasDirectoryMatches ? (
+                filteredExpertDirectorySections.map((section) => (
+                  <article key={section.category} className="rounded-[30px] border border-slate-200 bg-slate-50/80 p-5">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="max-w-3xl">
+                        <p className="text-lg font-semibold text-ink">{section.category}</p>
+                        <p className="mt-2 text-sm leading-7 text-slate-600">{section.description}</p>
                       </div>
-                    ))}
-                  </div>
-                </article>
-              ))
-            )}
-          </div>
+                      <div className="rounded-[22px] border border-white bg-white px-4 py-3 text-sm text-slate-600">
+                        <p>จำนวนสาขาย่อย {section.groups.length} กลุ่ม</p>
+                        <p className="mt-1">
+                          เชื่อมกับฐานข้อมูลแล้ว{" "}
+                          {section.groups.reduce((sum, group) => sum + group.syncedCount, 0)} รายชื่อ
+                        </p>
+                      </div>
+                    </div>
 
-          {selectedExpert ? (
-            <div className="mt-6">
-              <p className="mb-3 text-sm font-semibold text-ink">ผู้เชี่ยวชาญที่กำลังเลือก</p>
-              <ExpertDirectoryCard
-                expert={selectedExpert}
-                isSelected
-                onSelect={() => {}}
-              />
+                    <div className="mt-5 overflow-hidden rounded-[28px] border border-white bg-white">
+                      {section.groups.map((group, index) => (
+                        <div
+                          key={`${section.category}-${group.specialty}`}
+                          className={`grid gap-5 px-5 py-5 xl:grid-cols-[300px_minmax(0,1fr)] ${
+                            index === 0 ? "" : "border-t border-slate-100"
+                          }`}
+                        >
+                          <div className="space-y-3">
+                            <div>
+                              <p className="text-base font-semibold text-ink">{group.specialty}</p>
+                              <p className="mt-2 text-sm leading-7 text-slate-600">{group.description}</p>
+                            </div>
+                            <div className="flex flex-wrap gap-2 text-xs text-slate-500">
+                              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                                รายชื่อในกลุ่ม {group.experts.length} คน
+                              </span>
+                              <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-sky-700">
+                                ซิงก์แล้ว {group.syncedCount} คน
+                              </span>
+                            </div>
+                          </div>
+
+                          {group.experts.length > 0 ? (
+                            <div className="space-y-3">
+                              {group.experts.map((entry) => (
+                                <ExpertRosterRow
+                                  key={`${group.specialty}-${entry.displayName}`}
+                                  entry={entry}
+                                  isSelected={currentAssignForm.expertId === entry.resolvedExpert?.id}
+                                  onSelect={(expertId) =>
+                                    setAssignForm((previous) => ({
+                                      ...previous,
+                                      requestId: activeRequest?.id || "",
+                                      expertId,
+                                    }))
+                                  }
+                                />
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-500">
+                              กลุ่มนี้เตรียมโครงสร้างไว้แล้วและยังรอการเพิ่มรายชื่อผู้เชี่ยวชาญในอนาคต
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <div className="rounded-[30px] border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">
+                  <p className="text-lg font-semibold text-ink">ยังไม่พบรายชื่อที่ตรงกับคำค้นนี้</p>
+                  <p className="mt-2 text-sm leading-7 text-slate-500">
+                    ลองเปลี่ยนคำค้นหรือสลับหมวดใหญ่เพื่อดูรายชื่อผู้เชี่ยวชาญกลุ่มอื่น
+                  </p>
+                </div>
+              )}
             </div>
-          ) : null}
+
+            <aside className="space-y-4">
+              <div className="rounded-[30px] border border-slate-200 bg-white p-5">
+                <p className="text-sm font-semibold text-ink">ผู้เชี่ยวชาญที่กำลังเลือก</p>
+                <p className="mt-2 text-sm leading-7 text-slate-600">
+                  คลิกรายชื่อจากไดเรกทอรีหรือเลือกจากดรอปดาวน์ในกล่องจับคู่ ระบบจะอัปเดตข้อมูลฝั่งนี้ทันที
+                </p>
+              </div>
+
+              {selectedExpert ? (
+                <ExpertDirectoryCard
+                  expert={selectedExpert}
+                  isSelected
+                  onSelect={() => {}}
+                />
+              ) : (
+                <div className="rounded-[30px] border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm leading-7 text-slate-500">
+                  ยังไม่ได้เลือกผู้เชี่ยวชาญสำหรับคำร้องนี้
+                </div>
+              )}
+            </aside>
+          </div>
         </section>
       ) : null}
     </div>
