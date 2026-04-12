@@ -879,7 +879,23 @@ service cloud.firestore {
     }
 
     function validInnovationStage(stage) {
-      return stage in ["idea", "prototype", "funded", "best_practice"];
+      return stage in [
+        "idea",
+        "prototype",
+        "funded",
+        "best_practice",
+        "ไอเดียเบื้องต้น",
+        "กำลังพัฒนาต้นแบบ",
+        "กำลังพัฒนา (Prototype)",
+        "ได้รับทุนตั้งต้น",
+        "ได้รับทุน (Seed Funding)",
+        "Best Practice",
+        "แนวปฏิบัติที่เป็นเลิศ"
+      ];
+    }
+
+    function validInitialInnovationStage(stage) {
+      return stage in ["idea", "ไอเดียเบื้องต้น"];
     }
 
     function validInnovationDocumentShape() {
@@ -926,7 +942,7 @@ service cloud.firestore {
     function validTeacherInnovationCreate() {
       return validInnovationDocumentShape()
         && request.resource.data.teacherId == request.auth.uid
-        && request.resource.data.stage == "idea"
+        && validInitialInnovationStage(request.resource.data.stage)
         && request.resource.data.lastMovedAt == null
         && request.resource.data.lastMovedById == ""
         && request.resource.data.lastMovedByName == "";

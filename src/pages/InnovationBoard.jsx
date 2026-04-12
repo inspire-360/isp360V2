@@ -16,7 +16,12 @@ import {
   countInnovationsByStage,
   formatInnovationDateTime,
   getInnovationStageMeta,
+  INNOVATION_STAGE_BEST_PRACTICE,
+  INNOVATION_STAGE_FUNDED,
+  INNOVATION_STAGE_IDEA,
+  INNOVATION_STAGE_PROTOTYPE,
   innovationStageOptions,
+  normalizeInnovationStage,
 } from "../data/innovationKanban";
 import { useInnovationBoard } from "../hooks/useInnovationBoard";
 import { isAdminRole } from "../utils/userRoles";
@@ -24,10 +29,10 @@ import { isAdminRole } from "../utils/userRoles";
 const dragInnovationMime = "application/x-du-innovation-id";
 
 const stageIconByValue = {
-  idea: Lightbulb,
-  prototype: FlaskConical,
-  funded: Banknote,
-  best_practice: Award,
+  [INNOVATION_STAGE_IDEA]: Lightbulb,
+  [INNOVATION_STAGE_PROTOTYPE]: FlaskConical,
+  [INNOVATION_STAGE_FUNDED]: Banknote,
+  [INNOVATION_STAGE_BEST_PRACTICE]: Award,
 };
 
 const InnovationCard = memo(function InnovationCard({
@@ -42,6 +47,8 @@ const InnovationCard = memo(function InnovationCard({
   return (
     <article
       draggable
+      data-innovation-id={innovation.id}
+      data-stage={innovation.stage}
       onDragStart={(event) => onDragStart(event, innovation)}
       onDragEnd={onDragEnd}
       className={`group rounded-[24px] border bg-white p-4 transition ${
@@ -68,7 +75,7 @@ const InnovationCard = memo(function InnovationCard({
       </div>
 
       <p className="mt-4 line-clamp-3 text-sm leading-7 text-slate-600">
-        {innovation.summary || "ยังไม่มีรายละเอียดของนวัตกรรมรายการนี้"}
+        {innovation.summary || innovation.description || "ยังไม่มีรายละเอียดของนวัตกรรมรายการนี้"}
       </p>
 
       <div className="mt-4 flex flex-wrap gap-2">
@@ -123,6 +130,7 @@ const InnovationStageColumn = memo(function InnovationStageColumn({
 
   return (
     <section
+      data-stage={stage.value}
       onDragEnterCapture={() => onDragEnterStage(stage.value)}
       onDragOverCapture={(event) => onDragOverStage(event, stage.value)}
       onDragLeaveCapture={(event) => onDragLeaveStage(event, stage.value)}
@@ -185,7 +193,6 @@ export default function InnovationBoard() {
   const [draggingInnovationId, setDraggingInnovationId] = useState("");
   const [dropStage, setDropStage] = useState("");
   const [boardError, setBoardError] = useState("");
-
   const deferredSearchTerm = useDeferredValue(searchTerm.trim().toLowerCase());
 
   const {
@@ -196,6 +203,7 @@ export default function InnovationBoard() {
     loadingInnovations,
     movingInnovationId,
     moveInnovationToStage,
+    listenerError,
   } = useInnovationBoard({
     currentUser,
     userProfile,
@@ -219,7 +227,7 @@ export default function InnovationBoard() {
     }, {});
 
     filteredInnovations.forEach((innovation) => {
-      const stageKey = stageBuckets[innovation.stage] ? innovation.stage : "idea";
+      const stageKey = normalizeInnovationStage(innovation.stage);
       stageBuckets[stageKey].push(innovation);
     });
 
@@ -233,8 +241,8 @@ export default function InnovationBoard() {
     const matchedInnovation = filteredInnovations.find((innovation) => innovation.id === activeInnovationId);
     if (matchedInnovation) return matchedInnovation;
     if (activeInnovation) return activeInnovation;
-    return filteredInnovations[0] || null;
-  }, [activeInnovation, activeInnovationId, filteredInnovations]);
+    return stageColumns[0]?.innovations[0] || filteredInnovations[0] || null;
+  }, [activeInnovation, activeInnovationId, filteredInnovations, stageColumns]);
 
   const handleDragStart = (event, innovation) => {
     setBoardError("");
@@ -281,12 +289,15 @@ export default function InnovationBoard() {
     setDraggingInnovationId("");
     setDropStage("");
 
-    if (!innovation || innovation.stage === stageValue) return;
+    if (!innovation) return;
+
+    const nextStage = normalizeInnovationStage(stageValue);
+    if (innovation.stage === nextStage) return;
 
     try {
       await moveInnovationToStage({
         innovation,
-        nextStage: stageValue,
+        nextStage,
       });
       setActiveInnovationId(innovation.id);
       setBoardError("");
@@ -310,6 +321,7 @@ export default function InnovationBoard() {
   }
 
   const selectedStageMeta = getInnovationStageMeta(selectedInnovation?.stage);
+  const firstColumnCount = summary[INNOVATION_STAGE_IDEA] || 0;
 
   return (
     <div className="brand-shell space-y-8">
@@ -325,8 +337,8 @@ export default function InnovationBoard() {
                 ลาก วาง และขยับนวัตกรรมไปตามเส้นทางการเติบโตได้จากหน้าจอเดียว
               </h1>
               <p className="max-w-2xl text-sm leading-7 text-white/[0.74] md:text-base">
-                ใช้กระดานนี้เพื่อติดตามแนวคิดของครูจากไอเดียตั้งต้นไปจนถึงแนวปฏิบัติที่พร้อมขยายผล
-                ทุกการย้ายการ์ดจะอัปเดตสถานะใน Firestore ทันทีและสะท้อนบนหน้าจอแบบเรียลไทม์
+                การ์ดทุกใบมาจากข้อมูลที่ครูส่งเข้าคอลเลกชันนวัตกรรมโดยตรง คอลัมน์แรกจะแสดงเฉพาะรายการที่อยู่ในระยะไอเดียเบื้องต้น
+                และทุกการลากย้ายจะอัปเดตสถานะกลับไปยังฐานข้อมูลทันที
               </p>
             </div>
           </div>
@@ -354,7 +366,7 @@ export default function InnovationBoard() {
           <div className="max-w-2xl">
             <p className="text-lg font-semibold text-ink">พื้นที่ทำงานของทีม DU</p>
             <p className="mt-2 text-sm leading-7 text-slate-600">
-              ค้นหาจากชื่อครู ชื่อโรงเรียน ชื่อนวัตกรรม หรือแท็ก แล้วลากการ์ดไปยังคอลัมน์ใหม่เมื่อต้องการเปลี่ยนสถานะ
+              กระดานนี้ดึงข้อมูลจากรายการนวัตกรรมที่ครูส่งเข้าระบบทั้งหมด และจะนำรายการระยะไอเดียเบื้องต้นขึ้นคอลัมน์แรกเพื่อพร้อมสำหรับการลากวาง
             </p>
           </div>
 
@@ -376,12 +388,18 @@ export default function InnovationBoard() {
             แสดงผล {filteredInnovations.length} รายการ
           </span>
           <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
-            ลากการ์ดเพื่อย้ายคอลัมน์ได้ทันที
+            คอลัมน์แรกมี {firstColumnCount} รายการจากระยะไอเดียเบื้องต้น
           </span>
           <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
-            การ์ดที่กำลังอัปเดตจะมีสถานะกะพริบชั่วคราว
+            ลากการ์ดเพื่อย้ายระยะการพัฒนาได้ทันที
           </span>
         </div>
+
+        {listenerError ? (
+          <div className="mt-4 rounded-[24px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+            {listenerError}
+          </div>
+        ) : null}
 
         {boardError ? (
           <div className="mt-4 rounded-[24px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
@@ -436,13 +454,12 @@ export default function InnovationBoard() {
                   </span>
                   <h2 className="mt-4 text-2xl font-semibold leading-9 text-ink">{selectedInnovation.title}</h2>
                   <p className="mt-2 text-sm leading-7 text-slate-500">
-                    {selectedInnovation.teacherName || "ยังไม่ระบุชื่อครู"} |{" "}
-                    {selectedInnovation.schoolName || "ยังไม่ระบุโรงเรียน"}
+                    {selectedInnovation.teacherName || "ยังไม่ระบุชื่อครู"} | {selectedInnovation.schoolName || "ยังไม่ระบุโรงเรียน"}
                   </p>
                 </div>
 
                 <div className="space-y-4 text-sm leading-7 text-slate-600">
-                  <p>{selectedInnovation.summary || "ยังไม่มีคำอธิบายนวัตกรรมรายการนี้"}</p>
+                  <p>{selectedInnovation.summary || selectedInnovation.description || "ยังไม่มีคำอธิบายนวัตกรรมรายการนี้"}</p>
                   <p>
                     <span className="font-semibold text-ink">ประเด็นหลัก:</span>{" "}
                     {selectedInnovation.focusArea || "ยังไม่ระบุ"}
@@ -452,8 +469,11 @@ export default function InnovationBoard() {
                     {selectedInnovation.supportNeed || "ยังไม่ระบุ"}
                   </p>
                   <p>
-                    <span className="font-semibold text-ink">หมายเหตุหลักฐาน:</span>{" "}
-                    {selectedInnovation.evidenceNote || "ยังไม่มีบันทึกหลักฐานเพิ่มเติม"}
+                    <span className="font-semibold text-ink">หลักฐานหรือบันทึกประกอบ:</span>{" "}
+                    {selectedInnovation.evidenceNote || "ยังไม่มีบันทึกเพิ่มเติม"}
+                  </p>
+                  <p>
+                    <span className="font-semibold text-ink">แหล่งที่มาของการ์ด:</span> รายการนวัตกรรมที่ครูส่งเข้าระบบ
                   </p>
                 </div>
 
@@ -489,7 +509,7 @@ export default function InnovationBoard() {
               </div>
             ) : (
               <div className="mt-5 rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-5 py-8 text-sm leading-7 text-slate-500">
-                ยังไม่มีนวัตกรรมที่ตรงกับตัวกรองนี้ กรุณาลองปรับคำค้นหรือเพิ่มข้อมูลในคอลเลกชันนวัตกรรม
+                ยังไม่พบนวัตกรรมที่ตรงกับตัวกรองนี้ กรุณาลองปรับคำค้นหรือเพิ่มข้อมูลในฐานนวัตกรรมของครู
               </div>
             )}
           </section>
@@ -497,12 +517,12 @@ export default function InnovationBoard() {
           <section className="brand-panel p-6">
             <p className="brand-chip border-primary/10 bg-primary/5 text-primary">
               <Telescope size={14} />
-              วิธีใช้งานกระดาน
+              วิธีใช้กระดาน
             </p>
             <div className="mt-4 space-y-3 text-sm leading-7 text-slate-600">
-              <p>เลือกการ์ดเพื่ออ่านรายละเอียดของครูและบริบทของนวัตกรรมทางด้านขวา</p>
-              <p>ลากการ์ดจากคอลัมน์เดิมไปยังคอลัมน์ใหม่เพื่ออัปเดตฟิลด์สถานะใน Firestore ทันที</p>
-              <p>หากกำลังอัปเดตอยู่ การ์ดจะกะพริบชั่วคราวเพื่อบอกว่าระบบกำลังบันทึกข้อมูล</p>
+              <p>คอลัมน์แรกจะแสดงรายการที่มีสถานะเป็นไอเดียเบื้องต้นจากฐานข้อมูลนวัตกรรมของครูโดยอัตโนมัติ</p>
+              <p>ลากการ์ดจากคอลัมน์เดิมไปยังคอลัมน์ใหม่เพื่ออัปเดตระยะการพัฒนาและบันทึกกลับไปยังฐานข้อมูลทันที</p>
+              <p>หากการ์ดกำลังกะพริบ แปลว่าระบบกำลังบันทึกการเปลี่ยนสถานะอยู่ และเมื่อสำเร็จข้อมูลจะสะท้อนกลับแบบทันที</p>
             </div>
           </section>
         </aside>

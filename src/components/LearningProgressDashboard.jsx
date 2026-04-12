@@ -11,7 +11,14 @@ const statusFilters = [
 
 const LearningProgressRow = memo(function LearningProgressRow({ row }) {
   return (
-    <tr className="border-b border-slate-100 last:border-b-0">
+    <tr
+      data-user-id={row.userId}
+      data-enrollment-id={row.enrollmentDocumentId || ""}
+      data-enrollment-path={row.enrollmentPath || ""}
+      data-status-value={row.status.value}
+      data-source-status={row.sourceStatus || ""}
+      className="border-b border-slate-100 last:border-b-0"
+    >
       <td className="px-4 py-4 align-top">
         <p className="font-semibold text-ink">{row.name}</p>
         <p className="mt-1 text-xs tracking-[0.08em] text-slate-400">{row.roleLabel}</p>
@@ -19,7 +26,7 @@ const LearningProgressRow = memo(function LearningProgressRow({ row }) {
       <td className="px-4 py-4 align-top">
         <p className="font-medium text-ink">{row.courseTitle}</p>
         <p className="mt-1 text-sm text-slate-500">
-          {row.activeLessonTitle || "ยังไม่มีบทเรียนที่กำลังเปิด"}
+          {row.activeLessonTitle || "ยังไม่มีบทเรียนที่กำลังเปิดอยู่"}
         </p>
       </td>
       <td className="px-4 py-4 align-top">
@@ -63,6 +70,9 @@ export default function LearningProgressDashboard() {
     });
   }, [deferredSearch, rows, statusFilter]);
 
+  const latestRealtimeStatusLabel =
+    listenerInfo.lastChangedStatusText || "กำลังรอการเปลี่ยนแปลงจากผู้เรียน";
+
   return (
     <section className="brand-panel p-6 md:p-8" aria-labelledby="learning-progress-heading">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -75,13 +85,19 @@ export default function LearningProgressDashboard() {
             ติดตามผู้เรียนแบบเรียลไทม์
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
-            ตัวฟังข้อมูลจะประมวลผลเฉพาะแถวของผู้ใช้ที่เปลี่ยนจริง เพื่อลดภาระการเรนเดอร์เมื่อมีการอัปเดตพร้อมกันหลายคน
+            ตารางนี้ฟังข้อมูลจากโปรไฟล์ผู้ใช้และบทเรียนย่อยพร้อมกัน เมื่อสถานะของผู้เรียนเปลี่ยนเป็นเสร็จสิ้นหรือเรียนจบแล้ว
+            ระบบจะอัปเดตเฉพาะแถวนั้นทันทีโดยไม่ต้องเรนเดอร์ตารางใหม่ทั้งหมด
           </p>
         </div>
-        <div className="grid gap-3 sm:grid-cols-3">
+
+        <div className="grid gap-3 sm:grid-cols-4">
           <div className="rounded-3xl border border-slate-200 bg-white px-4 py-3">
             <p className="text-xs tracking-[0.08em] text-slate-400">ผู้เรียนทั้งหมด</p>
             <p className="mt-2 text-2xl font-bold text-ink">{summary.total}</p>
+          </div>
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <p className="text-xs tracking-[0.08em] text-slate-500">ยังไม่เริ่ม</p>
+            <p className="mt-2 text-2xl font-bold text-slate-600">{summary.notStarted}</p>
           </div>
           <div className="rounded-3xl border border-sky-200 bg-sky-50 px-4 py-3">
             <p className="text-xs tracking-[0.08em] text-sky-700">กำลังเรียน</p>
@@ -104,6 +120,7 @@ export default function LearningProgressDashboard() {
             className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
           />
         </label>
+
         <select
           value={statusFilter}
           onChange={(event) => setStatusFilter(event.target.value)}
@@ -117,12 +134,15 @@ export default function LearningProgressDashboard() {
         </select>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-3 text-xs leading-6 text-slate-500">
+      <div className="mt-4 flex flex-wrap gap-3 text-xs leading-6 text-slate-500" aria-live="polite">
         <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
-          กำลังฟังคอลเลกชัน {listenerInfo.usersCollection}
+          กำลังติดตามข้อมูลผู้ใช้แบบทันที
         </span>
         <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
-          กำลังฟังกลุ่มย่อย {listenerInfo.enrollmentsCollectionGroup}
+          กำลังติดตามข้อมูลบทเรียนแบบทันที
+        </span>
+        <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-700">
+          สถานะล่าสุด: {latestRealtimeStatusLabel}
         </span>
       </div>
 

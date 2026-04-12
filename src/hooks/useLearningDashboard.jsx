@@ -3,32 +3,38 @@ import { collection, collectionGroup, onSnapshot } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import {
   buildEnrollmentInsight,
+  normalizeEnrollmentStatus,
   resolveDisplayName,
 } from "../utils/duMemberInsights";
 import { getRoleLabel, isLearnerRole } from "../utils/userRoles";
 import { formatSupportTicketDateTime, toSupportTicketMillis } from "../data/supportTickets";
 
-const buildStatusMeta = (enrollment = {}) => {
+const createStatusMeta = (enrollment = {}) => {
   const progressPercent = enrollment.progressPercent || 0;
-  const score = Number.isFinite(enrollment.score) ? Math.max(0, Math.min(100, Math.round(enrollment.score))) : 0;
+  const normalizedStatus = normalizeEnrollmentStatus(enrollment.status, progressPercent);
+  const score = Number.isFinite(enrollment.score)
+    ? Math.max(0, Math.min(100, Math.round(enrollment.score)))
+    : 0;
 
-  if (progressPercent >= 100 || enrollment.status === "completed") {
+  if (normalizedStatus === "completed") {
     return {
       value: "completed",
       label: "เรียนจบแล้ว",
       tone: "border-emerald-200 bg-emerald-50 text-emerald-700",
       sortWeight: 2,
       score,
+      rawStatus: enrollment.status || "completed",
     };
   }
 
-  if (progressPercent > 0) {
+  if (normalizedStatus === "active") {
     return {
       value: "active",
       label: "กำลังเรียน",
       tone: "border-sky-200 bg-sky-50 text-sky-700",
       sortWeight: 1,
       score,
+      rawStatus: enrollment.status || "active",
     };
   }
 
@@ -38,6 +44,7 @@ const buildStatusMeta = (enrollment = {}) => {
     tone: "border-slate-200 bg-slate-50 text-slate-600",
     sortWeight: 0,
     score,
+    rawStatus: enrollment.status || "not_started",
   };
 };
 
@@ -45,10 +52,11 @@ const buildSpotlightEnrollment = (enrollments = []) =>
   [...enrollments]
     .map((enrollment) => buildEnrollmentInsight(enrollment))
     .sort((left, right) => {
-      const completionGap =
-        Number(right.status === "completed") - Number(left.status === "completed");
-      if (completionGap !== 0) return completionGap;
+      const leftStatus = normalizeEnrollmentStatus(left.status, left.progressPercent);
+      const rightStatus = normalizeEnrollmentStatus(right.status, right.progressPercent);
+      const completionGap = Number(rightStatus === "completed") - Number(leftStatus === "completed");
 
+      if (completionGap !== 0) return completionGap;
       if (left.progressPercent !== right.progressPercent) {
         return right.progressPercent - left.progressPercent;
       }
@@ -72,11 +80,16 @@ const sortRows = (left, right) => {
 };
 
 const buildDashboardRow = ({ userId, userRecord, spotlightEnrollment }) => {
-  const status = buildStatusMeta(spotlightEnrollment || {});
+  const status = createStatusMeta(spotlightEnrollment || {});
   const progressPercent = spotlightEnrollment?.progressPercent || 0;
   const score = status.score;
   const name = resolveDisplayName(userRecord || { email: userId });
   const roleLabel = getRoleLabel(userRecord?.role);
+  const latestActivityTimestamp =
+    spotlightEnrollment?.lastSavedAt ||
+    spotlightEnrollment?.updatedAt ||
+    spotlightEnrollment?.lastAccess ||
+    null;
 
   return {
     userId,
@@ -90,25 +103,33 @@ const buildDashboardRow = ({ userId, userRecord, spotlightEnrollment }) => {
     completedLessonsCount: spotlightEnrollment?.completedLessonsCount || 0,
     lessonCount: spotlightEnrollment?.lessonCount || 0,
     activeLessonTitle: spotlightEnrollment?.activeLessonTitle || "",
-    updatedAtLabel: spotlightEnrollment
-      ? formatSupportTicketDateTime(
-          spotlightEnrollment.lastSavedAt ||
-            spotlightEnrollment.updatedAt ||
-            spotlightEnrollment.lastAccess,
-        )
+    updatedAtLabel: latestActivityTimestamp
+      ? formatSupportTicketDateTime(latestActivityTimestamp)
       : "ยังไม่มีการบันทึก",
+    updatedAtMillis: latestActivityTimestamp ? toSupportTicketMillis(latestActivityTimestamp) : 0,
     enrollmentDocumentId: spotlightEnrollment?.id || "",
     enrollmentPath: spotlightEnrollment?.path || "",
+    sourceStatus: spotlightEnrollment?.sourceStatus || spotlightEnrollment?.status || "",
     searchText: [
       name,
       roleLabel,
       spotlightEnrollment?.courseTitle || "ยังไม่เริ่มหลักสูตร",
       spotlightEnrollment?.activeLessonTitle || "",
       status.label,
+      spotlightEnrollment?.sourceStatus || spotlightEnrollment?.status || "",
     ]
       .join(" ")
       .toLowerCase(),
   };
+};
+
+const initialListenerInfo = {
+  usersCollection: "users",
+  enrollmentsCollectionGroup: "enrollments",
+  lastChangedUserId: "",
+  lastChangedEnrollmentId: "",
+  lastChangedEnrollmentPath: "",
+  lastChangedStatusText: "",
 };
 
 export function useLearningDashboard() {
@@ -119,6 +140,7 @@ export function useLearningDashboard() {
     enrollments: true,
   });
   const [listenerError, setListenerError] = useState("");
+  const [listenerInfo, setListenerInfo] = useState(initialListenerInfo);
 
   const usersByIdRef = useRef(new Map());
   const enrollmentsByPathRef = useRef(new Map());
@@ -198,14 +220,20 @@ export function useLearningDashboard() {
           });
         });
 
+        const latestChange = snapshot.docChanges().at(-1);
+
         setListenerError("");
         setLoadingState((previous) => ({ ...previous, users: false }));
+        setListenerInfo((previous) => ({
+          ...previous,
+          lastChangedUserId: latestChange?.doc?.id || previous.lastChangedUserId,
+        }));
         rebuildRows(affectedUserIds);
       },
       (error) => {
-        console.error("ไม่สามารถติดตามคอลเลกชัน users สำหรับแดชบอร์ดผู้เรียนได้", {
+        console.error("ไม่สามารถติดตามคอลเลกชันผู้ใช้สำหรับแดชบอร์ดผู้เรียนได้", {
           รหัสข้อผิดพลาด: error?.code || "ไม่ทราบรหัส",
-          ข้อความระบบ: error?.message || "ไม่มีข้อความจากระบบ",
+          ข้อความระบบ: error?.message || "ไม่พบข้อความระบบ",
           คอลเลกชัน: "users",
         });
         setListenerError("ไม่สามารถซิงก์ข้อมูลผู้เรียนจากคอลเลกชันผู้ใช้ได้");
@@ -245,14 +273,34 @@ export function useLearningDashboard() {
           userEnrollmentPathsRef.current.set(userId, nextSet);
         });
 
+        const latestChange = snapshot.docChanges().at(-1);
+        const latestChangeData = latestChange?.doc?.data() || {};
+        const latestChangeStatus = createStatusMeta({
+          status: latestChangeData.status,
+          progressPercent:
+            typeof latestChangeData.progressPercent === "number"
+              ? latestChangeData.progressPercent
+              : typeof latestChangeData.progress === "number"
+                ? latestChangeData.progress
+                : 0,
+          score: latestChangeData.score,
+        }).label;
+
         setListenerError("");
         setLoadingState((previous) => ({ ...previous, enrollments: false }));
+        setListenerInfo((previous) => ({
+          ...previous,
+          lastChangedEnrollmentId: latestChange?.doc?.id || previous.lastChangedEnrollmentId,
+          lastChangedEnrollmentPath:
+            latestChange?.doc?.ref?.path || previous.lastChangedEnrollmentPath,
+          lastChangedStatusText: latestChange ? latestChangeStatus : previous.lastChangedStatusText,
+        }));
         rebuildRows(affectedUserIds);
       },
       (error) => {
-        console.error("ไม่สามารถติดตามกลุ่มย่อย enrollments สำหรับแดชบอร์ดผู้เรียนได้", {
+        console.error("ไม่สามารถติดตามกลุ่มย่อยบทเรียนของผู้เรียนแบบเรียลไทม์ได้", {
           รหัสข้อผิดพลาด: error?.code || "ไม่ทราบรหัส",
-          ข้อความระบบ: error?.message || "ไม่มีข้อความจากระบบ",
+          ข้อความระบบ: error?.message || "ไม่พบข้อความระบบ",
           กลุ่มย่อย: "enrollments",
         });
         setListenerError("ไม่สามารถซิงก์ข้อมูลความคืบหน้าจากกลุ่มย่อยบทเรียนได้");
@@ -298,9 +346,6 @@ export function useLearningDashboard() {
     summary,
     loading: Object.values(loadingState).some(Boolean),
     listenerError,
-    listenerInfo: {
-      usersCollection: "users",
-      enrollmentsCollectionGroup: "enrollments",
-    },
+    listenerInfo,
   };
 }

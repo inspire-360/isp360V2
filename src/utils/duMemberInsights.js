@@ -21,6 +21,64 @@ export const resolveLessonCount = (enrollment = {}) => {
 const hasTrackedCompletionCount = (enrollment = {}) =>
   typeof enrollment.completedLessonsCount === "number" || Array.isArray(enrollment.completedLessons);
 
+const normalizeEnrollmentStatusKey = (value = "") => String(value || "").trim().toLowerCase();
+
+const completedEnrollmentStatusSet = new Set([
+  "completed",
+  "complete",
+  "done",
+  "finished",
+  "success",
+  "ผ่าน",
+  "ผ่านแล้ว",
+  "สำเร็จ",
+  "เสร็จสิ้น",
+  "เสร็จแล้ว",
+  "เรียนจบแล้ว",
+  "จบแล้ว",
+]);
+
+const activeEnrollmentStatusSet = new Set([
+  "active",
+  "in_progress",
+  "in progress",
+  "learning",
+  "ongoing",
+  "กำลังเรียน",
+  "กำลังดำเนินการ",
+  "กำลังทำ",
+]);
+
+const notStartedEnrollmentStatusSet = new Set([
+  "not_started",
+  "not started",
+  "pending",
+  "ยังไม่เริ่ม",
+  "รอเริ่ม",
+]);
+
+export const normalizeEnrollmentStatus = (status = "", progressPercent = 0) => {
+  const normalizedStatus = normalizeEnrollmentStatusKey(status);
+
+  if (progressPercent >= 100 || completedEnrollmentStatusSet.has(normalizedStatus)) {
+    return "completed";
+  }
+
+  if (activeEnrollmentStatusSet.has(normalizedStatus)) {
+    return "active";
+  }
+
+  if (notStartedEnrollmentStatusSet.has(normalizedStatus)) {
+    return "not_started";
+  }
+
+  if (progressPercent > 0) {
+    return "active";
+  }
+
+  return "not_started";
+};
+
 export const resolveProgressPercent = (enrollment = {}) => {
   const lessonCount = resolveLessonCount(enrollment);
   const completedLessonsCount = resolveCompletedLessonsCount(enrollment);
@@ -32,12 +90,13 @@ export const resolveProgressPercent = (enrollment = {}) => {
       : typeof enrollment.progress === "number"
         ? Math.max(0, Math.min(100, Math.round(enrollment.progress)))
         : 0;
+  const normalizedStatus = normalizeEnrollmentStatus(enrollment.status, storedPercent);
 
   if (lessonCount > 0 && hasTrackedCompletionCount(enrollment)) {
-    return Math.max(countedPercent, storedPercent, enrollment.status === "completed" ? 100 : 0);
+    return Math.max(countedPercent, storedPercent, normalizedStatus === "completed" ? 100 : 0);
   }
 
-  if (enrollment.status === "completed") return 100;
+  if (normalizedStatus === "completed") return 100;
   return storedPercent;
 };
 
@@ -51,14 +110,15 @@ export const buildEnrollmentInsight = (enrollment = {}) => {
   return {
     ...enrollment,
     courseId,
-    courseTitle: courseMeta?.title || courseId || "Untitled course",
+    courseTitle: courseMeta?.title || courseId || "หลักสูตรที่ยังไม่ตั้งชื่อ",
     completedLessonsCount,
     lessonCount,
     progressPercent,
     activeModuleTitle: enrollment.activeModuleTitle || "",
     activeLessonTitle: enrollment.activeLessonTitle || "",
     activeLessonId: enrollment.activeLessonId || "",
-    status: enrollment.status || (progressPercent >= 100 ? "completed" : "active"),
+    sourceStatus: enrollment.status || "",
+    status: normalizeEnrollmentStatus(enrollment.status, progressPercent),
   };
 };
 
@@ -66,7 +126,7 @@ export const resolveDisplayName = (user = {}) =>
   user.name ||
   [user.prefix, user.firstName, user.lastName].filter(Boolean).join(" ").trim() ||
   user.email ||
-  "Unknown user";
+  "ผู้ใช้ที่ยังไม่ระบุชื่อ";
 
 export const buildUserDraft = (user = {}) => ({
   prefix: user.prefix || "",
