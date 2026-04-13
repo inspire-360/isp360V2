@@ -57,6 +57,10 @@ service cloud.firestore {
           "createdAt",
           "updatedAt",
           "lastLogin",
+          "lastLoginAt",
+          "memberStatus",
+          "sourceProvider",
+          "profileVersion",
           "pdpaAccepted",
           "pdpaAcceptedAt",
           "badges",
@@ -83,6 +87,12 @@ service cloud.firestore {
         && request.resource.data.createdAt is timestamp
         && request.resource.data.updatedAt is timestamp
         && request.resource.data.lastLogin is timestamp
+        && request.resource.data.lastLoginAt is timestamp
+        && request.resource.data.memberStatus == "active"
+        && request.resource.data.sourceProvider is string
+        && request.resource.data.sourceProvider.size() > 0
+        && request.resource.data.profileVersion is int
+        && request.resource.data.profileVersion >= 2
         && request.resource.data.pdpaAccepted == true
         && request.resource.data.pdpaAcceptedAt is timestamp
         && request.resource.data.badges is list
@@ -108,12 +118,37 @@ service cloud.firestore {
           "photoURL",
           "updatedAt",
           "lastLogin",
+          "lastLoginAt",
           "lastProgressAt",
           "lineUserId",
+          "memberStatus",
+          "sourceProvider",
+          "profileVersion",
           "pdpaAccepted",
           "pdpaAcceptedAt",
           "badges"
-        ]);
+        ])
+        && request.resource.data.lastLoginAt is timestamp
+        && request.resource.data.memberStatus is string
+        && (
+          request.resource.data.memberStatus == resource.data.memberStatus
+          || (
+            resource.data.memberStatus == null
+            && request.resource.data.memberStatus == "active"
+          )
+        )
+        && request.resource.data.sourceProvider is string
+        && request.resource.data.sourceProvider.size() > 0
+        && (
+          request.resource.data.sourceProvider == resource.data.sourceProvider
+          || resource.data.sourceProvider == null
+        )
+        && request.resource.data.profileVersion is int
+        && request.resource.data.profileVersion >= 2
+        && (
+          request.resource.data.profileVersion == resource.data.profileVersion
+          || resource.data.profileVersion == null
+        );
     }
 
     function validPresenceWrite(userId) {

@@ -1,13 +1,16 @@
 import { getDoc, onSnapshot, setDoc } from "firebase/firestore";
 import { normalizeUserRole } from "../../../utils/userRoles";
-import { userDocRef } from "../pathBuilders";
+import { userDocRef, usersCollectionRef } from "../pathBuilders";
 import { timestampNow } from "../timestamps";
 import {
+  DEFAULT_MEMBER_STATUS,
+  USER_PROFILE_VERSION,
   buildAuthFallbackUserProfile,
   buildUserDisplayName,
   buildTeacherUserProfileCreateData,
   buildTeacherUserProfileMergeData,
   normalizeUserProfileRecord,
+  resolveDefaultActivePathForRole,
 } from "../mappers/userMapper";
 
 export const buildUserProfileFallback = (authUser) => buildAuthFallbackUserProfile(authUser);
@@ -47,6 +50,23 @@ export const getUserProfile = async (uid, { authUser = null } = {}) => {
     authUser,
   });
 };
+
+export const subscribeToUserProfiles = ({ onNext, onError } = {}) =>
+  onSnapshot(
+    usersCollectionRef(),
+    (snapshot) => {
+      const rows = snapshot.docs
+        .map((item) =>
+          normalizeUserProfileRecord(item.data(), {
+            id: item.id,
+          }),
+        )
+        .sort((left, right) => left.name.localeCompare(right.name));
+
+      onNext?.(rows);
+    },
+    onError,
+  );
 
 export const ensureTeacherUserProfile = async ({
   user,
@@ -152,6 +172,7 @@ export const adminUpdateUserProfile = async ({
   position,
   school,
   role,
+  memberStatus,
   updatedBy,
 } = {}) => {
   if (!uid) {
@@ -171,6 +192,9 @@ export const adminUpdateUserProfile = async ({
   const nextPosition = String(position ?? normalizedExisting.position ?? "").trim();
   const nextSchool = String(school ?? normalizedExisting.school ?? "").trim();
   const nextRole = normalizeUserRole(role || normalizedExisting.role || "teacher");
+  const nextMemberStatus = String(
+    memberStatus ?? normalizedExisting.memberStatus ?? DEFAULT_MEMBER_STATUS,
+  ).trim();
   const nextName = buildUserDisplayName({
     prefix: nextPrefix,
     firstName: nextFirstName,
@@ -187,6 +211,19 @@ export const adminUpdateUserProfile = async ({
     position: nextPosition,
     school: nextSchool,
     role: nextRole,
+    activePath:
+      String(existingProfile.activePath || "").trim() || resolveDefaultActivePathForRole(nextRole),
+    memberStatus: nextMemberStatus || DEFAULT_MEMBER_STATUS,
+    status:
+      String(existingProfile.status || "").trim() ||
+      (nextMemberStatus || DEFAULT_MEMBER_STATUS),
+    sourceProvider:
+      String(existingProfile.sourceProvider || "").trim() || "admin_updated",
+    profileVersion:
+      typeof existingProfile.profileVersion === "number" &&
+      Number.isFinite(existingProfile.profileVersion)
+        ? existingProfile.profileVersion
+        : USER_PROFILE_VERSION,
     updatedAt: timestampNow(),
     updatedBy: String(updatedBy || "").trim() || "admin",
   };

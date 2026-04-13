@@ -135,6 +135,7 @@ export const buildUserDraft = (user = {}) => ({
   position: user.position || "",
   school: user.school || "",
   role: user.role || "learner",
+  memberStatus: user.memberStatus || "active",
   resetTarget: "all",
 });
 

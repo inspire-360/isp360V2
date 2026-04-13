@@ -10,9 +10,11 @@
     "preview": "vite preview",
     "bootstrap-admin": "node ./functions/scripts/bootstrap-admin.mjs",
     "backfill-mission-responses": "node ./functions/scripts/backfill-mission-responses.mjs",
+    "backfill-user-profile-contract": "node ./functions/scripts/backfill-user-profile-contract.mjs",
     "backfill-innovation-docs": "node ./functions/scripts/backfill-innovation-docs.mjs",
     "backfill-video-review-docs": "node ./functions/scripts/backfill-video-review-docs.mjs",
     "verify-innovation-quality": "node ./functions/scripts/verify-innovation-quality.mjs",
+    "verify-user-profile-quality": "node ./functions/scripts/verify-user-profile-quality.mjs",
     "verify-video-review-quality": "node ./functions/scripts/verify-video-review-quality.mjs",
     "verify-mission-response-backfill": "node ./functions/scripts/verify-mission-response-backfill.mjs",
     "mission-response-cutover-health": "node ./functions/scripts/mission-response-cutover-health.mjs"

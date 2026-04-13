@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { collection, collectionGroup, onSnapshot } from "firebase/firestore";
-import { db } from "../lib/firebase";
 import {
   getMissionResponseEnrollmentKey,
   groupMissionResponsesByEnrollmentKey,
 } from "../services/firebase/mappers/missionResponseMapper";
+import { subscribeToEnrollmentSummaryCollectionGroup } from "../services/firebase/repositories/enrollmentRepository";
 import { subscribeToMissionResponseCollectionGroup } from "../services/firebase/repositories/missionResponseRepository";
+import { subscribeToPresenceRows } from "../services/firebase/repositories/presenceRepository";
+import { subscribeToUserProfiles } from "../services/firebase/repositories/userRepository";
 import { PRESENCE_COLLECTION, PRESENCE_TICK_MS } from "../utils/presenceStatus";
 
 const INITIAL_LOADING_STATE = {
@@ -38,47 +39,36 @@ export function useDuMemberData() {
       setLoadingState((previous) => (previous[key] ? { ...previous, [key]: false } : previous));
 
     const unsubscribers = [
-      onSnapshot(
-        collection(db, "users"),
-        (snapshot) => {
-          setUsersData(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
+      subscribeToUserProfiles({
+        onNext: (rows) => {
+          setUsersData(rows);
           markLoaded("users");
         },
-        (error) => {
+        onError: (error) => {
           console.error("Failed to subscribe users:", error);
           markLoaded("users");
         },
-      ),
-      onSnapshot(
-        collection(db, PRESENCE_COLLECTION),
-        (snapshot) => {
-          setPresenceRows(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
+      }),
+      subscribeToPresenceRows({
+        onNext: (rows) => {
+          setPresenceRows(rows);
           markLoaded("presence");
         },
-        (error) => {
-          console.error("Failed to subscribe presence:", error);
+        onError: (error) => {
+          console.error(`Failed to subscribe ${PRESENCE_COLLECTION}:`, error);
           markLoaded("presence");
         },
-      ),
-      onSnapshot(
-        collectionGroup(db, "enrollments"),
-        (snapshot) => {
-          setEnrollmentRows(
-            snapshot.docs.map((item) => ({
-              id: item.id,
-              courseId: item.data().courseId || item.id,
-              path: item.ref.path,
-              userId: item.ref.parent.parent?.id,
-              ...item.data(),
-            })),
-          );
+      }),
+      subscribeToEnrollmentSummaryCollectionGroup({
+        onNext: (rows) => {
+          setEnrollmentRows(rows);
           markLoaded("enrollments");
         },
-        (error) => {
+        onError: (error) => {
           console.error("Failed to subscribe enrollments:", error);
           markLoaded("enrollments");
         },
-      ),
+      }),
       subscribeToMissionResponseCollectionGroup({
         onNext: (rows) => {
           setMissionResponsesByEnrollmentKey(groupMissionResponsesByEnrollmentKey(rows));

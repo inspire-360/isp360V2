@@ -2,7 +2,11 @@ import { normalizeUserRole } from "../../../utils/userRoles";
 import { timestampNow } from "../timestamps";
 
 export const DEFAULT_TEACHER_ROLE = "teacher";
+export const DEFAULT_ADMIN_ROLE = "admin";
+export const DEFAULT_LEARNER_ROLE = "learner";
 export const DEFAULT_TEACHER_ACTIVE_PATH = "/course/teacher";
+export const DEFAULT_ADMIN_ACTIVE_PATH = "/du/admin";
+export const DEFAULT_LEARNER_ACTIVE_PATH = "/dashboard";
 export const DEFAULT_TEACHER_POSITION = "ครู";
 export const DEFAULT_PROFILE_PREFIX = "คุณ";
 export const DEFAULT_MEMBER_STATUS = "active";
@@ -56,6 +60,19 @@ const resolveString = (...values) =>
     .map((value) => String(value ?? "").trim())
     .find(Boolean) || "";
 
+export const resolveDefaultActivePathForRole = (role = "") => {
+  const normalizedRole = normalizeUserRole(role || DEFAULT_TEACHER_ROLE);
+
+  if (normalizedRole === DEFAULT_ADMIN_ROLE) return DEFAULT_ADMIN_ACTIVE_PATH;
+  if (normalizedRole === DEFAULT_LEARNER_ROLE) return DEFAULT_LEARNER_ACTIVE_PATH;
+  return DEFAULT_TEACHER_ACTIVE_PATH;
+};
+
+export const resolveDefaultPositionForRole = (role = "") => {
+  const normalizedRole = normalizeUserRole(role || DEFAULT_TEACHER_ROLE);
+  return normalizedRole === DEFAULT_TEACHER_ROLE ? DEFAULT_TEACHER_POSITION : "";
+};
+
 export const normalizeUserProfileRecord = (record = {}, { id = "", authUser = null } = {}) => {
   const uid = resolveString(record.uid, id, authUser?.uid);
   const prefix = resolveString(record.prefix, DEFAULT_PROFILE_PREFIX);
@@ -64,6 +81,7 @@ export const normalizeUserProfileRecord = (record = {}, { id = "", authUser = nu
   const lastName = resolveString(record.lastName, derivedNameParts.lastName);
   const email = resolveString(record.email, authUser?.email);
   const role = normalizeUserRole(record.role || DEFAULT_TEACHER_ROLE);
+  const defaultActivePath = resolveDefaultActivePathForRole(role);
   const photoURL = resolveString(record.photoURL, authUser?.photoURL);
   const name = buildUserDisplayName({
     prefix,
@@ -81,11 +99,11 @@ export const normalizeUserProfileRecord = (record = {}, { id = "", authUser = nu
     firstName,
     lastName,
     name,
-    position: resolveString(record.position, DEFAULT_TEACHER_POSITION),
+    position: resolveString(record.position, resolveDefaultPositionForRole(role)),
     school: resolveString(record.school),
     email,
     role,
-    activePath: resolveString(record.activePath, DEFAULT_TEACHER_ACTIVE_PATH),
+    activePath: resolveString(record.activePath, defaultActivePath),
     photoURL,
     lineUserId: resolveString(record.lineUserId),
     pdpaAccepted: typeof record.pdpaAccepted === "boolean" ? record.pdpaAccepted : true,
@@ -138,6 +156,15 @@ export const buildTeacherUserProfileCreateData = ({
 }) => {
   const normalizedEmail = resolveString(email, user?.email);
   const normalizedPhotoURL = resolveString(photoURL, user?.photoURL);
+  const normalizedRole = normalizeUserRole(role || DEFAULT_TEACHER_ROLE) || DEFAULT_TEACHER_ROLE;
+  const normalizedActivePath = resolveString(
+    activePath,
+    resolveDefaultActivePathForRole(normalizedRole),
+  );
+  const sourceProvider = inferSourceProvider({
+    authUser: user,
+    lineUserId,
+  });
 
   return {
     uid: user?.uid || "",
@@ -154,8 +181,8 @@ export const buildTeacherUserProfileCreateData = ({
     position: resolveString(position, DEFAULT_TEACHER_POSITION),
     school: resolveString(school),
     email: normalizedEmail,
-    role: normalizeUserRole(role || DEFAULT_TEACHER_ROLE) || DEFAULT_TEACHER_ROLE,
-    activePath: resolveString(activePath, DEFAULT_TEACHER_ACTIVE_PATH),
+    role: normalizedRole,
+    activePath: normalizedActivePath,
     progress: LEGACY_PROFILE_PROGRESS,
     progressPercent: LEGACY_PROFILE_PROGRESS,
     status: LEGACY_PROFILE_STATUS,
@@ -163,6 +190,10 @@ export const buildTeacherUserProfileCreateData = ({
     createdAt: timestampNow(),
     updatedAt: timestampNow(),
     lastLogin: timestampNow(),
+    lastLoginAt: timestampNow(),
+    memberStatus: DEFAULT_MEMBER_STATUS,
+    sourceProvider,
+    profileVersion: USER_PROFILE_VERSION,
     pdpaAccepted: Boolean(pdpaAccepted),
     pdpaAcceptedAt: timestampNow(),
     badges: [],
@@ -189,10 +220,15 @@ export const buildTeacherUserProfileMergeData = (
     id: existingProfile.id || existingProfile.uid,
     authUser: user,
   });
+  const defaultActivePath = resolveDefaultActivePathForRole(normalizedExisting.role);
   const nextPrefix = resolveString(prefix, normalizedExisting.prefix, DEFAULT_PROFILE_PREFIX);
   const nextFirstName = resolveString(firstName, normalizedExisting.firstName);
   const nextLastName = resolveString(lastName, normalizedExisting.lastName);
-  const nextPosition = resolveString(position, normalizedExisting.position, DEFAULT_TEACHER_POSITION);
+  const nextPosition = resolveString(
+    position,
+    normalizedExisting.position,
+    resolveDefaultPositionForRole(normalizedExisting.role),
+  );
   const nextSchool = resolveString(school, normalizedExisting.school);
   const nextPhotoURL = resolveString(photoURL, normalizedExisting.photoURL, user?.photoURL);
   const nextLineUserId = resolveString(lineUserId, normalizedExisting.lineUserId);
@@ -216,7 +252,7 @@ export const buildTeacherUserProfileMergeData = (
   if (nextLineUserId !== normalizedExisting.lineUserId) patch.lineUserId = nextLineUserId;
 
   if (!String(existingProfile.activePath || "").trim()) {
-    patch.activePath = DEFAULT_TEACHER_ACTIVE_PATH;
+    patch.activePath = defaultActivePath;
   }
   if (typeof existingProfile.progress !== "number") {
     patch.progress = LEGACY_PROFILE_PROGRESS;
@@ -226,6 +262,21 @@ export const buildTeacherUserProfileMergeData = (
   }
   if (!String(existingProfile.status || "").trim()) {
     patch.status = LEGACY_PROFILE_STATUS;
+  }
+  if (!String(existingProfile.memberStatus || "").trim()) {
+    patch.memberStatus = DEFAULT_MEMBER_STATUS;
+  }
+  if (!String(existingProfile.sourceProvider || "").trim()) {
+    patch.sourceProvider = inferSourceProvider({
+      authUser: user,
+      lineUserId: nextLineUserId,
+    });
+  }
+  if (
+    typeof existingProfile.profileVersion !== "number" ||
+    !Number.isFinite(existingProfile.profileVersion)
+  ) {
+    patch.profileVersion = USER_PROFILE_VERSION;
   }
   if (!Array.isArray(existingProfile.badges)) {
     patch.badges = [];
@@ -242,6 +293,9 @@ export const buildTeacherUserProfileMergeData = (
 
   if (touchLastLogin) {
     patch.lastLogin = timestampNow();
+    patch.lastLoginAt = timestampNow();
+  } else if (!existingProfile.lastLoginAt && existingProfile.lastLogin) {
+    patch.lastLoginAt = existingProfile.lastLogin;
   }
 
   if (Object.keys(patch).length > 0) {
