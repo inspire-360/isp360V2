@@ -225,15 +225,26 @@ export const buildMatchRequestContractPatch = ({
   const completedAt = status === "completed"
     ? toTimestamp(record.completedAt, updatedAt, matchedAt, fallbackNow)
     : null;
+  const requesterProfileSnapshot = buildRequesterProfileSnapshot({
+    requesterId,
+    requesterName,
+    requesterRole: record.requesterRole,
+    schoolName,
+    userRecord,
+  });
+  const matchedExpertSnapshot = status === "pending_match"
+    ? {}
+    : buildMatchedExpertSnapshot({
+      expertId: matchedExpertId,
+      expertRecord,
+      requestRecord: record,
+    });
 
   const target = {
     requesterId,
-    requesterName: requesterName || buildDisplayName({
-      userRecord,
-      fallbackId: requesterId,
-    }),
+    requesterName: requesterProfileSnapshot.name,
     requesterRole: normalizeUserRole(record.requesterRole || userRecord.role || "teacher"),
-    schoolName: schoolName || normalizeString(userRecord.school),
+    schoolName: requesterProfileSnapshot.school,
     requestTitle: normalizeString(record.requestTitle),
     desiredExpertise: normalizeString(record.desiredExpertise),
     preferredFormat: normalizePreferredFormat(record.preferredFormat),
@@ -246,31 +257,19 @@ export const buildMatchRequestContractPatch = ({
       requestDetails: record.requestDetails,
       needTags: Array.isArray(record.needTags) ? record.needTags : [],
     }),
-    requesterProfileSnapshot: buildRequesterProfileSnapshot({
-      requesterId,
-      requesterName,
-      requesterRole: record.requesterRole,
-      schoolName,
-      userRecord,
-    }),
+    requesterProfileSnapshot,
     status,
     createdAt,
     updatedAt,
     matchedExpertId: status === "pending_match" ? "" : matchedExpertId,
-    matchedExpertName: status === "pending_match" ? "" : matchedExpertName,
+    matchedExpertName: status === "pending_match" ? "" : matchedExpertSnapshot.name,
     matchedExpertTitle: status === "pending_match"
       ? ""
-      : normalizeString(expertRecord.title || record.matchedExpertTitle),
+      : matchedExpertSnapshot.title,
     matchedExpertPrimaryExpertise: status === "pending_match"
       ? ""
-      : normalizeString(expertRecord.primaryExpertise || record.matchedExpertPrimaryExpertise),
-    matchedExpertSnapshot: status === "pending_match"
-      ? {}
-      : buildMatchedExpertSnapshot({
-        expertId: matchedExpertId,
-        expertRecord,
-        requestRecord: record,
-      }),
+      : matchedExpertSnapshot.primaryExpertise,
+    matchedExpertSnapshot,
     matchedByAdminId: status === "pending_match" ? "" : normalizeString(record.matchedByAdminId),
     matchedByAdminName: status === "pending_match" ? "" : normalizeString(record.matchedByAdminName),
     matchedAt,
