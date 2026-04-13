@@ -1,0 +1,55 @@
+{
+  "baseUrl": "http://127.0.0.1:4174",
+  "outputDir": "C:\\Users\\401ms\\Desktop\\inspire-pwa\\inspire-pwa\\inspire-app\\output\\smoke-auth-2026-04-13T15-54-50-816Z",
+  "email": "codex.smoke.1776095690816@example.com",
+  "password": "SmokePass123!",
+  "checks": [
+    {
+      "name": "landing page loads",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "name": "register learner account",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "name": "learner access guard blocks admin routes",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "name": "profile save roundtrip works",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "name": "student course enrollment works",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "name": "teacher course enrollment works",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "name": "my courses show firebase enrollments",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "name": "teacher sos request create and follow-up works",
+      "status": "failed",
+      "detail": "locator.waitFor: Error: strict mode violation: locator('text=Follow-up 1776095690816') resolved to 2 elements:\n    1) <p class=\"mt-3 line-clamp-2 text-sm leading-7 text-slate-600\">Follow-up 1776095690816</p> aka getByRole('button', { name: 'SOS-12ZKVZ' })\n    2) <p class=\"mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700\">Follow-up 1776095690816</p> aka getByText('Follow-up').nth(3)\n\nCall log:\n\u001b[2m  - waiting for locator('text=Follow-up 1776095690816') to be visible\u001b[22m\n"
+    }
+  ],
+  "consoleErrors": [
+    "Framing 'https://chpspace.my.canva.site/' violates the following Content Security Policy directive: \"frame-ancestors 'self' *.canva.com canva.com\". The request has been blocked.\n",
+    "ไม่สามารถติดตามข้อความในคำร้อง SOS ได้ {รหัสข้อผิดพลาด: permission-denied, ข้อความระบบ: Missing or insufficient permissions., รหัสคำร้อง: 12zkvzsjJVrzJygfjhP8, ผู้ใช้งาน: njKjCJ7LuyYEYqN4Fbag2sDjWEB2}"
+  ],
+  "pageErrors": [],
+  "requestFailures": [],
+  "fatal": "locator.waitFor: Error: strict mode violation: locator('text=Follow-up 1776095690816') resolved to 2 elements:\n    1) <p class=\"mt-3 line-clamp-2 text-sm leading-7 text-slate-600\">Follow-up 1776095690816</p> aka getByRole('button', { name: 'SOS-12ZKVZ' })\n    2) <p class=\"mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700\">Follow-up 1776095690816</p> aka getByText('Follow-up').nth(3)\n\nCall log:\n\u001b[2m  - waiting for locator('text=Follow-up 1776095690816') to be visible\u001b[22m\n"
+}

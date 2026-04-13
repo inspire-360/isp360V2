@@ -1,0 +1,24 @@
+{
+  "baseUrl": "http://127.0.0.1:4174",
+  "outputDir": "C:\\Users\\401ms\\Desktop\\inspire-pwa\\inspire-pwa\\inspire-app\\output\\smoke-auth-2026-04-13T15-57-17-529Z",
+  "email": "codex.smoke.1776095837529@example.com",
+  "password": "SmokePass123!",
+  "checks": [
+    {
+      "name": "landing page loads",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "name": "register learner account",
+      "status": "failed",
+      "detail": "locator.fill: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('input[name=\"firstName\"]')\u001b[22m\n"
+    }
+  ],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 (File not found)"
+  ],
+  "pageErrors": [],
+  "requestFailures": [],
+  "fatal": "locator.fill: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('input[name=\"firstName\"]')\u001b[22m\n"
+}

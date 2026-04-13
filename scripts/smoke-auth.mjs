@@ -37,6 +37,8 @@ const writeReport = () => {
 };
 
 const sanitize = (value) => value.replace(/[^a-z0-9-]+/gi, "-").toLowerCase();
+const isIgnorableThirdPartyConsoleError = (value = "") =>
+  value.includes("chpspace.my.canva.site") && value.includes("frame-ancestors");
 const isIgnorableConsoleError = (value = "") =>
   value.includes("ส่งสถานะคงค้างก่อนออกจากหน้าไม่สำเร็จ");
 
@@ -79,13 +81,14 @@ async function main() {
   });
   const context = await browser.newContext({
     viewport: { width: 1440, height: 1200 },
+    serviceWorkers: "block",
   });
   const page = await context.newPage();
 
   page.on("console", (message) => {
     if (message.type() !== "error") return;
     const text = message.text();
-    if (isIgnorableConsoleError(text)) return;
+    if (isIgnorableConsoleError(text) || isIgnorableThirdPartyConsoleError(text)) return;
     report.consoleErrors.push(text);
   });
   page.on("pageerror", (error) => {
@@ -191,7 +194,9 @@ async function main() {
       await followUpArea.fill(followUpNote);
       await page.locator('form').filter({ has: page.locator('textarea[rows="4"]') }).last().locator('button[type="submit"]').click();
       await page.waitForTimeout(2000);
-      await page.locator(`text=${followUpNote}`).waitFor({ timeout: 20000 });
+      await page.locator("p.whitespace-pre-wrap").filter({ hasText: followUpNote }).last().waitFor({
+        timeout: 20000,
+      });
       await capture(page, "sos-flow");
     });
 

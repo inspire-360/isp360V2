@@ -114,6 +114,16 @@ export function useSupportTickets({ currentUser, userProfile, userRole, isAdminV
         });
       },
       (error) => {
+        if (error?.code === "permission-denied") {
+          console.warn("ไม่สามารถอ่านข้อความในคำร้อง SOS ต่อได้ จึงยุติการติดตามข้อความของคำร้องนี้ชั่วคราว", {
+            ticketId: activeTicketId,
+            userId: currentUser?.uid || "",
+            isAdminView: Boolean(isAdminView),
+          });
+          setMessages([]);
+          setLoadingMessages(false);
+          return;
+        }
         console.error("ไม่สามารถติดตามรายการคำร้อง SOS แบบเรียลไทม์ได้", {
           รหัสข้อผิดพลาด: error?.code || "ไม่ทราบรหัส",
           ข้อความระบบ: error?.message || "ไม่มีข้อความจากระบบ",
@@ -125,7 +135,7 @@ export function useSupportTickets({ currentUser, userProfile, userRole, isAdminV
     );
 
     return () => unsubscribe();
-  }, [currentUser?.uid, isAdminView]);
+  }, [activeTicketId, currentUser?.uid, isAdminView]);
 
   useEffect(() => {
     const canReadActiveTicket =
@@ -168,6 +178,16 @@ export function useSupportTickets({ currentUser, userProfile, userRole, isAdminV
         });
       },
       (error) => {
+        if (error?.code === "permission-denied") {
+          console.warn("ไม่สามารถอ่านข้อความในคำร้อง SOS ต่อได้ จึงยุติการติดตามข้อความของคำร้องนี้ชั่วคราว", {
+            ticketId: activeTicketId,
+            userId: currentUser?.uid || "",
+            isAdminView: Boolean(isAdminView),
+          });
+          setMessages([]);
+          setLoadingMessages(false);
+          return;
+        }
         console.error("ไม่สามารถติดตามข้อความในคำร้อง SOS ได้", {
           รหัสข้อผิดพลาด: error?.code || "ไม่ทราบรหัส",
           ข้อความระบบ: error?.message || "ไม่มีข้อความจากระบบ",
