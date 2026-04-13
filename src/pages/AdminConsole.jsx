@@ -54,27 +54,6 @@ const ADMIN_EXPORT_EXCLUDED_FIELDS = new Set([
   "submittedAtMs",
 ]);
 
-const buildMissionResponseRecordKey = (response = {}) =>
-  [
-    String(response.userId || "").trim(),
-    String(response.courseId || response.enrollmentId || "").trim(),
-    String(response.missionId || response.id || "").trim(),
-  ].join("::");
-
-const buildLegacyMissionResponseRows = (enrollmentMetaByKey) =>
-  [...enrollmentMetaByKey.values()].flatMap((enrollment) => {
-    const missionResponses = enrollment.missionResponses || {};
-
-    return Object.entries(missionResponses).map(([missionId, response]) => ({
-      ...(response && typeof response === "object" ? response : {}),
-      id: missionId,
-      missionId,
-      userId: enrollment.userId || "",
-      courseId: enrollment.courseId || enrollment.id || "",
-      enrollmentId: enrollment.courseId || enrollment.id || "",
-    }));
-  });
-
 const buildMissionResponseRows = ({
   missionResponses,
   userNameById,
@@ -156,19 +135,8 @@ export default function AdminConsole() {
         }),
       );
 
-      const missionResponseByKey = new Map(
-        buildLegacyMissionResponseRows(enrollmentMetaByKey).map((response) => [
-          buildMissionResponseRecordKey(response),
-          response,
-        ]),
-      );
-
-      missionResponses.forEach((response) => {
-        missionResponseByKey.set(buildMissionResponseRecordKey(response), response);
-      });
-
       const rows = buildMissionResponseRows({
-        missionResponses: [...missionResponseByKey.values()],
+        missionResponses,
         userNameById,
         enrollmentMetaByKey,
       });

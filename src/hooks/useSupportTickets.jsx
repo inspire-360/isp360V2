@@ -128,7 +128,15 @@ export function useSupportTickets({ currentUser, userProfile, userRole, isAdminV
   }, [currentUser?.uid, isAdminView]);
 
   useEffect(() => {
-    if (!activeTicketId) {
+    const canReadActiveTicket =
+      Boolean(activeTicketId) &&
+      tickets.some(
+        (ticket) =>
+          ticket.id === activeTicketId &&
+          (isAdminView || ticket.requesterId === currentUser?.uid),
+      );
+
+    if (!canReadActiveTicket) {
       setMessages([]);
       setLoadingMessages(false);
       return undefined;
@@ -171,7 +179,7 @@ export function useSupportTickets({ currentUser, userProfile, userRole, isAdminV
     );
 
     return () => unsubscribe();
-  }, [activeTicketId, currentUser?.uid]);
+  }, [activeTicketId, currentUser?.uid, isAdminView, tickets]);
 
   const activeTicket = useMemo(
     () => tickets.find((ticket) => ticket.id === activeTicketId) || null,

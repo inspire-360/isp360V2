@@ -103,15 +103,11 @@ export function useDuMemberData() {
         });
         const canonicalMissionResponses = missionResponsesByEnrollmentKey[missionResponseKey] || {};
         const hasCanonicalMissionResponses = Object.keys(canonicalMissionResponses).length > 0;
-        const mergedMissionResponses = {
-          ...(enrollment.missionResponses || {}),
-          ...canonicalMissionResponses,
-        };
 
         return {
           ...enrollment,
-          missionResponses: mergedMissionResponses,
-          missionResponsesMap: mergedMissionResponses,
+          missionResponses: canonicalMissionResponses,
+          missionResponsesMap: canonicalMissionResponses,
           hasCanonicalMissionResponses,
         };
       }),

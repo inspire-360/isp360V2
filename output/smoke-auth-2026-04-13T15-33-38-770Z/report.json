@@ -1,0 +1,63 @@
+{
+  "baseUrl": "http://127.0.0.1:4174",
+  "outputDir": "C:\\Users\\401ms\\Desktop\\inspire-pwa\\inspire-pwa\\inspire-app\\output\\smoke-auth-2026-04-13T15-33-38-770Z",
+  "email": "codex.smoke.1776094418771@example.com",
+  "password": "SmokePass123!",
+  "checks": [
+    {
+      "name": "landing page loads",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "name": "register learner account",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "name": "learner access guard blocks admin routes",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "name": "profile save roundtrip works",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "name": "student course enrollment works",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "name": "teacher course enrollment works",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "name": "my courses show firebase enrollments",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "name": "teacher sos request create and follow-up works",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "name": "logout works",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "name": "login with created account works",
+      "status": "passed",
+      "detail": ""
+    }
+  ],
+  "consoleErrors": [
+    "ไม่สามารถติดตามข้อความในคำร้อง SOS ได้ {รหัสข้อผิดพลาด: permission-denied, ข้อความระบบ: Missing or insufficient permissions., รหัสคำร้อง: ym37EoD9UwWh4YX52J2z, ผู้ใช้งาน: 26Oq4h6gq5Nosc4QweEPxLXjjgo1}"
+  ],
+  "pageErrors": [],
+  "requestFailures": []
+}

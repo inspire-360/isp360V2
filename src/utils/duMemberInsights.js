@@ -164,10 +164,8 @@ export const buildResetPayload = (operatorName) => {
   };
 };
 
-export const resolveEnrollmentMissionResponses = (enrollment = {}) => ({
-  ...(enrollment.missionResponses || {}),
-  ...(enrollment.missionResponsesMap || {}),
-});
+export const resolveEnrollmentMissionResponses = (enrollment = {}) =>
+  enrollment.missionResponsesMap || {};
 
 const normalizePainFragment = (value = "") =>
   value

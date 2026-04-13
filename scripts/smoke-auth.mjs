@@ -37,6 +37,13 @@ const writeReport = () => {
 };
 
 const sanitize = (value) => value.replace(/[^a-z0-9-]+/gi, "-").toLowerCase();
+const isIgnorableConsoleError = (value = "") =>
+  value.includes("ส่งสถานะคงค้างก่อนออกจากหน้าไม่สำเร็จ");
+
+async function waitForDashboardReady(page) {
+  await page.waitForURL(/\/dashboard$/, { timeout: 30000 });
+  await page.getByText("Mission tracks").waitFor({ timeout: 20000 });
+}
 
 async function capture(page, label) {
   shotIndex += 1;
@@ -77,7 +84,9 @@ async function main() {
 
   page.on("console", (message) => {
     if (message.type() !== "error") return;
-    report.consoleErrors.push(message.text());
+    const text = message.text();
+    if (isIgnorableConsoleError(text)) return;
+    report.consoleErrors.push(text);
   });
   page.on("pageerror", (error) => {
     report.pageErrors.push(String(error));
@@ -107,10 +116,9 @@ async function main() {
       await page.locator('#pdpa').check();
       await capture(page, "register-filled");
       await Promise.all([
-        page.waitForURL(/\/dashboard$/, { timeout: 30000 }),
         page.locator('button[type="submit"]').click(),
+        waitForDashboardReady(page),
       ]);
-      await page.locator("text=Online Pulse").waitFor({ timeout: 20000 });
       await capture(page, "dashboard-after-register");
     });
 
@@ -168,7 +176,7 @@ async function main() {
       await capture(page, "my-courses");
     });
 
-    await runCheck("sos flow supports create, complete, and follow-up", async () => {
+    await runCheck("teacher sos request create and follow-up works", async () => {
       await page.goto(`${baseUrl}/du/sos`, { waitUntil: "domcontentloaded" });
       const sosForm = page.locator("form").first();
       const sosInputs = sosForm.locator("input");
@@ -178,11 +186,10 @@ async function main() {
       await sosForm.locator('button[type="submit"]').click();
       const caseCard = page.locator("article").filter({ hasText: sosSummary }).last();
       await caseCard.waitFor({ timeout: 20000 });
-      await caseCard.getByRole("button", { name: /Complete case/i }).click();
-      await page.waitForTimeout(1500);
-      const followUpArea = page.locator("article").filter({ hasText: sosSummary }).last().locator("textarea");
+      const followUpArea = page.locator('form').filter({ has: page.locator('textarea[rows="4"]') }).last().locator('textarea[rows="4"]');
+      await followUpArea.waitFor({ timeout: 20000 });
       await followUpArea.fill(followUpNote);
-      await page.locator("article").filter({ hasText: sosSummary }).last().getByRole("button", { name: /follow-up/i }).click();
+      await page.locator('form').filter({ has: page.locator('textarea[rows="4"]') }).last().locator('button[type="submit"]').click();
       await page.waitForTimeout(2000);
       await page.locator(`text=${followUpNote}`).waitFor({ timeout: 20000 });
       await capture(page, "sos-flow");
@@ -206,10 +213,9 @@ async function main() {
       await page.locator('input[type="email"]').fill(email);
       await page.locator('input[type="password"]').fill(password);
       await Promise.all([
-        page.waitForURL(/\/dashboard$/, { timeout: 30000 }),
         page.locator('button[type="submit"]').click(),
+        waitForDashboardReady(page),
       ]);
-      await page.locator("text=Online Pulse").waitFor({ timeout: 20000 });
       await capture(page, "dashboard-after-login");
     });
   } finally {

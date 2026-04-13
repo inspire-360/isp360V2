@@ -114,7 +114,6 @@ const defaultEnrollmentSummaryData = {
 
 const defaultProgressData = {
   ...defaultEnrollmentSummaryData,
-  missionResponses: {},
 };
 
 const courseId = "course-teacher";
@@ -241,7 +240,6 @@ export default function CourseRoom() {
   const [missionResetNonce, setMissionResetNonce] = useState(0);
   const [clearingMission, setClearingMission] = useState(false);
   const [missionResponsesMap, setMissionResponsesMap] = useState({});
-  const [hasCanonicalMissionResponses, setHasCanonicalMissionResponses] = useState(false);
 
   const lessonMap = useMemo(() => {
     const nextMap = new Map();
@@ -419,17 +417,6 @@ export default function CourseRoom() {
             ...expectedEnrollmentMeta,
           };
 
-          if (
-            normalizedEnrollmentData.missionResponses &&
-            typeof normalizedEnrollmentData.missionResponses === "object"
-          ) {
-            setMissionResponsesMap((previous) =>
-              Object.keys(previous).length === 0 && !hasCanonicalMissionResponses
-                ? normalizedEnrollmentData.missionResponses
-                : previous,
-            );
-          }
-
           setProgressData({
             ...defaultProgressData,
             ...normalizedEnrollmentData,
@@ -462,18 +449,16 @@ export default function CourseRoom() {
     );
 
     return unsubscribe;
-  }, [currentUser, hasCanonicalMissionResponses]);
+  }, [currentUser]);
 
   useEffect(() => {
     if (!currentUser) {
       setMissionResponsesMap({});
-      setHasCanonicalMissionResponses(false);
       return undefined;
     }
 
     const unsubscribe = subscribeToMissionResponses(currentUser.uid, courseId, {
       onNext: (rows) => {
-        setHasCanonicalMissionResponses(rows.length > 0);
         const nextResponses = rows.reduce((accumulator, item) => {
           accumulator[item.missionId || item.lessonId] = item;
           return accumulator;
@@ -949,7 +934,6 @@ export default function CourseRoom() {
       if (missionIds.length > 0) {
         await clearMissionResponses(currentUser.uid, courseId, missionIds);
       }
-      setHasCanonicalMissionResponses(false);
       setMissionResponsesMap({});
     } catch (error) {
       console.error("Reset failed:", error);

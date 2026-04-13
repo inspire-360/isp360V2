@@ -166,7 +166,10 @@ export const diffMissionResponseKeys = ({ legacyMap, canonicalMap, strictMode = 
   const legacyKeys = [...legacyMap.keys()].sort();
   const canonicalKeys = [...canonicalMap.keys()].sort();
   const missingInCanonical = legacyKeys.filter((missionId) => !canonicalMap.has(missionId));
-  const extraInCanonical = canonicalKeys.filter((missionId) => !legacyMap.has(missionId));
+  const extraInCanonical =
+    legacyKeys.length === 0
+      ? []
+      : canonicalKeys.filter((missionId) => !legacyMap.has(missionId));
   const payloadDiffs = [];
 
   if (strictMode) {

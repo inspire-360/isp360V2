@@ -85,10 +85,7 @@ const buildVideoRows = ({
             courseId: enrollment.courseId || enrollment.enrollmentId,
           })
         ] || {};
-      const missionResponses = {
-        ...(enrollment.missionResponses || {}),
-        ...canonicalMissionResponses,
-      };
+      const missionResponses = canonicalMissionResponses;
       const moduleFourMissionOne = missionResponses[MODULE_FOUR_MISSION_ONE_ID] || {};
       const moduleFourMissionTwo = missionResponses[MODULE_FOUR_MISSION_TWO_ID] || {};
       const moduleFiveMissionOne = missionResponses[MODULE_FIVE_MISSION_ONE_ID] || {};
