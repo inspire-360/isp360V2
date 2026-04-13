@@ -164,47 +164,40 @@ const ExpertRosterRow = memo(function ExpertRosterRow({
   recommendation,
 }) {
   const expert = entry.resolvedExpert;
-  const capacityMeta = getExpertCapacityMeta(expert.capacityStatus);
 
   return (
     <button
       type="button"
       onClick={() => onSelect(expert.id)}
-      className={`group w-full rounded-[24px] border px-4 py-4 text-left transition ${
+      className={`group flex w-full items-center justify-between gap-3 rounded-[18px] border px-4 py-3 text-left transition ${
         isSelected
-          ? "border-primary/30 bg-primary/[0.06] shadow-[0_18px_45px_rgba(13,17,100,0.10)]"
+          ? "border-primary/30 bg-primary/[0.08] shadow-[0_12px_30px_rgba(13,17,100,0.08)]"
           : "border-slate-200 bg-white hover:border-secondary/20 hover:bg-secondary/[0.04]"
       }`}
     >
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(220px,0.8fr)_minmax(220px,0.8fr)] xl:items-center">
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-base font-semibold text-ink">{expert.displayName}</p>
-            <span
-              className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-semibold ${
-                entry.isSynced
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                  : "border-slate-200 bg-slate-50 text-slate-600"
-              }`}
-            >
+      <div className="flex w-full items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-ink md:text-base">{expert.displayName}</p>
+            <span className="hidden">
               {entry.isSynced ? "เชื่อมฐานข้อมูลแล้ว" : "ใช้จากรายชื่อมาตรฐาน"}
             </span>
           </div>
-          <p className="text-sm leading-7 text-slate-600">
+          <p className="hidden text-sm leading-7 text-slate-600">
             {expert.bio || "พร้อมสนับสนุนครูตามสาขาความเชี่ยวชาญที่ระบุ"}
           </p>
         </div>
 
-        <div className="space-y-2 text-sm text-slate-600">
+        <div className="hidden space-y-2 text-sm text-slate-600">
           <p className="font-semibold text-ink">{expert.primaryExpertise || entry.specialty}</p>
           <p>{expert.organization || "เครือข่ายผู้เชี่ยวชาญ DU"}</p>
           <p>พื้นที่ดูแล: {expert.region || "สนับสนุนได้ทั่วทั้งเครือข่าย"}</p>
         </div>
 
-        <div className="space-y-3">
-          <div className="flex flex-wrap gap-2 xl:justify-end">
-            <span className={`${chipBase} ${capacityMeta.tone}`}>{capacityMeta.label}</span>
-            <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            <span className={`h-2.5 w-2.5 rounded-full ${isSelected ? "bg-primary" : "bg-slate-300 group-hover:bg-secondary"}`} />
+            <span className="hidden inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
               {entry.specialty}
             </span>
             {recommendation ? (
@@ -213,7 +206,7 @@ const ExpertRosterRow = memo(function ExpertRosterRow({
               </span>
             ) : null}
           </div>
-          <p className="text-xs leading-6 text-slate-500 xl:text-right">
+          <p className="hidden text-xs leading-6 text-slate-500 xl:text-right">
             รูปแบบงาน: {formatExpertServiceModes(expert.serviceModes).join(" / ")}
           </p>
         </div>
@@ -1333,7 +1326,7 @@ export default function ResourceMatchmaker() {
                               </div>
 
                               {group.experts.length > 0 ? (
-                                <div className="space-y-3">
+                                <div className="grid gap-2 md:grid-cols-2">
                                   {group.experts.map((entry) => (
                                     <ExpertRosterRow
                                       key={`${group.specialty}-${entry.displayName}`}
