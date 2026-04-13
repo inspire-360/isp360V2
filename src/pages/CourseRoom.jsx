@@ -101,16 +101,20 @@ const getRankLabel = (xp) =>
 const isMissionLesson = (lesson) =>
   lesson?.content?.gamification?.difficulty === "Heroic" || lesson?.id?.includes("mission");
 
-const defaultProgressData = {
+const defaultEnrollmentSummaryData = {
   completedLessons: [],
   currentModuleIndex: 0,
   postTestAttempts: 0,
   score: 0,
   quizAttempts: {},
   quizCooldowns: {},
-  missionResponses: {},
   moduleReports: {},
   earnedBadges: [],
+};
+
+const defaultProgressData = {
+  ...defaultEnrollmentSummaryData,
+  missionResponses: {},
 };
 
 const courseId = "course-teacher";
@@ -360,7 +364,7 @@ export default function CourseRoom() {
                 enrolledAt: new Date(),
                 lastAccess: new Date(),
                 lastSavedAt: new Date(),
-                ...defaultProgressData,
+                ...defaultEnrollmentSummaryData,
                 ...buildEnrollmentMeta({
                   completedLessons: [],
                   unlockedModuleIndex: 0,
@@ -612,7 +616,6 @@ export default function CourseRoom() {
   const replaceMissionResponse = async (lessonId, record, options = {}) => {
     if (!currentUser) return;
 
-    const enrollRef = enrollmentDocRef(currentUser.uid, courseId);
     const timestamp = new Date();
     const enrollmentMeta = buildEnrollmentMeta({
       completedLessons: options.completedLessons ?? progressData.completedLessons,
@@ -625,31 +628,15 @@ export default function CourseRoom() {
       submitted: record?.saveState === "submitted",
     });
 
-    try {
-      await updateDoc(enrollRef, {
+    await setDoc(
+      enrollmentDocRef(currentUser.uid, courseId),
+      {
         ...enrollmentMeta,
-        [`missionResponses.${lessonId}`]: record,
         lastAccess: timestamp,
         lastSavedAt: timestamp,
-      });
-    } catch (error) {
-      if (error?.code !== "not-found") {
-        throw error;
-      }
-
-      await setDoc(
-        enrollRef,
-        {
-          ...enrollmentMeta,
-          missionResponses: {
-            [lessonId]: record,
-          },
-          lastAccess: timestamp,
-          lastSavedAt: timestamp,
-        },
-        { merge: true },
-      );
-    }
+      },
+      { merge: true },
+    );
   };
 
   const persistMissionResponse = async (payload, submitted = false) => {
@@ -946,7 +933,7 @@ export default function CourseRoom() {
         enrollRef,
         {
           enrolledAt: new Date(),
-          ...defaultProgressData,
+          ...defaultEnrollmentSummaryData,
           completedLessons: resetCompletedLessons,
           currentModuleIndex: resetModuleIndex,
           ...buildEnrollmentMeta({

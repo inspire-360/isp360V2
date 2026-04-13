@@ -150,7 +150,6 @@ export const buildResetPayload = (operatorName) => {
     activeModuleTitle: "",
     activeLessonId: "",
     activeLessonTitle: "",
-    missionResponses: {},
     moduleReports: {},
     earnedBadges: [],
     postTestAttempts: 0,
