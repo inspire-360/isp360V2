@@ -13,6 +13,7 @@
     "backfill-user-profile-contract": "node ./functions/scripts/backfill-user-profile-contract.mjs",
     "backfill-innovation-docs": "node ./functions/scripts/backfill-innovation-docs.mjs",
     "backfill-video-review-docs": "node ./functions/scripts/backfill-video-review-docs.mjs",
+    "delete-user-account": "node ./functions/scripts/delete-user-account.mjs",
     "verify-innovation-quality": "node ./functions/scripts/verify-innovation-quality.mjs",
     "verify-user-profile-quality": "node ./functions/scripts/verify-user-profile-quality.mjs",
     "verify-video-review-quality": "node ./functions/scripts/verify-video-review-quality.mjs",

@@ -1,0 +1,61 @@
+{
+  "baseUrl": "https://inspire-72132.web.app",
+  "outputDir": "C:\\Users\\401ms\\Desktop\\inspire-pwa\\inspire-pwa\\inspire-app\\output\\smoke-auth-2026-04-13T17-23-10-916Z",
+  "email": "codex.smoke.1776100990916@example.com",
+  "password": "SmokePass123!",
+  "checks": [
+    {
+      "name": "landing page loads",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "name": "register learner account",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "name": "learner access guard blocks admin routes",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "name": "profile save roundtrip works",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "name": "student course enrollment works",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "name": "teacher course enrollment works",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "name": "my courses show firebase enrollments",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "name": "teacher sos request create and follow-up works",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "name": "logout works",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "name": "login with created account works",
+      "status": "passed",
+      "detail": ""
+    }
+  ],
+  "consoleErrors": [],
+  "pageErrors": [],
+  "requestFailures": []
+}

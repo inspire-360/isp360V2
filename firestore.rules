@@ -1110,6 +1110,14 @@ service cloud.firestore {
       }
     }
 
+    match /{path=**}/enrollments/{enrollmentId} {
+      allow get, list: if isAdmin();
+    }
+
+    match /{path=**}/mission_responses/{missionId} {
+      allow get, list: if isAdmin();
+    }
+
     match /presence/{userId} {
       allow get, list: if signedIn();
       allow create, update: if isOwner(userId) && validPresenceWrite(userId);
