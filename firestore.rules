@@ -590,6 +590,11 @@ service cloud.firestore {
       return request.resource.data.keys().hasOnly([
           "teacherId",
           "teacherName",
+          "courseId",
+          "enrollmentId",
+          "sourceEnrollmentPath",
+          "sourceMissionId",
+          "sourceMissionUpdatedAt",
           "title",
           "description",
           "subject",
@@ -608,6 +613,17 @@ service cloud.firestore {
         && request.resource.data.teacherId.size() > 0
         && request.resource.data.teacherName is string
         && request.resource.data.teacherName.size() > 0
+        && request.resource.data.courseId is string
+        && request.resource.data.courseId.size() > 0
+        && request.resource.data.enrollmentId is string
+        && request.resource.data.enrollmentId.size() > 0
+        && request.resource.data.sourceEnrollmentPath is string
+        && request.resource.data.sourceMissionId is string
+        && request.resource.data.sourceMissionId.size() > 0
+        && (
+          request.resource.data.sourceMissionUpdatedAt == null
+          || request.resource.data.sourceMissionUpdatedAt is timestamp
+        )
         && request.resource.data.title is string
         && request.resource.data.title.size() > 0
         && request.resource.data.description is string
@@ -651,6 +667,22 @@ service cloud.firestore {
     function validAdminVideoUpdate() {
       return validVideoDocumentShape()
         && request.resource.data.teacherId == resource.data.teacherId
+        && (
+          resource.data.courseId == null
+          || request.resource.data.courseId == resource.data.courseId
+        )
+        && (
+          resource.data.enrollmentId == null
+          || request.resource.data.enrollmentId == resource.data.enrollmentId
+        )
+        && (
+          resource.data.sourceEnrollmentPath == null
+          || request.resource.data.sourceEnrollmentPath == resource.data.sourceEnrollmentPath
+        )
+        && (
+          resource.data.sourceMissionId == null
+          || request.resource.data.sourceMissionId == resource.data.sourceMissionId
+        )
         && request.resource.data.submittedAt == resource.data.submittedAt;
     }
 

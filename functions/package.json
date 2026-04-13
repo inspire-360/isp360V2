@@ -8,6 +8,7 @@
   "scripts": {
     "bootstrap-admin": "node ./scripts/bootstrap-admin.mjs",
     "backfill-mission-responses": "node ./scripts/backfill-mission-responses.mjs",
+    "backfill-video-review-docs": "node ./scripts/backfill-video-review-docs.mjs",
     "verify-mission-response-backfill": "node ./scripts/verify-mission-response-backfill.mjs",
     "mission-response-cutover-health": "node ./scripts/mission-response-cutover-health.mjs"
   },
