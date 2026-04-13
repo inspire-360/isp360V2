@@ -8,10 +8,9 @@ import {
   Search,
   Sparkles,
 } from "lucide-react";
-import { collection, onSnapshot } from "firebase/firestore";
 import { useAuth } from "../contexts/AuthContext";
 import { courseCatalog } from "../data/courseCatalog";
-import { db } from "../lib/firebase";
+import { subscribeToUserEnrollmentSummaries } from "../services/firebase/repositories/enrollmentRepository";
 import { getCourseIcon } from "../utils/courseIcons";
 
 export default function MyCourses() {
@@ -22,20 +21,15 @@ export default function MyCourses() {
   useEffect(() => {
     if (!currentUser) return undefined;
 
-    const unsubscribe = onSnapshot(
-      collection(db, "users", currentUser.uid, "enrollments"),
-      (snapshot) => {
-        const nextEnrollments = snapshot.docs.map((item) => ({
-          id: item.id,
-          ...item.data(),
-        }));
-        setEnrollments(nextEnrollments);
+    const unsubscribe = subscribeToUserEnrollmentSummaries(currentUser.uid, {
+      onNext: (rows) => {
+        setEnrollments(rows);
       },
-      (error) => {
+      onError: (error) => {
         console.error("Error fetching enrollments:", error);
         setEnrollments([]);
       },
-    );
+    });
 
     return () => unsubscribe();
   }, [currentUser]);

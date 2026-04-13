@@ -1,7 +1,10 @@
 import { getDoc, onSnapshot, setDoc } from "firebase/firestore";
+import { normalizeUserRole } from "../../../utils/userRoles";
 import { userDocRef } from "../pathBuilders";
+import { timestampNow } from "../timestamps";
 import {
   buildAuthFallbackUserProfile,
+  buildUserDisplayName,
   buildTeacherUserProfileCreateData,
   buildTeacherUserProfileMergeData,
   normalizeUserProfileRecord,
@@ -140,3 +143,61 @@ export const updateTeacherUserProfile = async ({
     photoURL,
     touchLastLogin: false,
   });
+
+export const adminUpdateUserProfile = async ({
+  uid,
+  prefix,
+  firstName,
+  lastName,
+  position,
+  school,
+  role,
+  updatedBy,
+} = {}) => {
+  if (!uid) {
+    throw new Error("uid is required to update a user profile.");
+  }
+
+  const ref = userDocRef(uid);
+  const snapshot = await getDoc(ref);
+  const existingProfile = snapshot.exists() ? snapshot.data() : {};
+  const normalizedExisting = normalizeUserProfileRecord(existingProfile, {
+    id: uid,
+  });
+
+  const nextPrefix = String(prefix ?? normalizedExisting.prefix ?? "").trim();
+  const nextFirstName = String(firstName ?? normalizedExisting.firstName ?? "").trim();
+  const nextLastName = String(lastName ?? normalizedExisting.lastName ?? "").trim();
+  const nextPosition = String(position ?? normalizedExisting.position ?? "").trim();
+  const nextSchool = String(school ?? normalizedExisting.school ?? "").trim();
+  const nextRole = normalizeUserRole(role || normalizedExisting.role || "teacher");
+  const nextName = buildUserDisplayName({
+    prefix: nextPrefix,
+    firstName: nextFirstName,
+    lastName: nextLastName,
+    fallbackName: normalizedExisting.name,
+    email: normalizedExisting.email,
+  });
+
+  const payload = {
+    prefix: nextPrefix,
+    firstName: nextFirstName,
+    lastName: nextLastName,
+    name: nextName,
+    position: nextPosition,
+    school: nextSchool,
+    role: nextRole,
+    updatedAt: timestampNow(),
+    updatedBy: String(updatedBy || "").trim() || "admin",
+  };
+
+  await setDoc(ref, payload, { merge: true });
+
+  return normalizeUserProfileRecord(
+    {
+      ...existingProfile,
+      ...payload,
+    },
+    { id: uid },
+  );
+};

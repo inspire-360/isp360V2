@@ -165,6 +165,11 @@ export const buildResetPayload = (operatorName) => {
   };
 };
 
+export const resolveEnrollmentMissionResponses = (enrollment = {}) => ({
+  ...(enrollment.missionResponses || {}),
+  ...(enrollment.missionResponsesMap || {}),
+});
+
 const normalizePainFragment = (value = "") =>
   value
     .toLowerCase()
@@ -206,7 +211,7 @@ export const collectMissionPainPointSignals = (enrollmentRows = []) => {
   const signals = [];
 
   enrollmentRows.forEach((enrollment) => {
-    const missionResponses = enrollment.missionResponses || {};
+    const missionResponses = resolveEnrollmentMissionResponses(enrollment);
 
     ["m1-mission-1", "m1-mission-2"].forEach((missionId) => {
       collectModuleOneMissionAnswerItems(missionResponses[missionId]).forEach((item) => {

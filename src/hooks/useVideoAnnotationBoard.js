@@ -21,6 +21,8 @@ import {
   VIDEOS_COLLECTION,
 } from "../data/videoAnnotations";
 import { db } from "../lib/firebase";
+import { getMissionResponseEnrollmentKey } from "../services/firebase/mappers/missionResponseMapper";
+import { subscribeToMissionResponseCollectionGroup } from "../services/firebase/repositories/missionResponseRepository";
 
 const USERS_COLLECTION = "users";
 const ENROLLMENTS_SUBCOLLECTION = "enrollments";
@@ -65,13 +67,28 @@ const buildTeacherName = ({ teacherId, teacherProfile, reviewDoc }) =>
       teacherId,
   ).trim();
 
-const buildVideoRows = ({ enrollments, teachers, reviewDocs }) => {
+const buildVideoRows = ({
+  enrollments,
+  teachers,
+  reviewDocs,
+  missionResponsesByEnrollmentKey,
+}) => {
   const teacherMap = new Map(teachers.map((teacher) => [teacher.id, teacher]));
   const reviewMap = new Map(reviewDocs.map((video) => [video.id, video]));
 
   return enrollments
     .flatMap((enrollment) => {
-      const missionResponses = enrollment.missionResponses || {};
+      const canonicalMissionResponses =
+        missionResponsesByEnrollmentKey[
+          getMissionResponseEnrollmentKey({
+            userId: enrollment.teacherId,
+            courseId: enrollment.courseId || enrollment.enrollmentId,
+          })
+        ] || {};
+      const missionResponses = {
+        ...(enrollment.missionResponses || {}),
+        ...canonicalMissionResponses,
+      };
       const moduleFourMissionOne = missionResponses[MODULE_FOUR_MISSION_ONE_ID] || {};
       const moduleFourMissionTwo = missionResponses[MODULE_FOUR_MISSION_TWO_ID] || {};
       const moduleFiveMissionOne = missionResponses[MODULE_FIVE_MISSION_ONE_ID] || {};
@@ -155,12 +172,14 @@ const buildVideoRows = ({ enrollments, teachers, reviewDocs }) => {
 export function useVideoAnnotationBoard({ currentUser, userProfile, userRole }) {
   const [teacherProfiles, setTeacherProfiles] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
+  const [missionResponsesByEnrollmentKey, setMissionResponsesByEnrollmentKey] = useState({});
   const [reviewDocs, setReviewDocs] = useState([]);
   const [activeVideoId, setActiveVideoId] = useState("");
   const [readyCommentVideoId, setReadyCommentVideoId] = useState("");
   const [comments, setComments] = useState([]);
   const [loadingTeacherProfiles, setLoadingTeacherProfiles] = useState(true);
   const [loadingEnrollments, setLoadingEnrollments] = useState(true);
+  const [loadingMissionResponses, setLoadingMissionResponses] = useState(true);
   const [loadingReviewDocs, setLoadingReviewDocs] = useState(true);
   const [loadingComments, setLoadingComments] = useState(false);
   const [savingComment, setSavingComment] = useState(false);
@@ -171,18 +190,21 @@ export function useVideoAnnotationBoard({ currentUser, userProfile, userRole }) 
     if (!currentUser?.uid) {
       setTeacherProfiles([]);
       setEnrollments([]);
+      setMissionResponsesByEnrollmentKey({});
       setReviewDocs([]);
       setActiveVideoId("");
       setReadyCommentVideoId("");
       setComments([]);
       setLoadingTeacherProfiles(false);
       setLoadingEnrollments(false);
+      setLoadingMissionResponses(false);
       setLoadingReviewDocs(false);
       return undefined;
     }
 
     setLoadingTeacherProfiles(true);
     setLoadingEnrollments(true);
+    setLoadingMissionResponses(true);
     setLoadingReviewDocs(true);
 
     const unsubscribeTeachers = onSnapshot(
@@ -248,9 +270,36 @@ export function useVideoAnnotationBoard({ currentUser, userProfile, userRole }) 
       },
     );
 
+    const unsubscribeMissionResponses = subscribeToMissionResponseCollectionGroup({
+      courseId: TEACHER_COURSE_ID,
+      onNext: (rows) => {
+        const nextMissionResponsesByEnrollmentKey = rows.reduce((accumulator, row) => {
+          const key = getMissionResponseEnrollmentKey(row);
+          if (!key || !row.missionId) return accumulator;
+
+          accumulator[key] = {
+            ...(accumulator[key] || {}),
+            [row.missionId]: row,
+          };
+
+          return accumulator;
+        }, {});
+
+        startTransition(() => {
+          setMissionResponsesByEnrollmentKey(nextMissionResponsesByEnrollmentKey);
+          setLoadingMissionResponses(false);
+        });
+      },
+      onError: (error) => {
+        console.error("ไม่สามารถดึงภารกิจย่อยของคอร์สครูสำหรับห้องโค้ชวิดีโอได้", error);
+        setLoadingMissionResponses(false);
+      },
+    });
+
     return () => {
       unsubscribeTeachers();
       unsubscribeEnrollments();
+      unsubscribeMissionResponses();
       unsubscribeReviewDocs();
     };
   }, [currentUser?.uid]);
@@ -261,11 +310,13 @@ export function useVideoAnnotationBoard({ currentUser, userProfile, userRole }) 
         enrollments,
         teachers: teacherProfiles,
         reviewDocs,
+        missionResponsesByEnrollmentKey,
       }),
-    [enrollments, reviewDocs, teacherProfiles],
+    [enrollments, missionResponsesByEnrollmentKey, reviewDocs, teacherProfiles],
   );
 
-  const loadingVideos = loadingTeacherProfiles || loadingEnrollments || loadingReviewDocs;
+  const loadingVideos =
+    loadingTeacherProfiles || loadingEnrollments || loadingMissionResponses || loadingReviewDocs;
 
   const activeVideo = useMemo(
     () => videos.find((video) => video.id === activeVideoId) || null,

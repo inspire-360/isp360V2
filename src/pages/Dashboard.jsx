@@ -13,11 +13,15 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
-import { collection, doc, limit, onSnapshot, orderBy, query, setDoc } from "firebase/firestore";
+import { collection, limit, onSnapshot, orderBy, query } from "firebase/firestore";
 import OnlineUsers from "../components/OnlineUsers";
 import { useAuth } from "../contexts/AuthContext";
 import { courseCatalog } from "../data/courseCatalog";
 import { db } from "../lib/firebase";
+import {
+  createEnrollmentSummary,
+  subscribeToUserEnrollmentSummaries,
+} from "../services/firebase/repositories/enrollmentRepository";
 import { getCourseIcon } from "../utils/courseIcons";
 import { PRESENCE_COLLECTION, resolvePresenceMeta } from "../utils/presenceStatus";
 
@@ -110,22 +114,16 @@ export default function Dashboard() {
       return undefined;
     }
 
-    const unsubscribe = onSnapshot(
-      collection(db, "users", currentUser.uid, "enrollments"),
-      (snapshot) => {
-        setEnrollments(
-          snapshot.docs.map((item) => ({
-            id: item.id,
-            ...item.data(),
-          })),
-        );
+    const unsubscribe = subscribeToUserEnrollmentSummaries(currentUser.uid, {
+      onNext: (rows) => {
+        setEnrollments(rows);
         setLoading(false);
       },
-      (error) => {
+      onError: (error) => {
         console.error("Error fetching dashboard data:", error);
         setLoading(false);
       },
-    );
+    });
 
     return () => unsubscribe();
   }, [currentUser]);
@@ -221,49 +219,11 @@ export default function Dashboard() {
     setEnrollLoading(true);
 
     try {
-      await setDoc(doc(db, "users", currentUser.uid, "enrollments", course.id), {
-        courseId: course.id,
-        courseTitle: course.title,
-        completedLessons: [],
-        completedLessonsCount: 0,
-        enrolledAt: new Date(),
-        progress: 0,
-        progressPercent: 0,
-        lessonCount: Number(course.lessonCount || 0),
-        moduleCount: Number(course.modules || 0),
-        currentModuleIndex: 0,
-        activeModuleIndex: 0,
-        activeLessonIndex: 0,
-        activeModuleTitle: "",
-        activeLessonId: "",
-        activeLessonTitle: "",
-        status: "not_started",
-        lastAccess: new Date(),
-        lastSavedAt: new Date(),
+      await createEnrollmentSummary({
+        uid: currentUser.uid,
+        course,
         accessCodeUsed: course.requiresCode ? accessCode.trim().toUpperCase() : "none",
       });
-
-      setEnrollments((previous) => [
-        ...previous,
-        {
-          id: course.id,
-          courseId: course.id,
-          courseTitle: course.title,
-          completedLessons: [],
-          completedLessonsCount: 0,
-          progress: 0,
-          progressPercent: 0,
-          lessonCount: Number(course.lessonCount || 0),
-          moduleCount: Number(course.modules || 0),
-          currentModuleIndex: 0,
-          activeModuleIndex: 0,
-          activeLessonIndex: 0,
-          activeModuleTitle: "",
-          activeLessonId: "",
-          activeLessonTitle: "",
-          status: "not_started",
-        },
-      ]);
       navigate(course.path);
     } catch (error) {
       console.error("Enrollment failed:", error);

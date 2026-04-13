@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowUpRight, BookOpen, Loader2, RefreshCcw, Save, Search, UserCog, Users, Wifi } from "lucide-react";
-import { doc, serverTimestamp, setDoc, writeBatch } from "firebase/firestore";
+import { doc, writeBatch } from "firebase/firestore";
 import { useAuth } from "../contexts/AuthContext";
 import { formatDateTime } from "../data/sosConfig";
 import { useDuMemberData } from "../hooks/useDuMemberData";
 import { db } from "../lib/firebase";
+import { clearMissionResponses } from "../services/firebase/repositories/missionResponseRepository";
+import { adminUpdateUserProfile } from "../services/firebase/repositories/userRepository";
 import { getPresenceTimestamp, resolvePresenceMeta } from "../utils/presenceStatus";
 import {
   buildEnrollmentInsight,
@@ -13,6 +15,7 @@ import {
   buildResetPayload,
   buildUserDraft,
   collectMissionPainPointSignals,
+  resolveEnrollmentMissionResponses,
   resolveDisplayName,
 } from "../utils/duMemberInsights";
 import { getRoleLabel, normalizeUserRole, userRoleOptions } from "../utils/userRoles";
@@ -135,20 +138,18 @@ export default function MemberControl() {
   const saveSelectedUser = async () => {
     if (!selectedUser) return;
     const draft = userDrafts[selectedUser.id] || buildUserDraft(selectedUser);
-    const fullName = [draft.prefix, draft.firstName, draft.lastName].filter(Boolean).join(" ").trim();
     setSavingUserId(selectedUser.id);
     try {
-      await setDoc(doc(db, "users", selectedUser.id), {
-        prefix: draft.prefix.trim(),
-        firstName: draft.firstName.trim(),
-        lastName: draft.lastName.trim(),
-        name: fullName || selectedUser.name,
-        position: draft.position.trim(),
-        school: draft.school.trim(),
-        role: normalizeUserRole(draft.role),
-        updatedAt: serverTimestamp(),
+      await adminUpdateUserProfile({
+        uid: selectedUser.id,
+        prefix: draft.prefix,
+        firstName: draft.firstName,
+        lastName: draft.lastName,
+        position: draft.position,
+        school: draft.school,
+        role: draft.role,
         updatedBy: operatorName,
-      }, { merge: true });
+      });
     } finally {
       setSavingUserId("");
     }
@@ -165,6 +166,16 @@ export default function MemberControl() {
       const resetPayload = buildResetPayload(operatorName);
       targetEnrollments.forEach((enrollment) => batch.set(doc(db, enrollment.path), resetPayload, { merge: true }));
       await batch.commit();
+      await Promise.all(
+        targetEnrollments.map((enrollment) => {
+          const missionIds = Object.keys(resolveEnrollmentMissionResponses(enrollment));
+          return clearMissionResponses(
+            selectedUser.id,
+            enrollment.courseId || enrollment.id,
+            missionIds,
+          );
+        }),
+      );
     } finally {
       setResettingUserId("");
     }

@@ -1,18 +1,25 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { collection, collectionGroup, onSnapshot } from "firebase/firestore";
 import { db } from "../lib/firebase";
+import {
+  getMissionResponseEnrollmentKey,
+  groupMissionResponsesByEnrollmentKey,
+} from "../services/firebase/mappers/missionResponseMapper";
+import { subscribeToMissionResponseCollectionGroup } from "../services/firebase/repositories/missionResponseRepository";
 import { PRESENCE_COLLECTION, PRESENCE_TICK_MS } from "../utils/presenceStatus";
 
 const INITIAL_LOADING_STATE = {
   users: true,
   presence: true,
   enrollments: true,
+  missionResponses: true,
 };
 
 export function useDuMemberData() {
   const [usersData, setUsersData] = useState([]);
   const [presenceRows, setPresenceRows] = useState([]);
-  const [enrollments, setEnrollments] = useState([]);
+  const [enrollmentRows, setEnrollmentRows] = useState([]);
+  const [missionResponsesByEnrollmentKey, setMissionResponsesByEnrollmentKey] = useState({});
   const [loadingState, setLoadingState] = useState(INITIAL_LOADING_STATE);
   const [listenerSeed, setListenerSeed] = useState(0);
   const [now, setNow] = useState(0);
@@ -56,7 +63,7 @@ export function useDuMemberData() {
       onSnapshot(
         collectionGroup(db, "enrollments"),
         (snapshot) => {
-          setEnrollments(
+          setEnrollmentRows(
             snapshot.docs.map((item) => ({
               id: item.id,
               courseId: item.data().courseId || item.id,
@@ -72,10 +79,44 @@ export function useDuMemberData() {
           markLoaded("enrollments");
         },
       ),
+      subscribeToMissionResponseCollectionGroup({
+        onNext: (rows) => {
+          setMissionResponsesByEnrollmentKey(groupMissionResponsesByEnrollmentKey(rows));
+          markLoaded("missionResponses");
+        },
+        onError: (error) => {
+          console.error("Failed to subscribe mission responses:", error);
+          markLoaded("missionResponses");
+        },
+      }),
     ];
 
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
   }, [listenerSeed]);
+
+  const enrollments = useMemo(
+    () =>
+      enrollmentRows.map((enrollment) => {
+        const missionResponseKey = getMissionResponseEnrollmentKey({
+          userId: enrollment.userId,
+          courseId: enrollment.courseId || enrollment.id,
+        });
+        const canonicalMissionResponses = missionResponsesByEnrollmentKey[missionResponseKey] || {};
+        const hasCanonicalMissionResponses = Object.keys(canonicalMissionResponses).length > 0;
+        const mergedMissionResponses = {
+          ...(enrollment.missionResponses || {}),
+          ...canonicalMissionResponses,
+        };
+
+        return {
+          ...enrollment,
+          missionResponses: mergedMissionResponses,
+          missionResponsesMap: mergedMissionResponses,
+          hasCanonicalMissionResponses,
+        };
+      }),
+    [enrollmentRows, missionResponsesByEnrollmentKey],
+  );
 
   const loading = Object.values(loadingState).some(Boolean);
   const refreshingMembers = loading && listenerSeed > 0;

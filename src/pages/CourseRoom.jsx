@@ -19,7 +19,7 @@ import {
   Sparkles,
   Trophy,
 } from "lucide-react";
-import { arrayUnion, doc, onSnapshot, setDoc, updateDoc } from "firebase/firestore";
+import { arrayUnion, onSnapshot, setDoc, updateDoc } from "firebase/firestore";
 import SWOTBoard from "../components/activities/SWOTBoard";
 import CourseCertificateCard from "../components/course/CourseCertificateCard";
 import ModuleFourMission from "../components/course/ModuleFourMission";
@@ -68,7 +68,12 @@ import {
   generateModuleTwoCardSerial,
 } from "../data/moduleTwoCampaign";
 import { teacherCourseData } from "../data/teacherCourse";
-import { db } from "../lib/firebase";
+import { enrollmentDocRef } from "../services/firebase/pathBuilders";
+import {
+  clearMissionResponses,
+  subscribeToMissionResponses,
+  upsertMissionResponse,
+} from "../services/firebase/repositories/missionResponseRepository";
 import { getIcon } from "../utils/iconHelper";
 
 const defaultPointsByType = {
@@ -231,6 +236,8 @@ export default function CourseRoom() {
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [missionResetNonce, setMissionResetNonce] = useState(0);
   const [clearingMission, setClearingMission] = useState(false);
+  const [missionResponsesMap, setMissionResponsesMap] = useState({});
+  const [hasCanonicalMissionResponses, setHasCanonicalMissionResponses] = useState(false);
 
   const lessonMap = useMemo(() => {
     const nextMap = new Map();
@@ -253,7 +260,7 @@ export default function CourseRoom() {
   const currentModule = currentCourse.modules?.[activeModuleIndex];
   const currentLesson = currentModule?.lessons?.[activeLessonIndex];
   const currentGamification = currentLesson?.content?.gamification;
-  const currentMissionResponse = currentLesson ? progressData.missionResponses?.[currentLesson.id] : null;
+  const currentMissionResponse = currentLesson ? missionResponsesMap?.[currentLesson.id] : null;
   const moduleFourReport = progressData.moduleReports?.[MODULE_FOUR_REPORT_KEY];
   const moduleFiveReport = progressData.moduleReports?.[MODULE_FIVE_REPORT_KEY];
   const moduleOneReport = progressData.moduleReports?.[MODULE_ONE_REPORT_KEY];
@@ -276,12 +283,12 @@ export default function CourseRoom() {
       },
       {
         generatedAt:
-          progressData.missionResponses?.["final-survey"]?.submittedAt ||
-          progressData.missionResponses?.["final-survey"]?.updatedAt ||
+          missionResponsesMap?.["final-survey"]?.submittedAt ||
+          missionResponsesMap?.["final-survey"]?.updatedAt ||
           progressData.moduleReports?.[MODULE_FIVE_REPORT_KEY]?.generatedAt,
       },
     );
-  }, [completedSet, currentUser, progressData]);
+  }, [completedSet, currentUser, missionResponsesMap, progressData]);
 
   const totalXp = useMemo(
     () => allLessons.reduce((sum, item) => sum + getLessonXp(item.lesson), 0),
@@ -340,7 +347,7 @@ export default function CourseRoom() {
   useEffect(() => {
     if (!currentUser) return undefined;
 
-    const enrollRef = doc(db, "users", currentUser.uid, "enrollments", courseId);
+    const enrollRef = enrollmentDocRef(currentUser.uid, courseId);
 
     const unsubscribe = onSnapshot(
       enrollRef,
@@ -408,6 +415,17 @@ export default function CourseRoom() {
             ...expectedEnrollmentMeta,
           };
 
+          if (
+            normalizedEnrollmentData.missionResponses &&
+            typeof normalizedEnrollmentData.missionResponses === "object"
+          ) {
+            setMissionResponsesMap((previous) =>
+              Object.keys(previous).length === 0 && !hasCanonicalMissionResponses
+                ? normalizedEnrollmentData.missionResponses
+                : previous,
+            );
+          }
+
           setProgressData({
             ...defaultProgressData,
             ...normalizedEnrollmentData,
@@ -417,7 +435,6 @@ export default function CourseRoom() {
             score: normalizedEnrollmentData.score || 0,
             quizAttempts: normalizedEnrollmentData.quizAttempts || {},
             quizCooldowns: normalizedEnrollmentData.quizCooldowns || {},
-            missionResponses: normalizedEnrollmentData.missionResponses || {},
             moduleReports: normalizedEnrollmentData.moduleReports || {},
             earnedBadges: normalizedEnrollmentData.earnedBadges || [],
           });
@@ -439,6 +456,30 @@ export default function CourseRoom() {
         setLoading(false);
       },
     );
+
+    return unsubscribe;
+  }, [currentUser, hasCanonicalMissionResponses]);
+
+  useEffect(() => {
+    if (!currentUser) {
+      setMissionResponsesMap({});
+      setHasCanonicalMissionResponses(false);
+      return undefined;
+    }
+
+    const unsubscribe = subscribeToMissionResponses(currentUser.uid, courseId, {
+      onNext: (rows) => {
+        setHasCanonicalMissionResponses(rows.length > 0);
+        const nextResponses = rows.reduce((accumulator, item) => {
+          accumulator[item.missionId || item.lessonId] = item;
+          return accumulator;
+        }, {});
+        setMissionResponsesMap(nextResponses);
+      },
+      onError: (error) => {
+        console.error("Error subscribing mission responses:", error);
+      },
+    });
 
     return unsubscribe;
   }, [currentUser]);
@@ -471,7 +512,7 @@ export default function CourseRoom() {
     setActiveLessonIndex(lessonIndex);
     if (currentUser) {
       void setDoc(
-        doc(db, "users", currentUser.uid, "enrollments", courseId),
+        enrollmentDocRef(currentUser.uid, courseId),
         {
           ...buildEnrollmentMeta({
             completedLessons: progressData.completedLessons,
@@ -550,7 +591,7 @@ export default function CourseRoom() {
 
   const mergeEnrollmentData = async (payload, options = {}) => {
     if (!currentUser) return;
-    const enrollRef = doc(db, "users", currentUser.uid, "enrollments", courseId);
+    const enrollRef = enrollmentDocRef(currentUser.uid, courseId);
     await setDoc(
       enrollRef,
       {
@@ -571,13 +612,17 @@ export default function CourseRoom() {
   const replaceMissionResponse = async (lessonId, record, options = {}) => {
     if (!currentUser) return;
 
-    const enrollRef = doc(db, "users", currentUser.uid, "enrollments", courseId);
+    const enrollRef = enrollmentDocRef(currentUser.uid, courseId);
     const timestamp = new Date();
     const enrollmentMeta = buildEnrollmentMeta({
       completedLessons: options.completedLessons ?? progressData.completedLessons,
       unlockedModuleIndex: options.currentModuleIndex ?? progressData.currentModuleIndex,
       activeModule: options.activeModuleIndex ?? activeModuleIndex,
       activeLesson: options.activeLessonIndex ?? activeLessonIndex,
+    });
+
+    await upsertMissionResponse(currentUser.uid, courseId, lessonId, record, {
+      submitted: record?.saveState === "submitted",
     });
 
     try {
@@ -621,12 +666,9 @@ export default function CourseRoom() {
 
     await replaceMissionResponse(currentLesson.id, record);
 
-    setProgressData((previous) => ({
+    setMissionResponsesMap((previous) => ({
       ...previous,
-      missionResponses: {
-        ...previous.missionResponses,
-        [currentLesson.id]: record,
-      },
+      [currentLesson.id]: record,
     }));
 
     if (submitted && !completedSet.has(currentLesson.id)) {
@@ -647,12 +689,9 @@ export default function CourseRoom() {
 
     try {
       await replaceMissionResponse(currentLesson.id, clearedRecord);
-      setProgressData((previous) => ({
+      setMissionResponsesMap((previous) => ({
         ...previous,
-        missionResponses: {
-          ...previous.missionResponses,
-          [currentLesson.id]: clearedRecord,
-        },
+        [currentLesson.id]: clearedRecord,
       }));
       setMissionResetNonce((previous) => previous + 1);
     } catch (error) {
@@ -682,22 +721,15 @@ export default function CourseRoom() {
       submittedAt: timestamp,
     };
     const nextMissionResponses = {
-      ...progressData.missionResponses,
+      ...missionResponsesMap,
       [currentLesson.id]: record,
     };
 
-    await mergeEnrollmentData({
-      missionResponses: {
-        [currentLesson.id]: record,
-      },
-    });
+    await replaceMissionResponse(currentLesson.id, record);
 
-    setProgressData((previous) => ({
+    setMissionResponsesMap((previous) => ({
       ...previous,
-      missionResponses: {
-        ...previous.missionResponses,
-        [currentLesson.id]: record,
-      },
+      [currentLesson.id]: record,
     }));
 
     await saveModuleThreeReport(nextMissionResponses);
@@ -720,7 +752,7 @@ export default function CourseRoom() {
   const saveModuleOneReport = async (score, totalQuestions) => {
     const existingSerial = progressData.moduleReports?.[MODULE_ONE_REPORT_KEY]?.cardSerial;
     const report = buildModuleOneReportCard(
-      progressData.missionResponses,
+      missionResponsesMap,
       {
         score,
         totalQuestions,
@@ -757,7 +789,7 @@ export default function CourseRoom() {
   const saveModuleFourReport = async (score, totalQuestions) => {
     const existingSerial = progressData.moduleReports?.[MODULE_FOUR_REPORT_KEY]?.cardSerial;
     const report = buildModuleFourReportCard(
-      progressData.missionResponses,
+      missionResponsesMap,
       {
         score,
         totalQuestions,
@@ -794,7 +826,7 @@ export default function CourseRoom() {
   const saveModuleFiveReport = async (score, totalQuestions) => {
     const existingSerial = progressData.moduleReports?.[MODULE_FIVE_REPORT_KEY]?.cardSerial;
     const report = buildModuleFiveReportCard(
-      progressData.missionResponses,
+      missionResponsesMap,
       {
         score,
         totalQuestions,
@@ -831,7 +863,7 @@ export default function CourseRoom() {
   const saveModuleTwoReport = async (score, totalQuestions) => {
     const existingSerial = progressData.moduleReports?.[MODULE_TWO_REPORT_KEY]?.cardSerial;
     const report = buildModuleTwoReportCard(
-      progressData.missionResponses,
+      missionResponsesMap,
       {
         score,
         totalQuestions,
@@ -865,7 +897,7 @@ export default function CourseRoom() {
     return report;
   };
 
-  const saveModuleThreeReport = async (missionResponsesSource = progressData.missionResponses) => {
+  const saveModuleThreeReport = async (missionResponsesSource = missionResponsesMap) => {
     const existingSerial = progressData.moduleReports?.[MODULE_THREE_REPORT_KEY]?.cardSerial;
     const report = buildModuleThreeReportCard(missionResponsesSource, {
       uid: currentUser?.uid,
@@ -904,10 +936,12 @@ export default function CourseRoom() {
     if (!currentUser) return;
     setLoading(true);
     try {
-      const enrollRef = doc(db, "users", currentUser.uid, "enrollments", courseId);
+      const enrollRef = enrollmentDocRef(currentUser.uid, courseId);
       const resetCompletedLessons = ["pretest-exam"];
       const resetModuleIndex = 1;
       const resetLessonIndex = getFirstPendingLessonIndex(resetModuleIndex, resetCompletedLessons);
+      const missionIds = Object.keys(missionResponsesMap);
+
       await setDoc(
         enrollRef,
         {
@@ -925,6 +959,11 @@ export default function CourseRoom() {
         },
         { merge: true },
       );
+      if (missionIds.length > 0) {
+        await clearMissionResponses(currentUser.uid, courseId, missionIds);
+      }
+      setHasCanonicalMissionResponses(false);
+      setMissionResponsesMap({});
     } catch (error) {
       console.error("Reset failed:", error);
       setLoading(false);
@@ -952,7 +991,7 @@ export default function CourseRoom() {
     setQuizSubmitted(true);
 
     const isPassed = score >= (currentLesson.content?.passScore || 0);
-    const enrollRef = doc(db, "users", currentUser.uid, "enrollments", courseId);
+    const enrollRef = enrollmentDocRef(currentUser.uid, courseId);
 
     if (currentLesson.content?.isPretest) {
       await markLessonComplete();
@@ -1287,7 +1326,7 @@ export default function CourseRoom() {
           <ModuleOneMission
             lesson={currentLesson}
             savedResponse={currentMissionResponse}
-            allResponses={progressData.missionResponses}
+                  allResponses={missionResponsesMap}
             isCompleted={completedSet.has(currentLesson.id)}
             onDraftSave={saveModuleOneDraft}
             onSave={saveModuleOneMission}
@@ -1297,7 +1336,7 @@ export default function CourseRoom() {
           <ModuleFourMission
             lesson={currentLesson}
             savedResponse={currentMissionResponse}
-            allResponses={progressData.missionResponses}
+                  allResponses={missionResponsesMap}
             clearNonce={missionResetNonce}
             isCompleted={completedSet.has(currentLesson.id)}
             onDraftSave={saveModuleFourDraft}
@@ -1308,7 +1347,7 @@ export default function CourseRoom() {
           <ModuleFiveMission
             lesson={currentLesson}
             savedResponse={currentMissionResponse}
-            allResponses={progressData.missionResponses}
+                  allResponses={missionResponsesMap}
             clearNonce={missionResetNonce}
             isCompleted={completedSet.has(currentLesson.id)}
             onDraftSave={saveModuleFiveDraft}
@@ -1319,7 +1358,7 @@ export default function CourseRoom() {
           <ModuleTwoMission
             lesson={currentLesson}
             savedResponse={currentMissionResponse}
-            allResponses={progressData.missionResponses}
+                  allResponses={missionResponsesMap}
             clearNonce={missionResetNonce}
             isCompleted={completedSet.has(currentLesson.id)}
             onDraftSave={saveModuleTwoDraft}
@@ -1330,7 +1369,7 @@ export default function CourseRoom() {
           <ModuleThreeMission
             lesson={currentLesson}
             savedResponse={currentMissionResponse}
-            allResponses={progressData.missionResponses}
+                  allResponses={missionResponsesMap}
             clearNonce={missionResetNonce}
             isCompleted={completedSet.has(currentLesson.id)}
             onDraftSave={saveModuleThreeDraft}

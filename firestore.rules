@@ -1028,6 +1028,11 @@ service cloud.firestore {
       match /enrollments/{enrollmentId} {
         allow get, list: if isOwner(userId) || isAdmin();
         allow create, update, delete: if isOwner(userId) || isAdmin();
+
+        match /mission_responses/{missionId} {
+          allow get, list: if isOwner(userId) || isAdmin();
+          allow create, update, delete: if isOwner(userId) || isAdmin();
+        }
       }
 
       match /sosCases/{caseId} {

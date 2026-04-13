@@ -6,6 +6,8 @@ import LearningProgressDashboard from "../components/LearningProgressDashboard";
 import OnlineUsers from "../components/OnlineUsers";
 import SupportTicketWorkspace from "../components/SupportTicketWorkspace";
 import { db } from "../lib/firebase";
+import { getMissionResponseEnrollmentKey } from "../services/firebase/mappers/missionResponseMapper";
+import { listMissionResponseCollectionGroup } from "../services/firebase/repositories/missionResponseRepository";
 import { buildEnrollmentInsight, resolveDisplayName } from "../utils/duMemberInsights";
 import { downloadCsvFile } from "../utils/csvExport";
 import { ซ่อมโปรไฟล์ครูเก่า } from "../utils/repairTeacherProfiles";
@@ -39,27 +41,76 @@ const serializeExportValue = (value) => {
   return String(value);
 };
 
-const buildMissionResponseRows = ({ enrollments, userNameById }) =>
-  enrollments.flatMap((enrollment) => {
+const ADMIN_EXPORT_EXCLUDED_FIELDS = new Set([
+  "id",
+  "path",
+  "userId",
+  "courseId",
+  "enrollmentId",
+  "enrollmentPath",
+  "missionId",
+  "lessonId",
+  "updatedAtMs",
+  "submittedAtMs",
+]);
+
+const buildMissionResponseRecordKey = (response = {}) =>
+  [
+    String(response.userId || "").trim(),
+    String(response.courseId || response.enrollmentId || "").trim(),
+    String(response.missionId || response.id || "").trim(),
+  ].join("::");
+
+const buildLegacyMissionResponseRows = (enrollmentMetaByKey) =>
+  [...enrollmentMetaByKey.values()].flatMap((enrollment) => {
     const missionResponses = enrollment.missionResponses || {};
 
-    return Object.entries(missionResponses).flatMap(([missionId, response]) => {
-      if (!response || typeof response !== "object") return [];
+    return Object.entries(missionResponses).map(([missionId, response]) => ({
+      ...(response && typeof response === "object" ? response : {}),
+      id: missionId,
+      missionId,
+      userId: enrollment.userId || "",
+      courseId: enrollment.courseId || enrollment.id || "",
+      enrollmentId: enrollment.courseId || enrollment.id || "",
+    }));
+  });
 
-      return Object.entries(response)
-        .filter(([, value]) => value != null && value !== "")
-        .map(([field, value]) => ({
-          userId: enrollment.userId || "",
-          learnerName: userNameById.get(enrollment.userId) || "",
-          courseId: enrollment.courseId || enrollment.id || "",
-          courseTitle: enrollment.courseTitle || "",
-          missionId,
-          field,
-          answer: serializeExportValue(value),
-          enrollmentStatus: enrollment.status || "",
-          lastSavedAt: serializeExportValue(enrollment.lastSavedAt || enrollment.updatedAt || enrollment.lastAccess),
-        }));
-    });
+const buildMissionResponseRows = ({
+  missionResponses,
+  userNameById,
+  enrollmentMetaByKey,
+}) =>
+  missionResponses.flatMap((response) => {
+    if (!response || typeof response !== "object") return [];
+
+    const enrollmentMeta =
+      enrollmentMetaByKey.get(
+        getMissionResponseEnrollmentKey({
+          userId: response.userId,
+          courseId: response.courseId || response.enrollmentId,
+        }),
+      ) || {};
+
+    return Object.entries(response)
+      .filter(
+        ([field, value]) =>
+          !ADMIN_EXPORT_EXCLUDED_FIELDS.has(field) &&
+          value != null &&
+          value !== "",
+      )
+      .map(([field, value]) => ({
+        userId: response.userId || "",
+        learnerName: userNameById.get(response.userId) || "",
+        courseId: response.courseId || response.enrollmentId || "",
+        courseTitle: enrollmentMeta.courseTitle || "",
+        missionId: response.missionId || response.id || "",
+        field,
+        answer: serializeExportValue(value),
+        enrollmentStatus: enrollmentMeta.status || "",
+        lastSavedAt: serializeExportValue(
+          enrollmentMeta.lastSavedAt || enrollmentMeta.updatedAt || enrollmentMeta.lastAccess,
+        ),
+      }));
   });
 
 export default function AdminConsole() {
@@ -70,9 +121,10 @@ export default function AdminConsole() {
     setExporting(true);
 
     try {
-      const [usersSnapshot, enrollmentsSnapshot] = await Promise.all([
+      const [usersSnapshot, enrollmentsSnapshot, missionResponses] = await Promise.all([
         getDocs(collection(db, "users")),
         getDocs(collectionGroup(db, "enrollments")),
+        listMissionResponseCollectionGroup(),
       ]);
 
       const userNameById = new Map(
@@ -85,18 +137,40 @@ export default function AdminConsole() {
         ]),
       );
 
-      const enrollments = enrollmentsSnapshot.docs.map((item) =>
-        buildEnrollmentInsight({
-          id: item.id,
-          userId: item.ref.parent.parent?.id,
-          path: item.ref.path,
-          ...item.data(),
+      const enrollmentMetaByKey = new Map(
+        enrollmentsSnapshot.docs.map((item) => {
+          const enrollment = buildEnrollmentInsight({
+            id: item.id,
+            userId: item.ref.parent.parent?.id,
+            path: item.ref.path,
+            ...item.data(),
+          });
+
+          return [
+            getMissionResponseEnrollmentKey({
+              userId: enrollment.userId,
+              courseId: enrollment.courseId || enrollment.id,
+            }),
+            enrollment,
+          ];
         }),
       );
 
+      const missionResponseByKey = new Map(
+        buildLegacyMissionResponseRows(enrollmentMetaByKey).map((response) => [
+          buildMissionResponseRecordKey(response),
+          response,
+        ]),
+      );
+
+      missionResponses.forEach((response) => {
+        missionResponseByKey.set(buildMissionResponseRecordKey(response), response);
+      });
+
       const rows = buildMissionResponseRows({
-        enrollments,
+        missionResponses: [...missionResponseByKey.values()],
         userNameById,
+        enrollmentMetaByKey,
       });
 
       if (rows.length === 0) {
