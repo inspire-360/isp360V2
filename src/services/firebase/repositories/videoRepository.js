@@ -17,6 +17,7 @@ import {
 } from "../../../data/videoAnnotations";
 import {
   buildVideoReviewRecord,
+  isUsableVideoReviewUrl,
   normalizeVideoReviewRecord,
   normalizeVideoReviewStatus,
   shouldSyncVideoReviewMetadata,
@@ -53,7 +54,7 @@ export const syncVideoReviewMetadata = async ({
     existingVideo,
   });
 
-  if (!nextVideo.id || !nextVideo.videoUrl) {
+  if (!nextVideo.id || !isUsableVideoReviewUrl(nextVideo.videoUrl)) {
     return null;
   }
 

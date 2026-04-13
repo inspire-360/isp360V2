@@ -12,6 +12,7 @@ import {
   buildTeacherDisplayName,
   buildVideoReviewId,
   buildVideoReviewRecord,
+  isUsableVideoReviewUrl,
   normalizeVideoReviewRecord,
   shouldSyncVideoReviewMetadata,
   VIDEO_REVIEW_COURSE_ID,
@@ -75,7 +76,7 @@ const buildVideoSyncSources = ({
       existingVideo,
     });
 
-    if (!derivedVideo.videoUrl) {
+    if (!isUsableVideoReviewUrl(derivedVideo.videoUrl)) {
       return [];
     }
 
@@ -246,7 +247,8 @@ export function useVideoAnnotationBoard({ currentUser, userProfile, userRole }) 
     () =>
       videoSyncSources.filter(
         ({ existingVideo, derivedVideo }) =>
-          !existingVideo?.id || shouldSyncVideoReviewMetadata(existingVideo, derivedVideo),
+          isUsableVideoReviewUrl(derivedVideo.videoUrl) &&
+          (!existingVideo?.id || shouldSyncVideoReviewMetadata(existingVideo, derivedVideo)),
       ),
     [videoSyncSources],
   );
@@ -290,6 +292,7 @@ export function useVideoAnnotationBoard({ currentUser, userProfile, userRole }) 
     }));
     const reviewOnlyRows = reviewDocs
       .filter((video) => !reviewIdsWithDerivedSource.has(video.id))
+      .filter((video) => isUsableVideoReviewUrl(video.videoUrl))
       .map((video) => ({
         ...normalizeVideoReviewRecord(video, {
           id: video.id,

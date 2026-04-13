@@ -1,4 +1,5 @@
 import { resolveTimestampMillis } from "../timestamps";
+import { resolvePlayableVideoSource } from "../../../data/videoAnnotations";
 
 export const VIDEO_REVIEW_COURSE_ID = "course-teacher";
 export const VIDEO_SOURCE_MISSION_ID = "m5-mission-1";
@@ -6,6 +7,7 @@ export const VIDEO_CONTEXT_MISSION_ID = "m4-mission-1";
 export const VIDEO_SUBJECT_MISSION_ID = "m4-mission-2";
 export const DEFAULT_VIDEO_REVIEW_TITLE = "วิดีโอการสอนจริง";
 export const DEFAULT_VIDEO_REVIEW_STATUS = "pending_feedback";
+export const DEFAULT_VIDEO_REVIEW_SCHOOL_NAME = "ยังไม่ระบุโรงเรียน";
 export const VIDEO_REVIEW_STATUS_SET = new Set([
   DEFAULT_VIDEO_REVIEW_STATUS,
   "coaching",
@@ -18,6 +20,27 @@ const pickFirstString = (...candidates) =>
   candidates.map((candidate) => normalizeString(candidate)).find(Boolean) || "";
 
 const pickTimestamp = (...candidates) => candidates.find(Boolean) || null;
+
+const hasPlaceholderVideoUrlText = (value = "") => {
+  const normalized = normalizeString(value).toLowerCase();
+  if (!normalized) return false;
+
+  return (
+    normalized.includes("ใส่ลิงก์") ||
+    normalized.includes("google drive / youtube") ||
+    normalized.includes("https://...")
+  );
+};
+
+export const isUsableVideoReviewUrl = (value = "") => {
+  const normalized = normalizeString(value);
+  if (!normalized) return false;
+  if (normalized.toLowerCase().startsWith("file://")) return false;
+  if (hasPlaceholderVideoUrlText(normalized)) return false;
+
+  const playableSource = resolvePlayableVideoSource(normalized);
+  return Boolean(playableSource?.canPlay);
+};
 
 export const buildVideoReviewId = ({
   teacherId = "",
@@ -45,12 +68,12 @@ export const buildTeacherDisplayName = ({
   fallbackName = "",
 } = {}) =>
   pickFirstString(
-    fallbackName,
     teacherProfile?.name,
     [teacherProfile?.prefix, teacherProfile?.firstName, teacherProfile?.lastName]
       .filter(Boolean)
       .join(" "),
     teacherProfile?.displayName,
+    fallbackName,
     teacherId,
   );
 
@@ -136,6 +159,10 @@ export const buildVideoReviewRecord = ({
     enrollment.updatedAt,
     submittedAt,
   );
+  const fallbackTeacherName = pickFirstString(
+    moduleFourMissionTwo.teacherName,
+    existingVideo.teacherName,
+  );
 
   return normalizeVideoReviewRecord(
     {
@@ -150,7 +177,7 @@ export const buildVideoReviewRecord = ({
       teacherName: buildTeacherDisplayName({
         teacherId,
         teacherProfile,
-        fallbackName: existingVideo.teacherName,
+        fallbackName: fallbackTeacherName,
       }),
       courseId,
       enrollmentId,
@@ -178,7 +205,9 @@ export const buildVideoReviewRecord = ({
         existingVideo.subject,
         teacherProfile.position,
       ),
-      schoolName: pickFirstString(existingVideo.schoolName, teacherProfile.school),
+      schoolName:
+        pickFirstString(existingVideo.schoolName, teacherProfile.school) ||
+        DEFAULT_VIDEO_REVIEW_SCHOOL_NAME,
       videoUrl: pickFirstString(moduleFiveMissionOne.clipLink, existingVideo.videoUrl),
       durationSeconds:
         existingVideo.durationSeconds == null
@@ -202,7 +231,7 @@ export const buildVideoReviewRecord = ({
       teacherName: buildTeacherDisplayName({
         teacherId,
         teacherProfile,
-        fallbackName: existingVideo.teacherName,
+        fallbackName: fallbackTeacherName,
       }),
       title:
         pickFirstString(

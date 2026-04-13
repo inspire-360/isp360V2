@@ -8,7 +8,10 @@
   "scripts": {
     "bootstrap-admin": "node ./scripts/bootstrap-admin.mjs",
     "backfill-mission-responses": "node ./scripts/backfill-mission-responses.mjs",
+    "backfill-innovation-docs": "node ./scripts/backfill-innovation-docs.mjs",
     "backfill-video-review-docs": "node ./scripts/backfill-video-review-docs.mjs",
+    "verify-innovation-quality": "node ./scripts/verify-innovation-quality.mjs",
+    "verify-video-review-quality": "node ./scripts/verify-video-review-quality.mjs",
     "verify-mission-response-backfill": "node ./scripts/verify-mission-response-backfill.mjs",
     "mission-response-cutover-health": "node ./scripts/mission-response-cutover-health.mjs"
   },

@@ -1,72 +1,89 @@
-import { startTransition, useEffect, useMemo, useRef, useState } from "react";
-import { collection, doc, onSnapshot, serverTimestamp, updateDoc } from "firebase/firestore";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { collection, collectionGroup, onSnapshot, query, where } from "firebase/firestore";
 import {
-  INNOVATIONS_COLLECTION,
   INNOVATION_STAGE_IDEA,
   normalizeInnovationStage,
   sortInnovations,
 } from "../data/innovationKanban";
 import { db } from "../lib/firebase";
+import {
+  ENROLLMENTS_SUBCOLLECTION,
+  USERS_COLLECTION,
+} from "../services/firebase/collections";
+import {
+  buildInnovationBoardRecord,
+  buildInnovationId,
+  normalizeInnovationRecord,
+  shouldSyncInnovationMetadata,
+  INNOVATION_BOARD_COURSE_ID,
+} from "../services/firebase/mappers/innovationMapper";
+import { getMissionResponseEnrollmentKey } from "../services/firebase/mappers/missionResponseMapper";
+import { subscribeToMissionResponseCollectionGroup } from "../services/firebase/repositories/missionResponseRepository";
+import {
+  subscribeToInnovations,
+  syncInnovationMetadata,
+  updateInnovationStage,
+} from "../services/firebase/repositories/innovationRepository";
 
 const resolveDisplayName = ({ currentUser, userProfile }) =>
   userProfile?.name ||
-  [userProfile?.prefix, userProfile?.firstName, userProfile?.lastName].filter(Boolean).join(" ").trim() ||
+  [userProfile?.prefix, userProfile?.firstName, userProfile?.lastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim() ||
   currentUser?.displayName ||
   currentUser?.email?.split("@")[0] ||
   "ผู้ดูแล DU";
 
-const normalizeInnovationRecord = (snapshotItem) => {
-  const data = snapshotItem.data() || {};
-  const summary =
-    typeof data.summary === "string" && data.summary.trim()
-      ? data.summary.trim()
-      : typeof data.description === "string" && data.description.trim()
-        ? data.description.trim()
-        : "";
+const buildInnovationSyncSources = ({
+  enrollments,
+  teachers,
+  innovationDocs,
+  missionResponsesByEnrollmentKey,
+}) => {
+  const teacherMap = new Map(teachers.map((teacher) => [teacher.id, teacher]));
+  const innovationMap = new Map(innovationDocs.map((innovation) => [innovation.id, innovation]));
 
-  return {
-    id: snapshotItem.id,
-    ...data,
-    title:
-      typeof data.title === "string" && data.title.trim()
-        ? data.title.trim()
-        : "นวัตกรรมที่ยังไม่ตั้งชื่อ",
-    teacherName:
-      data.teacherName ||
-      data.teacherDisplayName ||
-      data.ownerName ||
-      "ยังไม่ระบุชื่อครู",
-    schoolName: data.schoolName || data.school || "ยังไม่ระบุโรงเรียน",
-    summary,
-    description:
-      typeof data.description === "string" && data.description.trim()
-        ? data.description.trim()
-        : summary,
-    focusArea: typeof data.focusArea === "string" ? data.focusArea : "",
-    supportNeed: typeof data.supportNeed === "string" ? data.supportNeed : "",
-    evidenceNote: typeof data.evidenceNote === "string" ? data.evidenceNote : "",
-    tags: Array.isArray(data.tags) ? data.tags.filter(Boolean) : [],
-    stage: normalizeInnovationStage(data.stage),
-  };
-};
+  return enrollments.flatMap((enrollment) => {
+    const missionResponses =
+      missionResponsesByEnrollmentKey[
+        getMissionResponseEnrollmentKey({
+          userId: enrollment.teacherId,
+          courseId: enrollment.courseId || enrollment.enrollmentId,
+        })
+      ] || {};
 
-const patchInnovationList = (previousInnovations, snapshot) => {
-  if (previousInnovations.length === 0 || snapshot.docChanges().length === snapshot.docs.length) {
-    return snapshot.docs.map(normalizeInnovationRecord).sort(sortInnovations);
-  }
+    const existingInnovation = normalizeInnovationRecord(
+      innovationMap.get(
+        buildInnovationId({
+          teacherId: enrollment.teacherId,
+          enrollmentId: enrollment.enrollmentId,
+          courseId: enrollment.courseId,
+        }),
+      ) || {},
+    );
 
-  const innovationMap = new Map(previousInnovations.map((innovation) => [innovation.id, innovation]));
+    const derivedInnovation = buildInnovationBoardRecord({
+      enrollment,
+      teacherProfile: teacherMap.get(enrollment.teacherId) || {},
+      missionResponses,
+      existingInnovation,
+    });
 
-  snapshot.docChanges().forEach((change) => {
-    if (change.type === "removed") {
-      innovationMap.delete(change.doc.id);
-      return;
+    if (!derivedInnovation?.id) {
+      return [];
     }
 
-    innovationMap.set(change.doc.id, normalizeInnovationRecord(change.doc));
+    return [
+      {
+        derivedInnovation,
+        enrollment,
+        teacherProfile: teacherMap.get(enrollment.teacherId) || {},
+        missionResponses,
+        existingInnovation,
+      },
+    ];
   });
-
-  return Array.from(innovationMap.values()).sort(sortInnovations);
 };
 
 const patchInnovationStageLocally = ({
@@ -92,66 +109,257 @@ const patchInnovationStageLocally = ({
     .sort(sortInnovations);
 
 export function useInnovationBoard({ currentUser, userProfile, isAdminView }) {
-  const [innovations, setInnovations] = useState([]);
+  const [teacherProfiles, setTeacherProfiles] = useState([]);
+  const [enrollments, setEnrollments] = useState([]);
+  const [missionResponsesByEnrollmentKey, setMissionResponsesByEnrollmentKey] = useState({});
+  const [innovationDocs, setInnovationDocs] = useState([]);
+  const [visibleInnovations, setVisibleInnovations] = useState([]);
   const [activeInnovationId, setActiveInnovationId] = useState("");
-  const [loadingInnovations, setLoadingInnovations] = useState(true);
+  const [loadingTeacherProfiles, setLoadingTeacherProfiles] = useState(true);
+  const [loadingEnrollments, setLoadingEnrollments] = useState(true);
+  const [loadingMissionResponses, setLoadingMissionResponses] = useState(true);
+  const [loadingInnovationDocs, setLoadingInnovationDocs] = useState(true);
   const [movingInnovationId, setMovingInnovationId] = useState("");
   const [listenerError, setListenerError] = useState("");
   const innovationsRef = useRef([]);
 
   useEffect(() => {
     if (!currentUser?.uid || !isAdminView) {
-      setInnovations([]);
+      setTeacherProfiles([]);
+      setEnrollments([]);
+      setMissionResponsesByEnrollmentKey({});
+      setInnovationDocs([]);
+      setVisibleInnovations([]);
       setActiveInnovationId("");
-      setLoadingInnovations(false);
+      setLoadingTeacherProfiles(false);
+      setLoadingEnrollments(false);
+      setLoadingMissionResponses(false);
+      setLoadingInnovationDocs(false);
       setListenerError("");
       innovationsRef.current = [];
       return undefined;
     }
 
-    setLoadingInnovations(true);
+    setLoadingTeacherProfiles(true);
+    setLoadingEnrollments(true);
+    setLoadingMissionResponses(true);
+    setLoadingInnovationDocs(true);
     setListenerError("");
 
-    const unsubscribe = onSnapshot(
-      collection(db, INNOVATIONS_COLLECTION),
+    const unsubscribeTeachers = onSnapshot(
+      query(collection(db, USERS_COLLECTION)),
       (snapshot) => {
+        const nextTeachers = snapshot.docs.map((item) => ({
+          id: item.id,
+          ...item.data(),
+        }));
+
         startTransition(() => {
-          const nextInnovations = patchInnovationList(innovationsRef.current, snapshot);
-          innovationsRef.current = nextInnovations;
-          setInnovations(nextInnovations);
-          setActiveInnovationId((previousActiveId) => {
-            const nextIds = nextInnovations.map((item) => item.id);
-            if (previousActiveId && nextIds.includes(previousActiveId)) {
-              return previousActiveId;
-            }
-
-            const firstIdeaInnovation =
-              nextInnovations.find((item) => item.stage === INNOVATION_STAGE_IDEA) ||
-              nextInnovations[0] ||
-              null;
-
-            return firstIdeaInnovation?.id || "";
-          });
-          setLoadingInnovations(false);
+          setTeacherProfiles(nextTeachers);
+          setLoadingTeacherProfiles(false);
         });
       },
       (error) => {
-        console.error("ไม่สามารถติดตามข้อมูลนวัตกรรมแบบเรียลไทม์ได้", {
-          รหัสข้อผิดพลาด: error?.code || "ไม่ทราบรหัส",
-          ข้อความระบบ: error?.message || "ไม่มีข้อความจากระบบ",
-          คอลเลกชัน: INNOVATIONS_COLLECTION,
-        });
-        setListenerError("ไม่สามารถเชื่อมข้อมูลนวัตกรรมแบบทันทีได้");
-        setLoadingInnovations(false);
+        console.error("ไม่สามารถดึงรายชื่อครูสำหรับกระดานนวัตกรรมได้", error);
+        setLoadingTeacherProfiles(false);
+        setListenerError("ไม่สามารถโหลดรายชื่อครูสำหรับกระดานนวัตกรรมได้");
       },
     );
 
-    return () => unsubscribe();
+    const unsubscribeEnrollments = onSnapshot(
+      query(
+        collectionGroup(db, ENROLLMENTS_SUBCOLLECTION),
+        where("courseId", "==", INNOVATION_BOARD_COURSE_ID),
+      ),
+      (snapshot) => {
+        const nextEnrollments = snapshot.docs.map((item) => ({
+          id: item.id,
+          enrollmentId: item.id,
+          teacherId: item.ref.parent.parent?.id || "",
+          path: item.ref.path,
+          ...item.data(),
+        }));
+
+        startTransition(() => {
+          setEnrollments(nextEnrollments);
+          setLoadingEnrollments(false);
+        });
+      },
+      (error) => {
+        console.error("ไม่สามารถดึงข้อมูลการลงทะเบียนสำหรับกระดานนวัตกรรมได้", error);
+        setLoadingEnrollments(false);
+        setListenerError("ไม่สามารถโหลดข้อมูลการลงทะเบียนสำหรับกระดานนวัตกรรมได้");
+      },
+    );
+
+    const unsubscribeMissionResponses = subscribeToMissionResponseCollectionGroup({
+      courseId: INNOVATION_BOARD_COURSE_ID,
+      onNext: (rows) => {
+        const nextMissionResponsesByEnrollmentKey = rows.reduce((accumulator, row) => {
+          const key = getMissionResponseEnrollmentKey(row);
+          if (!key || !row.missionId) return accumulator;
+
+          accumulator[key] = {
+            ...(accumulator[key] || {}),
+            [row.missionId]: row,
+          };
+
+          return accumulator;
+        }, {});
+
+        startTransition(() => {
+          setMissionResponsesByEnrollmentKey(nextMissionResponsesByEnrollmentKey);
+          setLoadingMissionResponses(false);
+        });
+      },
+      onError: (error) => {
+        console.error("ไม่สามารถดึงภารกิจย่อยสำหรับกระดานนวัตกรรมได้", error);
+        setLoadingMissionResponses(false);
+        setListenerError("ไม่สามารถโหลดภารกิจย่อยสำหรับกระดานนวัตกรรมได้");
+      },
+    });
+
+    const unsubscribeInnovationDocs = subscribeToInnovations({
+      onNext: (rows) => {
+        startTransition(() => {
+          setInnovationDocs(rows);
+          setLoadingInnovationDocs(false);
+        });
+      },
+      onError: (error) => {
+        console.error("ไม่สามารถติดตามคอลเลกชัน innovations ได้", error);
+        setLoadingInnovationDocs(false);
+        setListenerError("ไม่สามารถเชื่อมข้อมูลนวัตกรรมแบบทันทีได้");
+      },
+    });
+
+    return () => {
+      unsubscribeTeachers();
+      unsubscribeEnrollments();
+      unsubscribeMissionResponses();
+      unsubscribeInnovationDocs();
+    };
   }, [currentUser?.uid, isAdminView]);
 
+  const innovationSyncSources = useMemo(
+    () =>
+      buildInnovationSyncSources({
+        enrollments,
+        teachers: teacherProfiles,
+        innovationDocs,
+        missionResponsesByEnrollmentKey,
+      }),
+    [enrollments, innovationDocs, missionResponsesByEnrollmentKey, teacherProfiles],
+  );
+
+  const innovationSyncSourceById = useMemo(
+    () =>
+      new Map(
+        innovationSyncSources.map((item) => [
+          item.derivedInnovation.id,
+          item,
+        ]),
+      ),
+    [innovationSyncSources],
+  );
+
+  const innovationsPendingSync = useMemo(
+    () =>
+      innovationSyncSources.filter(
+        ({ existingInnovation, derivedInnovation }) =>
+          !existingInnovation?.id ||
+          shouldSyncInnovationMetadata(existingInnovation, derivedInnovation),
+      ),
+    [innovationSyncSources],
+  );
+
+  useEffect(() => {
+    if (!currentUser?.uid || !isAdminView || innovationsPendingSync.length === 0) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const syncMissingMetadata = async () => {
+      for (const source of innovationsPendingSync) {
+        if (cancelled) return;
+
+        try {
+          await syncInnovationMetadata(source);
+        } catch (error) {
+          console.error("ไม่สามารถซิงก์ metadata ของนวัตกรรมได้", error);
+        }
+      }
+    };
+
+    void syncMissingMetadata();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.uid, innovationsPendingSync, isAdminView]);
+
+  const innovations = useMemo(() => {
+    const innovationIdsWithDerivedSource = new Set(
+      innovationSyncSources.map((item) => item.derivedInnovation.id),
+    );
+    const derivedRows = innovationSyncSources.map(
+      ({ derivedInnovation, existingInnovation }) => ({
+        ...derivedInnovation,
+        hasInnovationDocument: Boolean(existingInnovation?.id),
+      }),
+    );
+    const boardOnlyRows = innovationDocs
+      .filter((innovation) => !innovationIdsWithDerivedSource.has(innovation.id))
+      .map((innovation) =>
+        normalizeInnovationRecord(innovation, {
+          id: innovation.id,
+        }),
+      );
+
+    return [...derivedRows, ...boardOnlyRows].sort(sortInnovations);
+  }, [innovationDocs, innovationSyncSources]);
+
+  useEffect(() => {
+    innovationsRef.current = visibleInnovations;
+  }, [visibleInnovations]);
+
+  useEffect(() => {
+    setActiveInnovationId((previous) => {
+      if (previous && visibleInnovations.some((innovation) => innovation.id === previous)) {
+        return previous;
+      }
+
+      const firstIdeaInnovation =
+        visibleInnovations.find((innovation) => innovation.stage === INNOVATION_STAGE_IDEA) ||
+        visibleInnovations[0] ||
+        null;
+
+      return firstIdeaInnovation?.id || "";
+    });
+  }, [visibleInnovations]);
+
+  const loadingInnovations =
+    loadingTeacherProfiles ||
+    loadingEnrollments ||
+    loadingMissionResponses ||
+    loadingInnovationDocs;
+
   const activeInnovation = useMemo(
-    () => innovations.find((innovation) => innovation.id === activeInnovationId) || null,
-    [activeInnovationId, innovations],
+    () => visibleInnovations.find((innovation) => innovation.id === activeInnovationId) || null,
+    [activeInnovationId, visibleInnovations],
+  );
+
+  const ensureInnovationDocument = useCallback(
+    async (innovation) => {
+      if (!innovation?.id) return null;
+
+      const source = innovationSyncSourceById.get(innovation.id);
+      if (!source) return innovation;
+
+      return syncInnovationMetadata(source);
+    },
+    [innovationSyncSourceById],
   );
 
   const moveInnovationToStage = async ({ innovation, nextStage }) => {
@@ -175,17 +383,17 @@ export function useInnovationBoard({ currentUser, userProfile, isAdminView }) {
         operatorName,
       });
       innovationsRef.current = nextInnovations;
-      setInnovations(nextInnovations);
+      setVisibleInnovations(nextInnovations);
       setActiveInnovationId(innovation.id);
     });
 
     try {
-      await updateDoc(doc(db, INNOVATIONS_COLLECTION, innovation.id), {
-        stage: normalizedNextStage,
-        updatedAt: serverTimestamp(),
-        lastMovedAt: serverTimestamp(),
-        lastMovedById: currentUser.uid,
-        lastMovedByName: operatorName,
+      await ensureInnovationDocument(innovation);
+      await updateInnovationStage({
+        innovationId: innovation.id,
+        nextStage: normalizedNextStage,
+        operatorId: currentUser.uid,
+        operatorName,
       });
     } catch (error) {
       startTransition(() => {
@@ -193,7 +401,7 @@ export function useInnovationBoard({ currentUser, userProfile, isAdminView }) {
           .map((item) => (item.id === innovation.id ? innovation : item))
           .sort(sortInnovations);
         innovationsRef.current = revertedInnovations;
-        setInnovations(revertedInnovations);
+        setVisibleInnovations(revertedInnovations);
       });
       throw error;
     } finally {
@@ -201,8 +409,12 @@ export function useInnovationBoard({ currentUser, userProfile, isAdminView }) {
     }
   };
 
+  useEffect(() => {
+    setVisibleInnovations(innovations);
+  }, [innovations]);
+
   return {
-    innovations,
+    innovations: visibleInnovations,
     activeInnovation,
     activeInnovationId,
     setActiveInnovationId,

@@ -9,6 +9,7 @@ import {
   PRESENCE_COLLECTION,
   SOS_TICKET_MESSAGES_SUBCOLLECTION,
   SOS_TICKETS_COLLECTION,
+  INNOVATIONS_COLLECTION,
   USERS_COLLECTION,
   VIDEO_COMMENTS_SUBCOLLECTION,
   VIDEOS_COLLECTION,
@@ -45,6 +46,7 @@ export const presenceDocRef = (uid) => doc(db, PRESENCE_COLLECTION, uid);
 export const videoDocRef = (videoId) => doc(db, VIDEOS_COLLECTION, videoId);
 export const videoCommentsCollectionRef = (videoId) =>
   collection(db, VIDEOS_COLLECTION, videoId, VIDEO_COMMENTS_SUBCOLLECTION);
+export const innovationDocRef = (innovationId) => doc(db, INNOVATIONS_COLLECTION, innovationId);
 export const supportTicketDocRef = (ticketId) => doc(db, SOS_TICKETS_COLLECTION, ticketId);
 export const supportTicketMessagesCollectionRef = (ticketId) =>
   collection(db, SOS_TICKETS_COLLECTION, ticketId, SOS_TICKET_MESSAGES_SUBCOLLECTION);

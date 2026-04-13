@@ -14,6 +14,7 @@ const MODULE_FOUR_MISSION_TWO_ID = "m4-mission-2";
 const MODULE_FIVE_MISSION_ONE_ID = "m5-mission-1";
 const DEFAULT_VIDEO_TITLE = "วิดีโอการสอนจริง";
 const DEFAULT_REVIEW_STATUS = "pending_feedback";
+const DEFAULT_SCHOOL_NAME = "ยังไม่ระบุโรงเรียน";
 
 const usageText = [
   "Usage:",
@@ -30,6 +31,7 @@ const usageText = [
   "  --user-id <uid>",
   "  --limit <number of enrollments>",
   "  --write true",
+  "  --delete-invalid true",
 ].join("\n");
 
 const normalizeString = (value = "") => String(value || "").trim();
@@ -40,6 +42,48 @@ const buildVideoReviewId = ({ teacherId = "", enrollmentId = "", courseId = "" }
   [normalizeString(teacherId), normalizeString(enrollmentId || courseId)]
     .filter(Boolean)
     .join("__");
+const hasPlaceholderVideoUrlText = (value = "") => {
+  const normalized = normalizeString(value).toLowerCase();
+  if (!normalized) return false;
+
+  return (
+    normalized.includes("ใส่ลิงก์") ||
+    normalized.includes("google drive / youtube") ||
+    normalized.includes("https://...")
+  );
+};
+const isUsableVideoUrl = (value = "") => {
+  const normalized = normalizeString(value);
+  if (!normalized) return false;
+  if (normalized.toLowerCase().startsWith("file://")) return false;
+  if (hasPlaceholderVideoUrlText(normalized)) return false;
+
+  try {
+    const parsed = new URL(normalized);
+    const host = String(parsed.hostname || "").toLowerCase();
+    const pathname = String(parsed.pathname || "").toLowerCase();
+
+    if (host.includes("youtu.be") || host.includes("youtube.com")) {
+      return true;
+    }
+
+    if (host.includes("drive.google.com") || host.includes("docs.google.com")) {
+      return pathname.includes("/file/") || parsed.searchParams.has("id");
+    }
+
+    if (/\.(mp4|webm|ogg|m4v|mov)$/.test(pathname)) {
+      return true;
+    }
+
+    if (host.includes("firebasestorage.googleapis.com")) {
+      return true;
+    }
+
+    return parsed.searchParams.get("alt") === "media";
+  } catch {
+    return false;
+  }
+};
 
 const normalizeMissionResponse = (value = {}) => {
   const response = value && typeof value === "object" && !Array.isArray(value) ? { ...value } : {};
@@ -51,12 +95,18 @@ const normalizeMissionResponse = (value = {}) => {
   return response;
 };
 
-const buildTeacherName = ({ teacherId = "", teacherProfile = {}, existingVideo = {} } = {}) =>
+const buildTeacherName = ({
+  teacherId = "",
+  teacherProfile = {},
+  moduleFourMissionTwo = {},
+  existingVideo = {},
+} = {}) =>
   pickFirstString(
-    existingVideo.teacherName,
     teacherProfile.name,
     [teacherProfile.prefix, teacherProfile.firstName, teacherProfile.lastName].filter(Boolean).join(" "),
     teacherProfile.displayName,
+    moduleFourMissionTwo.teacherName,
+    existingVideo.teacherName,
     teacherId,
   ) || "ยังไม่ระบุครู";
 
@@ -77,6 +127,7 @@ const buildVideoReviewDoc = ({
     teacherName: buildTeacherName({
       teacherId,
       teacherProfile,
+      moduleFourMissionTwo,
       existingVideo,
     }),
     courseId,
@@ -105,7 +156,7 @@ const buildVideoReviewDoc = ({
       existingVideo.subject,
       teacherProfile.position,
     ),
-    schoolName: pickFirstString(existingVideo.schoolName, teacherProfile.school),
+    schoolName: pickFirstString(existingVideo.schoolName, teacherProfile.school) || DEFAULT_SCHOOL_NAME,
     videoUrl: pickFirstString(moduleFiveMissionOne.clipLink, existingVideo.videoUrl),
     durationSeconds:
       existingVideo.durationSeconds == null
@@ -138,6 +189,7 @@ if (args.help === "true") {
 }
 
 const dryRun = !toBoolean(args.write, false);
+const deleteInvalid = toBoolean(args["delete-invalid"], false);
 const userIdFilter = normalizeString(args["user-id"]);
 const courseIdFilter = normalizeString(args["course-id"]);
 const limit = toPositiveInteger(args.limit, 0);
@@ -163,14 +215,19 @@ try {
     dryRun,
     scannedEnrollments: enrollmentSnapshots.length,
     enrollmentsWithVideoEvidence: 0,
+    invalidVideoEvidenceSkipped: 0,
     existingVideoDocsFound: 0,
+    invalidExistingVideoDocsFound: 0,
     writeOperationsPlanned: 0,
+    deleteOperationsPlanned: 0,
     affectedVideoIds: [],
+    deletedVideoIds: [],
     filters: {
       projectId: args.project || "inspire-72132",
       userId: userIdFilter || null,
       courseId: courseIdFilter || null,
       limit: limit || null,
+      deleteInvalid,
     },
   };
 
@@ -181,6 +238,12 @@ try {
     const enrollmentData = enrollmentSnapshot.data() || {};
     const teacherId = normalizeString(enrollmentSnapshot.ref.parent.parent?.id);
     const courseId = normalizeString(enrollmentData.courseId || enrollmentSnapshot.id) || enrollmentSnapshot.id;
+    const videoId = buildVideoReviewId({
+      teacherId,
+      courseId,
+      enrollmentId: enrollmentSnapshot.id,
+    });
+    const videoRef = db.collection("videos").doc(videoId);
 
     const missionSnapshot = await enrollmentSnapshot.ref.collection("mission_responses").get();
     const missionMap = missionSnapshot.docs.reduce((accumulator, item) => {
@@ -193,19 +256,29 @@ try {
       continue;
     }
 
+    const existingVideoSnapshot = await videoRef.get();
+    const existingVideo = existingVideoSnapshot.exists ? existingVideoSnapshot.data() || {} : {};
+
+    if (!isUsableVideoUrl(moduleFiveMissionOne.clipLink)) {
+      summary.invalidVideoEvidenceSkipped += 1;
+      if (existingVideoSnapshot.exists) {
+        summary.invalidExistingVideoDocsFound += 1;
+        summary.deletedVideoIds.push(videoId);
+      }
+
+      if (deleteInvalid && existingVideoSnapshot.exists) {
+        summary.deleteOperationsPlanned += 1;
+        if (writer) {
+          writer.delete(videoRef);
+        }
+      }
+      continue;
+    }
+
     if (!teacherCache.has(teacherId)) {
       const teacherSnapshot = await db.collection("users").doc(teacherId).get();
       teacherCache.set(teacherId, teacherSnapshot.exists ? teacherSnapshot.data() || {} : {});
     }
-
-    const videoId = buildVideoReviewId({
-      teacherId,
-      courseId,
-      enrollmentId: enrollmentSnapshot.id,
-    });
-    const videoRef = db.collection("videos").doc(videoId);
-    const existingVideoSnapshot = await videoRef.get();
-    const existingVideo = existingVideoSnapshot.exists ? existingVideoSnapshot.data() || {} : {};
 
     const payload = buildVideoReviewDoc({
       teacherId,
@@ -218,7 +291,19 @@ try {
       existingVideo,
     });
 
-    if (!payload.videoUrl) {
+    if (!isUsableVideoUrl(payload.videoUrl)) {
+      summary.invalidVideoEvidenceSkipped += 1;
+      if (existingVideoSnapshot.exists) {
+        summary.invalidExistingVideoDocsFound += 1;
+        summary.deletedVideoIds.push(videoId);
+      }
+
+      if (deleteInvalid && existingVideoSnapshot.exists) {
+        summary.deleteOperationsPlanned += 1;
+        if (writer) {
+          writer.delete(videoRef);
+        }
+      }
       continue;
     }
 
@@ -249,6 +334,7 @@ try {
   }
 
   summary.affectedVideoIds = summary.affectedVideoIds.slice(0, 25);
+  summary.deletedVideoIds = summary.deletedVideoIds.slice(0, 25);
   console.log(JSON.stringify(summary, null, 2));
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);
