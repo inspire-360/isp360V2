@@ -13,10 +13,12 @@
     "backfill-user-profile-contract": "node ./functions/scripts/backfill-user-profile-contract.mjs",
     "backfill-innovation-docs": "node ./functions/scripts/backfill-innovation-docs.mjs",
     "backfill-video-review-docs": "node ./functions/scripts/backfill-video-review-docs.mjs",
+    "backfill-match-request-contract": "node ./functions/scripts/backfill-match-request-contract.mjs",
     "delete-user-account": "node ./functions/scripts/delete-user-account.mjs",
     "verify-innovation-quality": "node ./functions/scripts/verify-innovation-quality.mjs",
     "verify-user-profile-quality": "node ./functions/scripts/verify-user-profile-quality.mjs",
     "verify-video-review-quality": "node ./functions/scripts/verify-video-review-quality.mjs",
+    "verify-matchmaking-quality": "node ./functions/scripts/verify-matchmaking-quality.mjs",
     "verify-mission-response-backfill": "node ./functions/scripts/verify-mission-response-backfill.mjs",
     "mission-response-cutover-health": "node ./functions/scripts/mission-response-cutover-health.mjs"
   },

@@ -1,0 +1,29 @@
+{
+  "baseUrl": "https://inspire-72132.web.app",
+  "outputDir": "C:\\Users\\401ms\\Desktop\\inspire-pwa\\inspire-pwa\\inspire-app\\output\\smoke-member-control-2026-04-13T17-30-12-410Z",
+  "email": "codex.phase6.admin.1776101405700@example.com",
+  "checks": [
+    {
+      "name": "login as admin works",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "name": "member control page loads",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "name": "member selection reveals canonical metadata",
+      "status": "passed",
+      "detail": ""
+    }
+  ],
+  "consoleErrors": [
+    "ส่งสถานะคงค้างก่อนออกจากหน้าไม่สำเร็จ: TypeError: Failed to fetch\n    at ae (https://inspire-72132.web.app/assets/Layout-BtASKVE6.js:1:2452)",
+    "ส่งสถานะคงค้างก่อนออกจากหน้าไม่สำเร็จ: TypeError: Failed to fetch\n    at ae (https://inspire-72132.web.app/assets/Layout-BtASKVE6.js:1:2452)",
+    "ส่งสถานะคงค้างก่อนออกจากหน้าไม่สำเร็จ: TypeError: Failed to fetch\n    at ae (https://inspire-72132.web.app/assets/Layout-BtASKVE6.js:1:2452)"
+  ],
+  "pageErrors": [],
+  "requestFailures": []
+}

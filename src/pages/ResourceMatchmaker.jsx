@@ -11,13 +11,19 @@ import {
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import {
+  closeReasonOptions,
   formatExpertServiceModes,
   formatMarketplaceDateTime,
   getExpertCapacityMeta,
   getMatchRequestStatusMeta,
   getPreferredFormatMeta,
+  getRequestPriorityMeta,
+  getResourceTypeMeta,
   matchRequestStatusOptions,
   preferredFormatOptions,
+  rankExpertsForRequest,
+  requestPriorityOptions,
+  resourceTypeOptions,
 } from "../data/resourceMatchmaking";
 import {
   buildExpertDirectoryExperts,
@@ -31,10 +37,21 @@ const initialRequestForm = {
   requestTitle: "",
   desiredExpertise: "",
   preferredFormat: "online",
+  priority: "medium",
+  resourceType: "consultation",
+  needTagsText: "",
   requestDetails: "",
 };
 
+const initialAssignForm = {
+  requestId: "",
+  expertId: "",
+  adminNote: "",
+  closedReason: "resolved",
+};
+
 const expertSeedSummary = buildExpertSeedSummary();
+const chipBase = "inline-flex rounded-full border px-3 py-1 text-xs font-semibold";
 
 const MatchRequestListItem = memo(function MatchRequestListItem({
   request,
@@ -43,6 +60,8 @@ const MatchRequestListItem = memo(function MatchRequestListItem({
 }) {
   const statusMeta = getMatchRequestStatusMeta(request.status);
   const formatMeta = getPreferredFormatMeta(request.preferredFormat);
+  const priorityMeta = getRequestPriorityMeta(request.priority);
+  const resourceTypeMeta = getResourceTypeMeta(request.resourceType);
 
   return (
     <button
@@ -55,18 +74,32 @@ const MatchRequestListItem = memo(function MatchRequestListItem({
       }`}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${statusMeta.tone}`}>
-          {statusMeta.label}
-        </span>
+        <span className={`${chipBase} ${statusMeta.tone}`}>{statusMeta.label}</span>
         <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
           {formatMeta.label}
         </span>
+        <span className={`${chipBase} ${priorityMeta.tone}`}>{priorityMeta.label}</span>
       </div>
       <p className="mt-3 font-semibold text-ink">{request.requestTitle}</p>
       <p className="mt-2 text-sm text-slate-500">{request.requesterName || "ครูผู้ส่งคำร้อง"}</p>
       <p className="mt-2 line-clamp-2 text-sm leading-7 text-slate-600">
         {request.latestUpdateText || request.requestDetails || "ยังไม่มีความคืบหน้าล่าสุด"}
       </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <span className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-medium text-slate-600">
+          {resourceTypeMeta.label}
+        </span>
+        {Array.isArray(request.needTags)
+          ? request.needTags.slice(0, 2).map((tag) => (
+            <span
+              key={tag}
+              className="inline-flex rounded-full border border-secondary/20 bg-secondary/5 px-3 py-1 text-[11px] font-medium text-secondary"
+            >
+              {tag}
+            </span>
+          ))
+          : null}
+      </div>
       <div className="mt-3 flex items-center justify-between gap-3 text-xs text-slate-400">
         <span>{request.desiredExpertise || "ยังไม่ได้ระบุความเชี่ยวชาญที่ต้องการ"}</span>
         <span>{formatMarketplaceDateTime(request.updatedAt || request.createdAt)}</span>
@@ -75,56 +108,51 @@ const MatchRequestListItem = memo(function MatchRequestListItem({
   );
 });
 
-const ExpertDirectoryCard = memo(function ExpertDirectoryCard({ expert, isSelected, onSelect }) {
+const RecommendationTile = memo(function RecommendationTile({
+  recommendation,
+  isSelected,
+  onSelect,
+}) {
+  const { expert, score, reasons, sharedTags } = recommendation;
   const capacityMeta = getExpertCapacityMeta(expert.capacityStatus);
 
   return (
     <button
       type="button"
       onClick={() => onSelect(expert.id)}
-      className={`w-full rounded-[26px] border p-5 text-left transition ${
+      className={`rounded-[24px] border p-4 text-left transition ${
         isSelected
           ? "border-primary/25 bg-primary/5 shadow-[0_18px_40px_rgba(13,17,100,0.10)]"
           : "border-slate-200 bg-white hover:border-secondary/20 hover:bg-secondary/5"
       }`}
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-lg font-semibold text-ink">{expert.displayName || "ผู้เชี่ยวชาญ"}</p>
+          <p className="text-base font-semibold text-ink">{expert.displayName}</p>
           <p className="mt-1 text-sm text-slate-500">
-            {(expert.title || "ยังไม่ได้ระบุตำแหน่ง") +
-              " | " +
-              (expert.organization || "ยังไม่ได้ระบุหน่วยงาน")}
+            {expert.primaryExpertise || expert.title || "ยังไม่ได้ระบุสาขาหลัก"}
           </p>
         </div>
-        <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${capacityMeta.tone}`}>
-          {capacityMeta.label}
-        </span>
+        <div className="space-y-2 text-right">
+          <span className={`${chipBase} ${capacityMeta.tone}`}>{capacityMeta.label}</span>
+          <p className="text-sm font-semibold text-primary">คะแนน {score}</p>
+        </div>
       </div>
-      <p className="mt-4 text-sm font-semibold text-ink">
-        ความเชี่ยวชาญหลัก: {expert.primaryExpertise || "ยังไม่ได้ระบุ"}
+      <p className="mt-3 text-sm leading-7 text-slate-600">
+        {reasons[0] || expert.bio || "พร้อมสนับสนุนตามบริบทคำร้องนี้"}
       </p>
-      {Array.isArray(expert.expertiseTags) && expert.expertiseTags.length > 0 ? (
+      {sharedTags.length ? (
         <div className="mt-3 flex flex-wrap gap-2">
-          {expert.expertiseTags.slice(0, 5).map((tag) => (
+          {sharedTags.slice(0, 3).map((tag) => (
             <span
               key={tag}
-              className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600"
+              className="inline-flex rounded-full border border-primary/15 bg-primary/[0.08] px-3 py-1 text-[11px] font-medium text-primary"
             >
               {tag}
             </span>
           ))}
         </div>
       ) : null}
-      <p className="mt-4 text-sm leading-7 text-slate-600">
-        {expert.bio || "ยังไม่มีคำอธิบายเพิ่มเติมของผู้เชี่ยวชาญคนนี้"}
-      </p>
-      <div className="mt-4 flex flex-wrap gap-3 text-xs text-slate-500">
-        <span>พื้นที่ดูแล: {expert.region || "ไม่จำกัดพื้นที่"}</span>
-        <span>
-          รูปแบบงาน: {Array.isArray(expert.serviceModes) && expert.serviceModes.length > 0 ? formatExpertServiceModes(expert.serviceModes).join(" | ") : "ยังไม่ได้ระบุ"}
-        </span>
-      </div>
     </button>
   );
 });
@@ -133,6 +161,7 @@ const ExpertRosterRow = memo(function ExpertRosterRow({
   entry,
   isSelected,
   onSelect,
+  recommendation,
 }) {
   const expert = entry.resolvedExpert;
   const capacityMeta = getExpertCapacityMeta(expert.capacityStatus);
@@ -167,19 +196,22 @@ const ExpertRosterRow = memo(function ExpertRosterRow({
         </div>
 
         <div className="space-y-2 text-sm text-slate-600">
-          <p className="font-semibold text-ink">{expert.primaryExpertise || entry.displayName}</p>
+          <p className="font-semibold text-ink">{expert.primaryExpertise || entry.specialty}</p>
           <p>{expert.organization || "เครือข่ายผู้เชี่ยวชาญ DU"}</p>
           <p>พื้นที่ดูแล: {expert.region || "สนับสนุนได้ทั่วทั้งเครือข่าย"}</p>
         </div>
 
         <div className="space-y-3">
           <div className="flex flex-wrap gap-2 xl:justify-end">
-            <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${capacityMeta.tone}`}>
-              {capacityMeta.label}
-            </span>
+            <span className={`${chipBase} ${capacityMeta.tone}`}>{capacityMeta.label}</span>
             <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
               {entry.specialty}
             </span>
+            {recommendation ? (
+              <span className="inline-flex rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary">
+                คะแนนเหมาะสม {recommendation.score}
+              </span>
+            ) : null}
           </div>
           <p className="text-xs leading-6 text-slate-500 xl:text-right">
             รูปแบบงาน: {formatExpertServiceModes(expert.serviceModes).join(" / ")}
@@ -221,6 +253,8 @@ const DirectoryCategoryButton = memo(function DirectoryCategoryButton({
 const SelectedExpertPanel = memo(function SelectedExpertPanel({
   expert,
   entry,
+  recommendation,
+  activeRequest,
 }) {
   if (!expert) {
     return (
@@ -244,21 +278,15 @@ const SelectedExpertPanel = memo(function SelectedExpertPanel({
 
       <div className="space-y-5 px-5 py-5">
         <div className="flex flex-wrap gap-2">
-          <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${capacityMeta.tone}`}>
-            {capacityMeta.label}
-          </span>
+          <span className={`${chipBase} ${capacityMeta.tone}`}>{capacityMeta.label}</span>
           <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
             {entry?.specialty || expert.title || "ยังไม่ได้ระบุสาขา"}
           </span>
-          <span
-            className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${
-              entry?.isSynced
-                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                : "border-slate-200 bg-slate-50 text-slate-600"
-            }`}
-          >
-            {entry?.isSynced ? "เชื่อมฐานข้อมูลแล้ว" : "ใช้จากรายชื่อมาตรฐาน"}
-          </span>
+          {recommendation ? (
+            <span className="inline-flex rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary">
+              คะแนนเหมาะสม {recommendation.score}
+            </span>
+          ) : null}
         </div>
 
         <div className="grid gap-4">
@@ -288,6 +316,34 @@ const SelectedExpertPanel = memo(function SelectedExpertPanel({
             {expert.bio || "พร้อมสนับสนุนครูตามสาขาความเชี่ยวชาญที่ระบุ"}
           </p>
         </div>
+
+        {activeRequest ? (
+          <div className="border-t border-slate-100 pt-5">
+            <p className="text-xs tracking-[0.12em] text-slate-400">ความเหมาะสมกับคำร้องนี้</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                ต้องการ {getPreferredFormatMeta(activeRequest.preferredFormat).label}
+              </span>
+              <span className={`${chipBase} ${getRequestPriorityMeta(activeRequest.priority).tone}`}>
+                {getRequestPriorityMeta(activeRequest.priority).label}
+              </span>
+              <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                {getResourceTypeMeta(activeRequest.resourceType).label}
+              </span>
+            </div>
+            {recommendation?.reasons?.length ? (
+              <ul className="mt-4 space-y-2 text-sm leading-7 text-slate-600">
+                {recommendation.reasons.map((reason) => (
+                  <li key={reason}>• {reason}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-3 text-sm leading-7 text-slate-600">
+                ยังไม่มีสัญญาณเชิงโครงสร้างมากพอสำหรับคำร้องนี้ แต่ทีม DU ยังสามารถเลือกจับคู่จากบริบทงานจริงได้
+              </p>
+            )}
+          </div>
+        ) : null}
       </div>
     </article>
   );
@@ -301,11 +357,7 @@ export default function ResourceMatchmaker() {
 
   const [requestForm, setRequestForm] = useState(initialRequestForm);
   const [statusFilter, setStatusFilter] = useState("all");
-  const [assignForm, setAssignForm] = useState({
-    requestId: "",
-    expertId: "",
-    adminNote: "",
-  });
+  const [assignForm, setAssignForm] = useState(initialAssignForm);
   const [requestFormError, setRequestFormError] = useState("");
   const [assignFormError, setAssignFormError] = useState("");
   const [seedFeedback, setSeedFeedback] = useState("");
@@ -350,21 +402,16 @@ export default function ResourceMatchmaker() {
           if (request.status === "pending_match") accumulator.pending += 1;
           if (request.status === "matched") accumulator.matched += 1;
           if (request.status === "completed") accumulator.completed += 1;
+          if (request.priority === "high") accumulator.highPriority += 1;
           return accumulator;
         },
-        { total: 0, pending: 0, matched: 0, completed: 0 },
+        { total: 0, pending: 0, matched: 0, completed: 0, highPriority: 0 },
       ),
     [requests],
   );
 
-  const expertDirectorySections = useMemo(
-    () => buildExpertDirectorySections(experts),
-    [experts],
-  );
-  const directoryExperts = useMemo(
-    () => buildExpertDirectoryExperts(experts),
-    [experts],
-  );
+  const expertDirectorySections = useMemo(() => buildExpertDirectorySections(experts), [experts]);
+  const directoryExperts = useMemo(() => buildExpertDirectoryExperts(experts), [experts]);
   const directorySummary = useMemo(
     () =>
       directoryExperts.reduce(
@@ -379,6 +426,7 @@ export default function ResourceMatchmaker() {
       ),
     [directoryExperts],
   );
+
   const directoryCategoryOptions = useMemo(
     () =>
       expertDirectorySections.map((section) => ({
@@ -388,23 +436,7 @@ export default function ResourceMatchmaker() {
       })),
     [expertDirectorySections],
   );
-  const expertSelectGroups = useMemo(
-    () =>
-      expertDirectorySections
-        .map((section) => ({
-          category: section.category,
-          groups: section.groups
-            .map((group) => ({
-              specialty: group.specialty,
-              options: group.experts
-                .map((item) => item.resolvedExpert)
-                .filter((expert) => expert && expert.isActive !== false),
-            }))
-            .filter((group) => group.options.length > 0),
-        }))
-        .filter((section) => section.groups.length > 0),
-    [expertDirectorySections],
-  );
+
   const filteredExpertDirectorySections = useMemo(() => {
     const keyword = directoryKeyword.trim().toLowerCase();
 
@@ -435,11 +467,13 @@ export default function ResourceMatchmaker() {
               return haystack.includes(keyword);
             }),
           }))
-          .filter((group) => group.experts.length > 0 || (!keyword && group.description)),
+          .filter((group) => group.experts.length > 0),
       }))
       .filter((section) => section.groups.length > 0);
   }, [directoryCategory, directoryKeyword, expertDirectorySections]);
+
   const hasDirectoryMatches = filteredExpertDirectorySections.length > 0;
+
   const directoryEntries = useMemo(
     () =>
       expertDirectorySections.flatMap((section) =>
@@ -455,6 +489,7 @@ export default function ResourceMatchmaker() {
       ),
     [expertDirectorySections],
   );
+
   const filteredDirectorySummary = useMemo(
     () =>
       filteredExpertDirectorySections.reduce(
@@ -475,10 +510,12 @@ export default function ResourceMatchmaker() {
     assignForm.requestId === (activeRequest?.id || "")
       ? assignForm
       : {
-          requestId: activeRequest?.id || "",
-          expertId: activeRequest?.matchedExpertId || "",
-          adminNote: activeRequest?.adminNote || "",
-        };
+        requestId: activeRequest?.id || "",
+        expertId: activeRequest?.matchedExpertId || "",
+        adminNote: activeRequest?.adminNote || "",
+        closedReason: activeRequest?.closedReason || "resolved",
+      };
+
   const selectedDirectoryEntry = useMemo(
     () =>
       directoryEntries.find((entry) => entry.resolvedExpert?.id === currentAssignForm.expertId) || null,
@@ -490,9 +527,21 @@ export default function ResourceMatchmaker() {
     [directoryExperts, currentAssignForm.expertId],
   );
 
+  const activeRequestRecommendations = useMemo(
+    () => (activeRequest ? rankExpertsForRequest(activeRequest, directoryExperts).slice(0, 6) : []),
+    [activeRequest, directoryExperts],
+  );
+
+  const recommendationMap = useMemo(
+    () => new Map(activeRequestRecommendations.map((item) => [item.expert.id, item])),
+    [activeRequestRecommendations],
+  );
+
+  const selectedRecommendation =
+    currentAssignForm.expertId ? recommendationMap.get(currentAssignForm.expertId) || null : null;
+
   const handleCreateRequest = async (event) => {
     event.preventDefault();
-
     if (!teacherView) return;
 
     if (!requestForm.requestTitle.trim() || !requestForm.desiredExpertise.trim() || !requestForm.requestDetails.trim()) {
@@ -501,7 +550,15 @@ export default function ResourceMatchmaker() {
     }
 
     try {
-      await createRequest(requestForm);
+      await createRequest({
+        requestTitle: requestForm.requestTitle,
+        desiredExpertise: requestForm.desiredExpertise,
+        preferredFormat: requestForm.preferredFormat,
+        priority: requestForm.priority,
+        resourceType: requestForm.resourceType,
+        requestDetails: requestForm.requestDetails,
+        needTags: requestForm.needTagsText,
+      });
       setRequestForm(initialRequestForm);
       setRequestFormError("");
     } catch (error) {
@@ -555,6 +612,7 @@ export default function ResourceMatchmaker() {
       await completeRequest({
         request: activeRequest,
         adminNote: currentAssignForm.adminNote,
+        closedReason: currentAssignForm.closedReason,
       });
       setAssignFormError("");
     } catch (error) {
@@ -593,11 +651,10 @@ export default function ResourceMatchmaker() {
             </span>
             <div className="space-y-3">
               <h1 className="font-display text-3xl font-bold md:text-5xl">
-                เชื่อมคำร้องของครูกับผู้เชี่ยวชาญที่ตรงโจทย์อย่างเป็นระบบ
+                จัดคิว เลือกผู้เชี่ยวชาญ และปิดงานจากพื้นที่เดียวกัน
               </h1>
               <p className="max-w-2xl text-sm leading-7 text-white/[0.74] md:text-base">
-                ครูสามารถส่งคำร้องความช่วยเหลือพร้อมบริบทของปัญหา ส่วนทีม DU เห็นคิวงานแบบเรียลไทม์
-                และเลือกผู้เชี่ยวชาญจากฐานข้อมูลเพื่อจับคู่และติดตามงานจนเสร็จสิ้น
+                ครูส่งคำร้องพร้อมบริบทจริง ส่วนทีม DU เห็นความเร่งด่วน ประเภททรัพยากร และรายชื่อผู้เชี่ยวชาญที่เหมาะสมในจังหวะเดียวกัน ทำให้การประสานงานเร็วขึ้นและติดตามต่อได้ง่ายขึ้น
               </p>
             </div>
           </div>
@@ -612,12 +669,12 @@ export default function ResourceMatchmaker() {
               <p className="mt-2 text-3xl font-bold">{requestSummary.pending}</p>
             </div>
             <div className="rounded-[28px] border border-white/[0.16] bg-white/[0.10] px-4 py-4">
-              <p className="text-xs tracking-[0.08em] text-white/[0.56]">จับคู่สำเร็จ</p>
-              <p className="mt-2 text-3xl font-bold">{requestSummary.matched}</p>
+              <p className="text-xs tracking-[0.08em] text-white/[0.56]">คำร้องเร่งด่วน</p>
+              <p className="mt-2 text-3xl font-bold">{requestSummary.highPriority}</p>
             </div>
             <div className="rounded-[28px] border border-white/[0.16] bg-white/[0.10] px-4 py-4">
               <p className="text-xs tracking-[0.08em] text-white/[0.56]">
-                {adminView ? "ผู้เชี่ยวชาญที่พร้อมรับงาน" : "เสร็จสิ้นแล้ว"}
+                {adminView ? "ผู้เชี่ยวชาญพร้อมรับงาน" : "ปิดงานแล้ว"}
               </p>
               <p className="mt-2 text-3xl font-bold">
                 {adminView ? directorySummary.available : requestSummary.completed}
@@ -633,7 +690,7 @@ export default function ResourceMatchmaker() {
             <Users size={28} className="text-slate-300" />
             <h2 className="font-display text-2xl font-bold text-ink">พื้นที่นี้เปิดให้ครูและทีม DU เท่านั้น</h2>
             <p className="text-sm leading-7 text-slate-600">
-              บทบาทปัจจุบันยังไม่สามารถใช้งานระบบจับคู่ผู้เชี่ยวชาญได้ หากต้องการสิทธิ์เพิ่มกรุณาติดต่อผู้ดูแล DU
+              บทบาทปัจจุบันยังไม่สามารถใช้งานระบบจับคู่ผู้เชี่ยวชาญได้ หากต้องการสิทธิ์เพิ่ม กรุณาติดต่อผู้ดูแล DU
             </p>
           </div>
         </section>
@@ -647,10 +704,9 @@ export default function ResourceMatchmaker() {
                 <Sparkles size={14} />
                 ส่งคำร้องใหม่
               </p>
-              <h2 className="mt-3 font-display text-2xl font-bold text-ink">ระบุโจทย์ที่ต้องการผู้เชี่ยวชาญช่วยสนับสนุน</h2>
+              <h2 className="mt-3 font-display text-2xl font-bold text-ink">ระบุโจทย์ให้ชัดตั้งแต่ต้นทาง</h2>
               <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
-                อธิบายบริบทของห้องเรียน ปัญหาที่พบ และประเภทผู้เชี่ยวชาญที่ต้องการให้ชัดเจน
-                เพื่อให้ทีม DU จับคู่ได้เร็วและตรงความต้องการมากที่สุด
+                บอกทั้งหัวข้อ ความเชี่ยวชาญที่อยากได้ ระดับความเร่งด่วน รูปแบบการช่วยเหลือ และแท็กสำคัญ เพื่อให้ทีม DU จัดลำดับและเสนอผู้เชี่ยวชาญที่ตรงโจทย์ได้เร็วขึ้น
               </p>
             </div>
           </div>
@@ -664,7 +720,7 @@ export default function ResourceMatchmaker() {
                   onChange={(event) =>
                     setRequestForm((previous) => ({ ...previous, requestTitle: event.target.value }))
                   }
-                  placeholder="ตัวอย่าง: อยากได้ผู้เชี่ยวชาญด้านปัญญาประดิษฐ์ช่วยออกแบบกิจกรรมการเรียนรู้เชิงรุก"
+                  placeholder="เช่น อยากได้ผู้เชี่ยวชาญด้าน AI ช่วยออกแบบกิจกรรมการเรียนรู้เชิงรุก"
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
                 />
               </label>
@@ -675,27 +731,73 @@ export default function ResourceMatchmaker() {
                   onChange={(event) =>
                     setRequestForm((previous) => ({ ...previous, desiredExpertise: event.target.value }))
                   }
-                  placeholder="ตัวอย่าง: AI เพื่อการสอน, จิตวิทยาเด็ก, การประเมินสมรรถนะ"
+                  placeholder="เช่น AI เพื่อการสอน, จิตวิทยาเด็ก, การประเมินสมรรถนะ"
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
                 />
               </label>
             </div>
 
+            <div className="grid gap-4 md:grid-cols-3">
+              <label className="space-y-2 text-sm font-semibold text-ink">
+                <span>รูปแบบการช่วยเหลือ</span>
+                <select
+                  value={requestForm.preferredFormat}
+                  onChange={(event) =>
+                    setRequestForm((previous) => ({ ...previous, preferredFormat: event.target.value }))
+                  }
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
+                >
+                  {preferredFormatOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-2 text-sm font-semibold text-ink">
+                <span>ระดับความเร่งด่วน</span>
+                <select
+                  value={requestForm.priority}
+                  onChange={(event) =>
+                    setRequestForm((previous) => ({ ...previous, priority: event.target.value }))
+                  }
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
+                >
+                  {requestPriorityOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-2 text-sm font-semibold text-ink">
+                <span>ลักษณะทรัพยากรที่ต้องการ</span>
+                <select
+                  value={requestForm.resourceType}
+                  onChange={(event) =>
+                    setRequestForm((previous) => ({ ...previous, resourceType: event.target.value }))
+                  }
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
+                >
+                  {resourceTypeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
             <label className="space-y-2 text-sm font-semibold text-ink">
-              <span>รูปแบบการช่วยเหลือที่ต้องการ</span>
-              <select
-                value={requestForm.preferredFormat}
+              <span>แท็กหรือประเด็นสำคัญ</span>
+              <input
+                value={requestForm.needTagsText}
                 onChange={(event) =>
-                  setRequestForm((previous) => ({ ...previous, preferredFormat: event.target.value }))
+                  setRequestForm((previous) => ({ ...previous, needTagsText: event.target.value }))
                 }
+                placeholder="คั่นด้วย comma เช่น active learning, STEM, assessment"
                 className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
-              >
-                {preferredFormatOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+              />
             </label>
 
             <label className="space-y-2 text-sm font-semibold text-ink">
@@ -706,10 +808,14 @@ export default function ResourceMatchmaker() {
                 onChange={(event) =>
                   setRequestForm((previous) => ({ ...previous, requestDetails: event.target.value }))
                 }
-                placeholder="เล่าปัญหาที่พบในห้องเรียน เป้าหมายที่อยากแก้ และเงื่อนไขที่ผู้เชี่ยวชาญควรรู้ก่อนเริ่มช่วยเหลือ"
+                placeholder="เล่าบริบทชั้นเรียน ข้อจำกัด เป้าหมายที่อยากให้ผู้เชี่ยวชาญช่วย และสิ่งที่ทีม DU ควรรู้ก่อนเริ่มประสาน"
                 className="w-full rounded-[24px] border border-slate-200 bg-white px-4 py-4 text-sm leading-7 outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
               />
             </label>
+
+            <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-600">
+              ระบบจะเก็บทั้งโจทย์หลัก ความเร่งด่วน รูปแบบการช่วยเหลือ และแท็กสำคัญไว้ในคำร้องเดียวกัน เพื่อให้ทีม DU จัดลำดับและจับคู่ผู้เชี่ยวชาญได้ตรงขึ้น
+            </div>
 
             {requestFormError ? <p className="text-sm font-medium text-rose-600">{requestFormError}</p> : null}
 
@@ -734,17 +840,32 @@ export default function ResourceMatchmaker() {
               <div>
                 <p className="brand-chip border-secondary/10 bg-secondary/5 text-secondary">
                   <SearchCheck size={14} />
-                  {adminView ? "คิวรอจับคู่" : "คำร้องของฉัน"}
+                  คิวคำร้อง
                 </p>
-                <h2 className="mt-3 font-display text-2xl font-bold text-ink">
-                  {adminView ? "ติดตามคำร้องทั้งหมด" : "ติดตามสถานะคำร้องแบบเรียลไทม์"}
-                </h2>
+                <h2 className="mt-3 text-2xl font-semibold text-ink">ติดตามทุกคำร้องในที่เดียว</h2>
               </div>
+              <div className="text-right text-sm text-slate-500">
+                <p>ทั้งหมด {requestSummary.total} คำร้อง</p>
+                <p className="mt-1">เร่งด่วน {requestSummary.highPriority} รายการ</p>
+              </div>
+            </div>
 
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <div className="rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4">
+                <p className="text-xs tracking-[0.14em] text-slate-400">รอจับคู่</p>
+                <p className="mt-2 text-2xl font-bold text-ink">{requestSummary.pending}</p>
+              </div>
+              <div className="rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4">
+                <p className="text-xs tracking-[0.14em] text-slate-400">กำลังประสาน</p>
+                <p className="mt-2 text-2xl font-bold text-ink">{requestSummary.matched}</p>
+              </div>
+            </div>
+
+            <div className="mt-6">
               <select
                 value={statusFilter}
                 onChange={(event) => setStatusFilter(event.target.value)}
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm outline-none transition focus:border-secondary/30 focus:ring-4 focus:ring-secondary/10"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
               >
                 <option value="all">ทุกสถานะ</option>
                 {matchRequestStatusOptions.map((option) => (
@@ -783,7 +904,7 @@ export default function ResourceMatchmaker() {
                 <Handshake size={30} className="text-slate-300" />
                 <p className="text-xl font-semibold text-ink">เลือกคำร้องจากรายการด้านซ้าย</p>
                 <p className="max-w-xl text-sm leading-7 text-slate-500">
-                  เมื่อเลือกคำร้องแล้ว รายละเอียดคำร้อง สถานะล่าสุด และการจับคู่ผู้เชี่ยวชาญจะปรากฏที่นี่ทันที
+                  เมื่อเลือกคำร้องแล้ว รายละเอียดคำร้อง คำแนะนำผู้เชี่ยวชาญ และเครื่องมือจับคู่จะปรากฏที่นี่ทันที
                 </p>
               </div>
             ) : (
@@ -791,20 +912,22 @@ export default function ResourceMatchmaker() {
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${getMatchRequestStatusMeta(activeRequest.status).tone}`}
-                      >
+                      <span className={`${chipBase} ${getMatchRequestStatusMeta(activeRequest.status).tone}`}>
                         {getMatchRequestStatusMeta(activeRequest.status).label}
                       </span>
                       <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
                         {getPreferredFormatMeta(activeRequest.preferredFormat).label}
                       </span>
+                      <span className={`${chipBase} ${getRequestPriorityMeta(activeRequest.priority).tone}`}>
+                        {getRequestPriorityMeta(activeRequest.priority).label}
+                      </span>
+                      <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                        {getResourceTypeMeta(activeRequest.resourceType).label}
+                      </span>
                     </div>
                     <h2 className="mt-3 font-display text-2xl font-bold text-ink">{activeRequest.requestTitle}</h2>
                     <p className="mt-2 text-sm leading-7 text-slate-600">
-                      {(activeRequest.requesterName || "ครูผู้ส่งคำร้อง") +
-                        " | " +
-                        (activeRequest.schoolName || "ยังไม่ได้ระบุโรงเรียน")}
+                      {(activeRequest.requesterName || "ครูผู้ส่งคำร้อง") + " | " + (activeRequest.schoolName || "ยังไม่ได้ระบุโรงเรียน")}
                     </p>
                   </div>
                   <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
@@ -813,18 +936,66 @@ export default function ResourceMatchmaker() {
                   </div>
                 </div>
 
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
                   <article className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
                     <p className="text-sm font-semibold text-ink">รายละเอียดคำร้อง</p>
                     <p className="mt-3 text-sm leading-8 text-slate-600">{activeRequest.requestDetails}</p>
+
                     <div className="mt-5 flex flex-wrap gap-3 text-sm text-slate-600">
                       <span className="rounded-full border border-slate-200 bg-white px-3 py-2">
                         ความเชี่ยวชาญที่ต้องการ: {activeRequest.desiredExpertise || "ยังไม่ได้ระบุ"}
                       </span>
                       <span className="rounded-full border border-slate-200 bg-white px-3 py-2">
-                        รูปแบบที่ต้องการ: {getPreferredFormatMeta(activeRequest.preferredFormat).label}
+                        รูปแบบ: {getPreferredFormatMeta(activeRequest.preferredFormat).label}
+                      </span>
+                      <span className="rounded-full border border-slate-200 bg-white px-3 py-2">
+                        ทรัพยากร: {getResourceTypeMeta(activeRequest.resourceType).label}
                       </span>
                     </div>
+
+                    {Array.isArray(activeRequest.needTags) && activeRequest.needTags.length > 0 ? (
+                      <div className="mt-5 flex flex-wrap gap-2">
+                        {activeRequest.needTags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="inline-flex rounded-full border border-secondary/20 bg-secondary/5 px-3 py-1 text-xs font-medium text-secondary"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    <div className="mt-5 rounded-[24px] border border-white bg-white px-4 py-4">
+                      <p className="text-sm font-semibold text-ink">สรุปผู้ร้องขอ</p>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2 text-sm text-slate-600">
+                        <div>
+                          <p className="text-xs tracking-[0.12em] text-slate-400">บทบาท</p>
+                          <p className="mt-1 font-medium text-ink">
+                            {activeRequest.requesterProfileSnapshot?.role || activeRequest.requesterRole}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs tracking-[0.12em] text-slate-400">ตำแหน่ง</p>
+                          <p className="mt-1 font-medium text-ink">
+                            {activeRequest.requesterProfileSnapshot?.position || "ยังไม่ได้ระบุ"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs tracking-[0.12em] text-slate-400">โรงเรียน</p>
+                          <p className="mt-1 font-medium text-ink">
+                            {activeRequest.requesterProfileSnapshot?.school || activeRequest.schoolName || "ยังไม่ได้ระบุ"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs tracking-[0.12em] text-slate-400">สถานะสมาชิก</p>
+                          <p className="mt-1 font-medium text-ink">
+                            {activeRequest.requesterProfileSnapshot?.memberStatus || "active"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="mt-5 rounded-[24px] border border-white bg-white px-4 py-4">
                       <p className="text-sm font-semibold text-ink">ความคืบหน้าล่าสุด</p>
                       <p className="mt-2 text-sm leading-7 text-slate-600">
@@ -854,8 +1025,7 @@ export default function ResourceMatchmaker() {
                             ความเชี่ยวชาญหลัก: {activeRequest.matchedExpertPrimaryExpertise || "ยังไม่ได้ระบุ"}
                           </p>
                           <p className="text-sm text-slate-500">
-                            จับคู่โดย {activeRequest.matchedByAdminName || "ทีม DU"} เมื่อ{" "}
-                            {formatMarketplaceDateTime(activeRequest.matchedAt)}
+                            จับคู่โดย {activeRequest.matchedByAdminName || "ทีม DU"} เมื่อ {formatMarketplaceDateTime(activeRequest.matchedAt)}
                           </p>
                         </div>
                       ) : (
@@ -867,46 +1037,53 @@ export default function ResourceMatchmaker() {
 
                     {adminView ? (
                       <article className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
-                        <p className="text-sm font-semibold text-ink">จับคู่และติดตามงาน</p>
-                        <div className="mt-4 space-y-4">
-                          <label className="block">
-                            <span className="mb-2 block text-sm font-medium text-slate-600">เลือกผู้เชี่ยวชาญ</span>
-                            <select
-                              value={currentAssignForm.expertId}
-                              onChange={(event) =>
-                                setAssignForm((previous) => ({
-                                  ...previous,
-                                  requestId: activeRequest?.id || "",
-                                  expertId: event.target.value,
-                                }))
-                              }
-                              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
-                            >
-                              <option value="">กรุณาเลือกผู้เชี่ยวชาญ</option>
-                              {expertSelectGroups.map((section) =>
-                                section.groups.map((group) => (
-                                  <optgroup
-                                    key={`${section.category}-${group.specialty}`}
-                                    label={`${group.specialty} • ${section.category}`}
-                                  >
-                                    {group.options.map((expert) => (
-                                      <option key={`${group.specialty}-${expert.id}`} value={expert.id}>
-                                        {(expert.displayName || "ผู้เชี่ยวชาญ") +
-                                          " • " +
-                                          group.specialty}
-                                      </option>
-                                    ))}
-                                  </optgroup>
-                                )),
-                              )}
-                            </select>
-                          </label>
+                        <p className="text-sm font-semibold text-ink">การจัดคิวและการปิดงาน</p>
+                        <p className="mt-2 text-sm leading-7 text-slate-600">
+                          เลือกจากคำแนะนำก่อน ถ้ายังไม่ตรงค่อยเลื่อนลงไปเลือกจากไดเรกทอรีเต็มด้านล่าง
+                        </p>
 
-                          {expertSelectGroups.length === 0 ? (
-                            <p className="rounded-[20px] border border-dashed border-slate-300 bg-white px-4 py-3 text-sm leading-7 text-slate-500">
-                              ยังไม่มีรายชื่อผู้เชี่ยวชาญที่พร้อมเลือกในดรอปดาวน์ กรุณานำเข้าฐานข้อมูลผู้เชี่ยวชาญก่อน
-                            </p>
-                          ) : null}
+                        {activeRequestRecommendations.length > 0 ? (
+                          <div className="mt-4 grid gap-3">
+                            {activeRequestRecommendations.slice(0, 3).map((item) => (
+                              <RecommendationTile
+                                key={item.expert.id}
+                                recommendation={item}
+                                isSelected={currentAssignForm.expertId === item.expert.id}
+                                onSelect={(expertId) =>
+                                  setAssignForm((previous) => ({
+                                    ...previous,
+                                    requestId: activeRequest.id,
+                                    expertId,
+                                  }))
+                                }
+                              />
+                            ))}
+                          </div>
+                        ) : null}
+
+                        <div className="mt-4 space-y-4">
+                          <div className="rounded-[22px] border border-white bg-white px-4 py-4">
+                            <p className="text-sm font-semibold text-ink">ผู้เชี่ยวชาญที่เลือกตอนนี้</p>
+                            {selectedExpert ? (
+                              <>
+                                <p className="mt-3 text-base font-semibold text-ink">{selectedExpert.displayName}</p>
+                                <p className="mt-1 text-sm text-slate-500">
+                                  {(selectedExpert.title || "ยังไม่ได้ระบุตำแหน่ง")
+                                    + " | "
+                                    + (selectedExpert.organization || "ยังไม่ได้ระบุหน่วยงาน")}
+                                </p>
+                                {selectedRecommendation ? (
+                                  <p className="mt-3 text-sm font-medium text-primary">
+                                    คะแนนเหมาะสม {selectedRecommendation.score}
+                                  </p>
+                                ) : null}
+                              </>
+                            ) : (
+                              <p className="mt-3 text-sm leading-7 text-slate-500">
+                                ยังไม่ได้เลือกผู้เชี่ยวชาญสำหรับคำร้องนี้
+                              </p>
+                            )}
+                          </div>
 
                           <label className="block">
                             <span className="mb-2 block text-sm font-medium text-slate-600">บันทึกจากทีม DU</span>
@@ -916,13 +1093,34 @@ export default function ResourceMatchmaker() {
                               onChange={(event) =>
                                 setAssignForm((previous) => ({
                                   ...previous,
-                                  requestId: activeRequest?.id || "",
+                                  requestId: activeRequest.id,
                                   adminNote: event.target.value,
                                 }))
                               }
                               placeholder="สรุปเหตุผลที่เลือกผู้เชี่ยวชาญคนนี้ หรือบันทึกความคืบหน้าที่ครูควรเห็น"
                               className="w-full rounded-[24px] border border-slate-200 bg-white px-4 py-4 text-sm leading-7 outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
                             />
+                          </label>
+
+                          <label className="block">
+                            <span className="mb-2 block text-sm font-medium text-slate-600">เหตุผลเมื่อปิดงาน</span>
+                            <select
+                              value={currentAssignForm.closedReason}
+                              onChange={(event) =>
+                                setAssignForm((previous) => ({
+                                  ...previous,
+                                  requestId: activeRequest.id,
+                                  closedReason: event.target.value,
+                                }))
+                              }
+                              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
+                            >
+                              {closeReasonOptions.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
                           </label>
 
                           {assignFormError ? <p className="text-sm font-medium text-rose-600">{assignFormError}</p> : null}
@@ -947,21 +1145,6 @@ export default function ResourceMatchmaker() {
                               ปิดงานคำร้องนี้
                             </button>
                           </div>
-
-                          {selectedExpert ? (
-                            <div className="rounded-[24px] border border-white bg-white px-4 py-4">
-                              <p className="text-sm font-semibold text-ink">ตัวอย่างผู้เชี่ยวชาญที่เลือก</p>
-                              <p className="mt-3 text-base font-semibold text-ink">{selectedExpert.displayName}</p>
-                              <p className="mt-1 text-sm text-slate-500">
-                                {(selectedExpert.title || "ยังไม่ได้ระบุตำแหน่ง") +
-                                  " | " +
-                                  (selectedExpert.organization || "ยังไม่ได้ระบุหน่วยงาน")}
-                              </p>
-                              <p className="mt-3 text-sm leading-7 text-slate-600">
-                                {selectedExpert.bio || "ยังไม่มีคำอธิบายเพิ่มเติมของผู้เชี่ยวชาญคนนี้"}
-                              </p>
-                            </div>
-                          ) : null}
                         </div>
                       </article>
                     ) : null}
@@ -984,11 +1167,9 @@ export default function ResourceMatchmaker() {
                     สารบบผู้เชี่ยวชาญ
                   </span>
                   <div className="space-y-3">
-                    <h2 className="font-display text-3xl font-bold leading-tight">
-                      ไดเรกทอรีผู้เชี่ยวชาญ
-                    </h2>
+                    <h2 className="font-display text-3xl font-bold leading-tight">ไดเรกทอรีผู้เชี่ยวชาญ</h2>
                     <p className="text-sm leading-7 text-white/68">
-                      เลือกหมวดก่อน แล้วค่อยไล่รายชื่อในพื้นที่ทำงานด้านขวา เพื่อจับคู่คำร้องได้เป็นระบบและเร็วขึ้น
+                      ใช้เป็นโหมดสำรวจเชิงลึกเมื่อคำแนะนำด้านบนยังไม่พอ โดยคะแนนที่เห็นจะอ้างอิงคำร้องที่กำลังเลือกอยู่เสมอ
                     </p>
                   </div>
                 </div>
@@ -1004,8 +1185,7 @@ export default function ResourceMatchmaker() {
                     นำเข้าฐานผู้เชี่ยวชาญเริ่มต้น
                   </button>
                   <p className="text-xs leading-6 text-white/52">
-                    ชุดข้อมูลนี้เตรียมผู้เชี่ยวชาญ {expertSeedSummary.expertCount} รายการ และเว้นโครงหมวดที่รอเพิ่มข้อมูลอีก{" "}
-                    {expertSeedSummary.placeholderCategories.length} หมวด
+                    ชุดข้อมูลนี้เตรียมผู้เชี่ยวชาญ {expertSeedSummary.expertCount} รายการ และยังมี {expertSeedSummary.placeholderCategories.length} หมวดที่รอเติมข้อมูลจริง
                   </p>
                 </div>
 
@@ -1053,11 +1233,9 @@ export default function ResourceMatchmaker() {
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div className="max-w-3xl">
                   <p className="text-xs tracking-[0.16em] text-slate-400">พื้นที่ทำงานหลัก</p>
-                  <h3 className="mt-3 text-2xl font-semibold text-ink">
-                    ค้นหา สำรวจ และเลือกผู้เชี่ยวชาญจากสารบบชุดเดียวกันกับดรอปดาวน์จับคู่
-                  </h3>
+                  <h3 className="mt-3 text-2xl font-semibold text-ink">สำรวจผู้เชี่ยวชาญจากสารบบเดียวกับที่ใช้จับคู่จริง</h3>
                   <p className="mt-2 text-sm leading-7 text-slate-600">
-                    รายการนี้ยึดรายชื่อมาตรฐานของเครือข่ายเป็นฐานก่อนเสมอ จึงไม่ปล่อยให้หน้าโล่งแม้ระหว่างซิงก์ข้อมูลจริงจาก Firestore
+                    รายการด้านล่างยังคงยึดโครงจากสารบบมาตรฐานเพื่อไม่ให้หน้าโล่ง แม้ระหว่างการซิงก์ข้อมูลจาก Firestore จริง
                   </p>
                 </div>
                 <div className="rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
@@ -1100,9 +1278,9 @@ export default function ResourceMatchmaker() {
                       </label>
 
                       <div className="rounded-[22px] border border-white bg-white px-4 py-4 text-sm leading-7 text-slate-600">
-                        <p>ดรอปดาวน์จับคู่จะใช้รายชื่อชุดเดียวกับสารบบนี้</p>
+                        <p>คะแนนที่แสดงจะอิงจากคำร้องที่กำลังเปิดอยู่</p>
                         <p className="mt-1">
-                          {loadingExperts ? "กำลังเชื่อมข้อมูลจริงจากฐานข้อมูล" : "พร้อมเลือกผู้เชี่ยวชาญจากรายการนี้ได้ทันที"}
+                          {loadingExperts ? "กำลังเชื่อมข้อมูลจริงจากฐานข้อมูล" : "พร้อมเลือกผู้เชี่ยวชาญจากสารบบนี้ได้ทันที"}
                         </p>
                       </div>
                     </div>
@@ -1110,7 +1288,10 @@ export default function ResourceMatchmaker() {
 
                   {hasDirectoryMatches ? (
                     filteredExpertDirectorySections.map((section) => (
-                      <article key={section.category} className="overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-[0_14px_40px_rgba(15,23,42,0.04)]">
+                      <article
+                        key={section.category}
+                        className="overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-[0_14px_40px_rgba(15,23,42,0.04)]"
+                      >
                         <div className="border-b border-slate-100 px-5 py-5">
                           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                             <div className="max-w-3xl">
@@ -1157,6 +1338,7 @@ export default function ResourceMatchmaker() {
                                     <ExpertRosterRow
                                       key={`${group.specialty}-${entry.displayName}`}
                                       entry={entry}
+                                      recommendation={recommendationMap.get(entry.resolvedExpert?.id)}
                                       isSelected={currentAssignForm.expertId === entry.resolvedExpert?.id}
                                       onSelect={(expertId) =>
                                         setAssignForm((previous) => ({
@@ -1193,13 +1375,15 @@ export default function ResourceMatchmaker() {
                     <p className="text-xs tracking-[0.16em] text-slate-400">สถานะการเลือก</p>
                     <h4 className="mt-3 text-xl font-semibold text-ink">ผู้เชี่ยวชาญที่กำลังจะถูกจับคู่</h4>
                     <p className="mt-2 text-sm leading-7 text-slate-600">
-                      คลิกจากรายชื่อหลักเพื่ออัปเดตแผงนี้ แล้วค่อยกลับไปกดบันทึกในกล่องจับคู่ด้านบน
+                      คลิกจากรายชื่อหลักหรือจากคำแนะนำด้านบนเพื่ออัปเดตแผงนี้ แล้วค่อยบันทึกกลับไปที่คำร้อง
                     </p>
                   </div>
 
                   <SelectedExpertPanel
                     expert={selectedExpert}
                     entry={selectedDirectoryEntry}
+                    recommendation={selectedRecommendation}
+                    activeRequest={activeRequest}
                   />
                 </aside>
               </div>

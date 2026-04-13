@@ -780,6 +780,75 @@ service cloud.firestore {
       return status in ["pending_match", "matched", "completed"];
     }
 
+    function validMatchRequestPriority(priority) {
+      return priority in ["high", "medium", "low"];
+    }
+
+    function validMatchResourceType(resourceType) {
+      return resourceType in ["consultation", "coaching", "workshop", "resource_pack"];
+    }
+
+    function validMatchClosedReason(reason) {
+      return reason in ["", "resolved", "follow_up", "handoff", "teacher_withdrew"];
+    }
+
+    function validShortStringList(value, maxItems) {
+      return value is list
+        && value.size() <= maxItems;
+    }
+
+    function validRequesterProfileSnapshot(snapshot) {
+      return snapshot is map
+        && snapshot.keys().hasOnly([
+          "name",
+          "role",
+          "school",
+          "position",
+          "memberStatus",
+          "sourceProvider"
+        ])
+        && snapshot.name is string
+        && snapshot.name.size() > 0
+        && snapshot.role is string
+        && snapshot.role.size() > 0
+        && snapshot.school is string
+        && snapshot.position is string
+        && snapshot.memberStatus is string
+        && snapshot.memberStatus.size() > 0
+        && snapshot.sourceProvider is string
+        && snapshot.sourceProvider.size() > 0;
+    }
+
+    function emptyMatchedExpertSnapshot(snapshot) {
+      return snapshot is map && snapshot.keys().size() == 0;
+    }
+
+    function validMatchedExpertSnapshot(snapshot) {
+      return snapshot is map
+        && snapshot.keys().hasOnly([
+          "id",
+          "name",
+          "title",
+          "organization",
+          "primaryExpertise",
+          "region",
+          "serviceModes",
+          "expertiseTags",
+          "capacityStatus"
+        ])
+        && snapshot.id is string
+        && snapshot.id.size() > 0
+        && snapshot.name is string
+        && snapshot.name.size() > 0
+        && snapshot.title is string
+        && snapshot.organization is string
+        && snapshot.primaryExpertise is string
+        && snapshot.region is string
+        && validShortStringList(snapshot.serviceModes, 6)
+        && validShortStringList(snapshot.expertiseTags, 12)
+        && validExpertCapacityStatus(snapshot.capacityStatus);
+    }
+
     function validExpertDocumentShape() {
       return request.resource.data.keys().hasOnly([
           "displayName",
@@ -837,6 +906,10 @@ service cloud.firestore {
           "desiredExpertise",
           "preferredFormat",
           "requestDetails",
+          "priority",
+          "resourceType",
+          "needTags",
+          "requesterProfileSnapshot",
           "status",
           "createdAt",
           "updatedAt",
@@ -844,10 +917,12 @@ service cloud.firestore {
           "matchedExpertName",
           "matchedExpertTitle",
           "matchedExpertPrimaryExpertise",
+          "matchedExpertSnapshot",
           "matchedByAdminId",
           "matchedByAdminName",
           "matchedAt",
           "completedAt",
+          "closedReason",
           "adminNote",
           "latestUpdateText"
         ])
@@ -863,6 +938,13 @@ service cloud.firestore {
         && validPreferredSupportFormat(request.resource.data.preferredFormat)
         && request.resource.data.requestDetails is string
         && request.resource.data.requestDetails.size() > 0
+        && validMatchRequestPriority(request.resource.data.priority)
+        && validMatchResourceType(request.resource.data.resourceType)
+        && validShortStringList(request.resource.data.needTags, 8)
+        && validRequesterProfileSnapshot(request.resource.data.requesterProfileSnapshot)
+        && request.resource.data.requesterProfileSnapshot.name == request.resource.data.requesterName
+        && request.resource.data.requesterProfileSnapshot.role == request.resource.data.requesterRole
+        && request.resource.data.requesterProfileSnapshot.school == request.resource.data.schoolName
         && request.resource.data.status == "pending_match"
         && request.resource.data.createdAt is timestamp
         && request.resource.data.updatedAt is timestamp
@@ -870,10 +952,12 @@ service cloud.firestore {
         && request.resource.data.matchedExpertName == ""
         && request.resource.data.matchedExpertTitle == ""
         && request.resource.data.matchedExpertPrimaryExpertise == ""
+        && emptyMatchedExpertSnapshot(request.resource.data.matchedExpertSnapshot)
         && request.resource.data.matchedByAdminId == ""
         && request.resource.data.matchedByAdminName == ""
         && request.resource.data.matchedAt == null
         && request.resource.data.completedAt == null
+        && request.resource.data.closedReason == ""
         && request.resource.data.adminNote == ""
         && request.resource.data.latestUpdateText is string
         && request.resource.data.latestUpdateText.size() > 0;
@@ -889,6 +973,10 @@ service cloud.firestore {
           "desiredExpertise",
           "preferredFormat",
           "requestDetails",
+          "priority",
+          "resourceType",
+          "needTags",
+          "requesterProfileSnapshot",
           "status",
           "createdAt",
           "updatedAt",
@@ -896,10 +984,12 @@ service cloud.firestore {
           "matchedExpertName",
           "matchedExpertTitle",
           "matchedExpertPrimaryExpertise",
+          "matchedExpertSnapshot",
           "matchedByAdminId",
           "matchedByAdminName",
           "matchedAt",
           "completedAt",
+          "closedReason",
           "adminNote",
           "latestUpdateText"
         ])
@@ -912,6 +1002,26 @@ service cloud.firestore {
         && request.resource.data.preferredFormat == resource.data.preferredFormat
         && validPreferredSupportFormat(request.resource.data.preferredFormat)
         && request.resource.data.requestDetails == resource.data.requestDetails
+        && validMatchRequestPriority(request.resource.data.priority)
+        && (
+          request.resource.data.priority == resource.data.priority
+          || resource.data.priority == null
+        )
+        && validMatchResourceType(request.resource.data.resourceType)
+        && (
+          request.resource.data.resourceType == resource.data.resourceType
+          || resource.data.resourceType == null
+        )
+        && validShortStringList(request.resource.data.needTags, 8)
+        && (
+          request.resource.data.needTags == resource.data.needTags
+          || resource.data.needTags == null
+        )
+        && validRequesterProfileSnapshot(request.resource.data.requesterProfileSnapshot)
+        && (
+          request.resource.data.requesterProfileSnapshot == resource.data.requesterProfileSnapshot
+          || resource.data.requesterProfileSnapshot == null
+        )
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.updatedAt is timestamp
         && validMatchRequestStatus(request.resource.data.status)
@@ -919,6 +1029,7 @@ service cloud.firestore {
         && request.resource.data.matchedExpertName is string
         && request.resource.data.matchedExpertTitle is string
         && request.resource.data.matchedExpertPrimaryExpertise is string
+        && validMatchClosedReason(request.resource.data.closedReason)
         && request.resource.data.matchedByAdminId is string
         && request.resource.data.matchedByAdminName is string
         && request.resource.data.adminNote is string
@@ -931,17 +1042,23 @@ service cloud.firestore {
             && request.resource.data.matchedExpertName == ""
             && request.resource.data.matchedExpertTitle == ""
             && request.resource.data.matchedExpertPrimaryExpertise == ""
+            && emptyMatchedExpertSnapshot(request.resource.data.matchedExpertSnapshot)
             && request.resource.data.matchedByAdminId == ""
             && request.resource.data.matchedByAdminName == ""
             && request.resource.data.matchedAt == null
             && request.resource.data.completedAt == null
+            && request.resource.data.closedReason == ""
           )
           || (
             request.resource.data.status == "matched"
             && request.resource.data.matchedExpertId.size() > 0
             && request.resource.data.matchedExpertName.size() > 0
+            && validMatchedExpertSnapshot(request.resource.data.matchedExpertSnapshot)
+            && request.resource.data.matchedExpertSnapshot.id == request.resource.data.matchedExpertId
+            && request.resource.data.matchedExpertSnapshot.name == request.resource.data.matchedExpertName
             && request.resource.data.matchedAt is timestamp
             && request.resource.data.completedAt == null
+            && request.resource.data.closedReason == ""
             && request.resource.data.matchedByAdminId.size() > 0
             && request.resource.data.matchedByAdminName.size() > 0
           )
@@ -949,8 +1066,12 @@ service cloud.firestore {
             request.resource.data.status == "completed"
             && request.resource.data.matchedExpertId.size() > 0
             && request.resource.data.matchedExpertName.size() > 0
+            && validMatchedExpertSnapshot(request.resource.data.matchedExpertSnapshot)
+            && request.resource.data.matchedExpertSnapshot.id == request.resource.data.matchedExpertId
+            && request.resource.data.matchedExpertSnapshot.name == request.resource.data.matchedExpertName
             && request.resource.data.matchedAt is timestamp
             && request.resource.data.completedAt is timestamp
+            && request.resource.data.closedReason != ""
             && request.resource.data.matchedByAdminId.size() > 0
             && request.resource.data.matchedByAdminName.size() > 0
           )

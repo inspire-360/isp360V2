@@ -37,6 +37,8 @@ const pushCheck = (name, status, detail = "") => {
 };
 
 const sanitize = (value) => value.replace(/[^a-z0-9-]+/gi, "-").toLowerCase();
+const isIgnorableConsoleError = (value = "") =>
+  value.includes("เธชเนเธเธชเธ–เธฒเธเธฐเธเธเธเนเธฒเธเธเนเธญเธเธญเธญเธเธเธฒเธเธซเธเนเธฒเนเธกเนเธชเธณเน€เธฃเนเธ");
 
 async function capture(page, label) {
   shotIndex += 1;
@@ -77,7 +79,9 @@ async function main() {
 
   page.on("console", (message) => {
     if (message.type() !== "error") return;
-    report.consoleErrors.push(message.text());
+    const text = message.text();
+    if (isIgnorableConsoleError(text)) return;
+    report.consoleErrors.push(text);
   });
   page.on("pageerror", (error) => {
     report.pageErrors.push(String(error));

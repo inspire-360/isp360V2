@@ -1,44 +1,13 @@
 import { startTransition, useEffect, useMemo, useState } from "react";
 import {
-  collection,
-  doc,
-  getDocs,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-  setDoc,
-  updateDoc,
-  where,
-} from "firebase/firestore";
-import { db } from "../lib/firebase";
-import {
-  EXPERTS_COLLECTION,
-  MATCH_REQUESTS_COLLECTION,
-  expandExpertDirectoryRecords,
-  sortExpertsByName,
-  sortMatchRequests,
-} from "../data/resourceMatchmaking";
+  assignMarketplaceExpert,
+  completeMarketplaceRequest,
+  createMatchRequest,
+  listMarketplaceExperts,
+  subscribeToMarketplaceExperts,
+  subscribeToMatchRequests,
+} from "../services/firebase/repositories/expertMatchRepository";
 import { seedExpertsDirectory as runExpertSeedDirectory } from "../utils/seedExpertsDirectory";
-
-const resolveDisplayName = ({ currentUser, userProfile, userRole }) =>
-  userProfile?.name ||
-  [userProfile?.prefix, userProfile?.firstName, userProfile?.lastName].filter(Boolean).join(" ").trim() ||
-  currentUser?.displayName ||
-  currentUser?.email?.split("@")[0] ||
-  (userRole === "admin" ? "ผู้ดูแล DU" : "ครู");
-
-const buildExpertRows = (snapshot) =>
-  expandExpertDirectoryRecords(
-    snapshot.docs.map((item) => ({
-      id: item.id,
-      ...item.data(),
-    })),
-  )
-    .map((item) => ({
-      ...item,
-    }))
-    .sort(sortExpertsByName);
 
 export function useResourceMarketplace({ currentUser, userProfile, userRole, isAdminView }) {
   const [requests, setRequests] = useState([]);
@@ -62,21 +31,10 @@ export function useResourceMarketplace({ currentUser, userProfile, userRole, isA
 
     setLoadingRequests(true);
 
-    const requestsRef = collection(db, MATCH_REQUESTS_COLLECTION);
-    const requestsQuery = isAdminView
-      ? query(requestsRef, orderBy("updatedAt", "desc"))
-      : query(requestsRef, where("requesterId", "==", currentUser.uid), orderBy("updatedAt", "desc"));
-
-    const unsubscribe = onSnapshot(
-      requestsQuery,
-      (snapshot) => {
-        const nextRequests = snapshot.docs
-          .map((item) => ({
-            id: item.id,
-            ...item.data(),
-          }))
-          .sort(sortMatchRequests);
-
+    return subscribeToMatchRequests({
+      currentUserId: currentUser.uid,
+      isAdminView,
+      onNext: (nextRequests) => {
         startTransition(() => {
           setRequests(nextRequests);
           setActiveRequestId((previous) => {
@@ -89,12 +47,10 @@ export function useResourceMarketplace({ currentUser, userProfile, userRole, isA
           setLoadingRequests(false);
         });
       },
-      () => {
+      onError: () => {
         setLoadingRequests(false);
       },
-    );
-
-    return () => unsubscribe();
+    });
   }, [currentUser?.uid, isAdminView]);
 
   useEffect(() => {
@@ -107,39 +63,30 @@ export function useResourceMarketplace({ currentUser, userProfile, userRole, isA
 
     setLoadingExperts(true);
 
-    const expertsQuery = query(collection(db, EXPERTS_COLLECTION));
-
-    const unsubscribe = onSnapshot(
-      expertsQuery,
-      (snapshot) => {
-        const nextExperts = buildExpertRows(snapshot);
-
+    return subscribeToMarketplaceExperts({
+      onNext: (nextExperts) => {
         startTransition(() => {
           setExperts(nextExperts);
           setExpertsError("");
           setLoadingExperts(false);
         });
       },
-      (error) => {
+      onError: (error) => {
         console.error("ไม่สามารถดึงรายชื่อผู้เชี่ยวชาญจาก Firestore ได้", {
-          รหัสข้อผิดพลาด: error?.code || "ไม่ทราบรหัส",
-          ข้อความระบบ: error?.message || "ไม่มีข้อความจากระบบ",
-          คอลเลกชัน: EXPERTS_COLLECTION,
-          ผู้ใช้งาน: currentUser?.uid || "ไม่พบรหัสผู้ใช้",
+          errorCode: error?.code || "unknown",
+          message: error?.message || "No message from Firestore",
+          userId: currentUser?.uid || "unknown",
         });
-        setExpertsError("ไม่สามารถดึงรายชื่อผู้เชี่ยวชาญได้ กรุณาตรวจสอบสิทธิ์แอดมินและข้อมูลในคอลเลกชันผู้เชี่ยวชาญ");
+        setExpertsError("ไม่สามารถดึงรายชื่อผู้เชี่ยวชาญได้ กรุณาตรวจสอบสิทธิ์แอดมินและข้อมูลในฐานผู้เชี่ยวชาญ");
         setLoadingExperts(false);
       },
-    );
-
-    return () => unsubscribe();
+    });
   }, [currentUser?.uid, isAdminView]);
 
   const refreshExpertsDirectory = async () => {
     if (!isAdminView || !currentUser?.uid) return [];
 
-    const snapshot = await getDocs(query(collection(db, EXPERTS_COLLECTION)));
-    const nextExperts = buildExpertRows(snapshot);
+    const nextExperts = await listMarketplaceExperts();
 
     startTransition(() => {
       setExperts(nextExperts);
@@ -155,44 +102,34 @@ export function useResourceMarketplace({ currentUser, userProfile, userRole, isA
     [activeRequestId, requests],
   );
 
-  const createRequest = async ({ requestTitle, desiredExpertise, preferredFormat, requestDetails }) => {
+  const createMarketplaceRequest = async ({
+    requestTitle,
+    desiredExpertise,
+    preferredFormat,
+    priority,
+    resourceType,
+    requestDetails,
+    needTags,
+  }) => {
     if (!currentUser?.uid) return;
 
     setCreatingRequest(true);
 
     try {
-      const requestRef = doc(collection(db, MATCH_REQUESTS_COLLECTION));
-      const requesterName = resolveDisplayName({
+      const nextRequest = await createMatchRequest({
         currentUser,
         userProfile,
         userRole,
-      });
-
-      await setDoc(requestRef, {
-        requesterId: currentUser.uid,
-        requesterName,
-        requesterRole: "teacher",
-        schoolName: userProfile?.school || "",
-        requestTitle: requestTitle.trim(),
-        desiredExpertise: desiredExpertise.trim(),
+        requestTitle,
+        desiredExpertise,
         preferredFormat,
-        requestDetails: requestDetails.trim(),
-        status: "pending_match",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        matchedExpertId: "",
-        matchedExpertName: "",
-        matchedExpertTitle: "",
-        matchedExpertPrimaryExpertise: "",
-        matchedByAdminId: "",
-        matchedByAdminName: "",
-        matchedAt: null,
-        completedAt: null,
-        adminNote: "",
-        latestUpdateText: "ทีม DU รับคำร้องแล้วและกำลังค้นหาผู้เชี่ยวชาญที่เหมาะสม",
+        priority,
+        resourceType,
+        requestDetails,
+        needTags,
       });
 
-      setActiveRequestId(requestRef.id);
+      setActiveRequestId(nextRequest.id);
     } finally {
       setCreatingRequest(false);
     }
@@ -220,49 +157,29 @@ export function useResourceMarketplace({ currentUser, userProfile, userRole, isA
     setAssigningExpert(true);
 
     try {
-      const adminName = resolveDisplayName({
-        currentUser,
-        userProfile,
-        userRole: "admin",
-      });
-      const trimmedNote = String(adminNote || "").trim();
-
-      await updateDoc(doc(db, MATCH_REQUESTS_COLLECTION, request.id), {
-        status: "matched",
-        updatedAt: serverTimestamp(),
-        matchedExpertId: expert.id,
-        matchedExpertName: expert.displayName || "",
-        matchedExpertTitle: expert.title || "",
-        matchedExpertPrimaryExpertise: expert.primaryExpertise || "",
-        matchedByAdminId: currentUser.uid,
-        matchedByAdminName: adminName,
-        matchedAt: request.matchedAt || serverTimestamp(),
-        completedAt: null,
-        adminNote: trimmedNote,
-        latestUpdateText: `จับคู่กับ ${expert.displayName || "ผู้เชี่ยวชาญ"} แล้ว`,
+      await assignMarketplaceExpert({
+        request,
+        expert,
+        adminUser: currentUser,
+        adminProfile: userProfile,
+        adminRole: userRole,
+        adminNote,
       });
     } finally {
       setAssigningExpert(false);
     }
   };
 
-  const completeRequest = async ({ request, adminNote }) => {
+  const completeRequest = async ({ request, adminNote, closedReason }) => {
     if (!isAdminView || !currentUser?.uid || !request?.id) return;
 
     setCompletingRequest(true);
 
     try {
-      const trimmedNote = String(adminNote || "").trim();
-      const latestUpdateText = request.matchedExpertName
-        ? `ปิดงานหลังประสานกับ ${request.matchedExpertName} เรียบร้อยแล้ว`
-        : "ปิดงานคำร้องนี้เรียบร้อยแล้ว";
-
-      await updateDoc(doc(db, MATCH_REQUESTS_COLLECTION, request.id), {
-        status: "completed",
-        updatedAt: serverTimestamp(),
-        completedAt: request.completedAt || serverTimestamp(),
-        adminNote: trimmedNote,
-        latestUpdateText,
+      await completeMarketplaceRequest({
+        request,
+        adminNote,
+        closedReason,
       });
     } finally {
       setCompletingRequest(false);
@@ -282,7 +199,7 @@ export function useResourceMarketplace({ currentUser, userProfile, userRole, isA
     completingRequest,
     seedingExperts,
     expertsError,
-    createRequest,
+    createRequest: createMarketplaceRequest,
     assignExpertToRequest,
     completeRequest,
     seedExpertsDirectory,

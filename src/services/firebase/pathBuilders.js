@@ -3,6 +3,7 @@ import { db } from "../../lib/firebase";
 import {
   ADMIN_AGGREGATES_COLLECTION,
   ENROLLMENTS_SUBCOLLECTION,
+  EXPERTS_COLLECTION,
   MATCH_REQUESTS_COLLECTION,
   MISSION_RESPONSES_SUBCOLLECTION,
   MODULE_REPORTS_SUBCOLLECTION,
@@ -50,5 +51,8 @@ export const innovationDocRef = (innovationId) => doc(db, INNOVATIONS_COLLECTION
 export const supportTicketDocRef = (ticketId) => doc(db, SOS_TICKETS_COLLECTION, ticketId);
 export const supportTicketMessagesCollectionRef = (ticketId) =>
   collection(db, SOS_TICKETS_COLLECTION, ticketId, SOS_TICKET_MESSAGES_SUBCOLLECTION);
-export const matchRequestDocRef = (requestId) => doc(db, MATCH_REQUESTS_COLLECTION, requestId);
+export const expertsCollectionRef = () => collection(db, EXPERTS_COLLECTION);
+export const matchRequestsCollectionRef = () => collection(db, MATCH_REQUESTS_COLLECTION);
+export const matchRequestDocRef = (requestId) =>
+  requestId ? doc(db, MATCH_REQUESTS_COLLECTION, requestId) : doc(matchRequestsCollectionRef());
 export const adminAggregateDocRef = (docId) => doc(db, ADMIN_AGGREGATES_COLLECTION, docId);
