@@ -1,6 +1,7 @@
 import React, { memo, useMemo, useState } from "react";
 import {
   BriefcaseBusiness,
+  ChevronDown,
   Handshake,
   Loader2,
   SearchCheck,
@@ -49,6 +50,8 @@ const initialAssignForm = {
   adminNote: "",
   closedReason: "resolved",
 };
+
+const getDirectoryGroupKey = (category, specialty) => `${category}::${specialty}`;
 
 const expertSeedSummary = buildExpertSeedSummary();
 const chipBase = "inline-flex rounded-full border px-3 py-1 text-xs font-semibold";
@@ -157,6 +160,13 @@ const RecommendationTile = memo(function RecommendationTile({
   );
 });
 
+const expertNameClampStyle = {
+  display: "-webkit-box",
+  WebkitBoxOrient: "vertical",
+  WebkitLineClamp: 2,
+  overflow: "hidden",
+};
+
 const ExpertRosterRow = memo(function ExpertRosterRow({
   entry,
   isSelected,
@@ -164,21 +174,39 @@ const ExpertRosterRow = memo(function ExpertRosterRow({
   recommendation,
 }) {
   const expert = entry.resolvedExpert;
+  const displayName = expert.displayName || entry.displayName || "ผู้เชี่ยวชาญ";
+  const avatarLabel = displayName.trim().charAt(0) || "ผ";
+  const rosterHint = isSelected ? "กำลังเปิดรายละเอียด" : "กดดูรายละเอียด";
 
   return (
     <button
       type="button"
       onClick={() => onSelect(expert.id)}
-      className={`group flex w-full items-center justify-between gap-3 rounded-[18px] border px-4 py-3 text-left transition ${
+      className={`group flex w-full items-center gap-4 border-l-2 px-5 py-4 text-left transition ${
         isSelected
-          ? "border-primary/30 bg-primary/[0.08] shadow-[0_12px_30px_rgba(13,17,100,0.08)]"
-          : "border-slate-200 bg-white hover:border-secondary/20 hover:bg-secondary/[0.04]"
+          ? "border-l-primary bg-primary/[0.06]"
+          : "border-l-transparent bg-white hover:bg-slate-50"
       }`}
     >
-      <div className="flex w-full items-center justify-between gap-3">
-        <div className="min-w-0">
+      <div className="flex w-full items-center gap-4">
+        <div className="flex min-w-0 flex-1 items-center gap-4">
+          <div
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border text-sm font-semibold ${
+              isSelected
+                ? "border-primary/20 bg-primary/10 text-primary"
+                : "border-slate-200 bg-slate-50 text-slate-600"
+            }`}
+          >
+            {avatarLabel}
+          </div>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-ink md:text-base">{expert.displayName}</p>
+            <p
+              className="text-[15px] font-semibold leading-6 text-ink md:text-base"
+              style={expertNameClampStyle}
+            >
+              {displayName}
+            </p>
+            <p className="hidden mt-1 text-xs font-medium tracking-[0.08em] text-slate-400">{rosterHint}</p>
             <span className="hidden">
               {entry.isSynced ? "เชื่อมฐานข้อมูลแล้ว" : "ใช้จากรายชื่อมาตรฐาน"}
             </span>
@@ -194,14 +222,22 @@ const ExpertRosterRow = memo(function ExpertRosterRow({
           <p>พื้นที่ดูแล: {expert.region || "สนับสนุนได้ทั่วทั้งเครือข่าย"}</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="ml-4 flex shrink-0 items-center gap-3">
           <div className="flex items-center gap-2">
-            <span className={`h-2.5 w-2.5 rounded-full ${isSelected ? "bg-primary" : "bg-slate-300 group-hover:bg-secondary"}`} />
+            <span
+              className={`flex h-9 w-9 items-center justify-center rounded-full border text-sm font-semibold transition ${
+                isSelected
+                  ? "border-primary/15 bg-white text-primary"
+                  : "border-slate-200 bg-white text-slate-400 group-hover:border-secondary/25 group-hover:text-secondary"
+              }`}
+            >
+              {isSelected ? "•" : "→"}
+            </span>
             <span className="hidden inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
               {entry.specialty}
             </span>
             {recommendation ? (
-              <span className="inline-flex rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary">
+              <span className="hidden rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary lg:inline-flex">
                 คะแนนเหมาะสม {recommendation.score}
               </span>
             ) : null}
@@ -357,6 +393,8 @@ export default function ResourceMatchmaker() {
   const [seedError, setSeedError] = useState("");
   const [directoryKeyword, setDirectoryKeyword] = useState("");
   const [directoryCategory, setDirectoryCategory] = useState("all");
+  const [manuallyExpandedDirectoryGroups, setManuallyExpandedDirectoryGroups] = useState([]);
+  const [manuallyCollapsedDirectoryGroups, setManuallyCollapsedDirectoryGroups] = useState([]);
 
   const {
     requests,
@@ -520,6 +558,26 @@ export default function ResourceMatchmaker() {
     [directoryExperts, currentAssignForm.expertId],
   );
 
+  const availableDirectoryGroupKeys = useMemo(
+    () =>
+      filteredExpertDirectorySections.flatMap((section) =>
+        section.groups.map((group) => getDirectoryGroupKey(section.category, group.specialty)),
+      ),
+    [filteredExpertDirectorySections],
+  );
+
+  const defaultExpandedDirectoryGroupKeys = useMemo(
+    () =>
+      filteredExpertDirectorySections.flatMap((section) =>
+        section.groups[0] ? [getDirectoryGroupKey(section.category, section.groups[0].specialty)] : [],
+      ),
+    [filteredExpertDirectorySections],
+  );
+
+  const selectedDirectoryGroupKey = selectedDirectoryEntry
+    ? getDirectoryGroupKey(selectedDirectoryEntry.category, selectedDirectoryEntry.specialty)
+    : "";
+
   const activeRequestRecommendations = useMemo(
     () => (activeRequest ? rankExpertsForRequest(activeRequest, directoryExperts).slice(0, 6) : []),
     [activeRequest, directoryExperts],
@@ -532,6 +590,45 @@ export default function ResourceMatchmaker() {
 
   const selectedRecommendation =
     currentAssignForm.expertId ? recommendationMap.get(currentAssignForm.expertId) || null : null;
+
+  const expandedDirectoryGroups = useMemo(() => {
+    const manuallyExpanded = manuallyExpandedDirectoryGroups.filter((key) =>
+      availableDirectoryGroupKeys.includes(key),
+    );
+    const manuallyCollapsed = new Set(
+      manuallyCollapsedDirectoryGroups.filter((key) => availableDirectoryGroupKeys.includes(key)),
+    );
+
+    return availableDirectoryGroupKeys.filter((key) => {
+      if (key === selectedDirectoryGroupKey) return true;
+      if (manuallyExpanded.includes(key)) return true;
+      if (manuallyCollapsed.has(key)) return false;
+      return defaultExpandedDirectoryGroupKeys.includes(key);
+    });
+  }, [
+    availableDirectoryGroupKeys,
+    defaultExpandedDirectoryGroupKeys,
+    manuallyCollapsedDirectoryGroups,
+    manuallyExpandedDirectoryGroups,
+    selectedDirectoryGroupKey,
+  ]);
+
+  const toggleDirectoryGroup = (groupKey) => {
+    const isExpanded = expandedDirectoryGroups.includes(groupKey);
+
+    if (isExpanded) {
+      setManuallyExpandedDirectoryGroups((previous) => previous.filter((key) => key !== groupKey));
+      setManuallyCollapsedDirectoryGroups((previous) =>
+        previous.includes(groupKey) ? previous : [...previous, groupKey],
+      );
+      return;
+    }
+
+    setManuallyCollapsedDirectoryGroups((previous) => previous.filter((key) => key !== groupKey));
+    setManuallyExpandedDirectoryGroups((previous) =>
+      previous.includes(groupKey) ? previous : [...previous, groupKey],
+    );
+  };
 
   const handleCreateRequest = async (event) => {
     event.preventDefault();
@@ -1279,6 +1376,39 @@ export default function ResourceMatchmaker() {
                     </div>
                   </div>
 
+                  <div className="rounded-[26px] border border-slate-200 bg-white px-5 py-4">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-ink">มุมมองแบบยุบ-ขยาย</p>
+                        <p className="mt-1 text-sm leading-7 text-slate-500">
+                          เปิดเฉพาะกลุ่มที่กำลังสนใจเพื่อลดความยาวของหน้าจอ และให้สายตาโฟกัสกับรายชื่อที่ต้องเลือกจริง
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setManuallyExpandedDirectoryGroups([]);
+                            setManuallyCollapsedDirectoryGroups([]);
+                          }}
+                          className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+                        >
+                          ยุบเหลือกลุ่มหลัก
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setManuallyCollapsedDirectoryGroups([]);
+                            setManuallyExpandedDirectoryGroups(availableDirectoryGroupKeys);
+                          }}
+                          className="rounded-full border border-primary/15 bg-primary/[0.05] px-4 py-2 text-sm font-semibold text-primary transition hover:bg-primary/[0.08]"
+                        >
+                          ขยายทุกกลุ่ม
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
                   {hasDirectoryMatches ? (
                     filteredExpertDirectorySections.map((section) => (
                       <article
@@ -1302,54 +1432,86 @@ export default function ResourceMatchmaker() {
                           </div>
                         </div>
 
-                        <div>
-                          {section.groups.map((group, index) => (
+                        <div className="space-y-3 px-5 py-5">
+                          {section.groups.map((group) => {
+                            const groupKey = getDirectoryGroupKey(section.category, group.specialty);
+                            const isExpanded = expandedDirectoryGroups.includes(groupKey);
+                            const hasSelectedExpertInGroup = group.experts.some(
+                              (entry) => entry.resolvedExpert?.id === currentAssignForm.expertId,
+                            );
+
+                            return (
                             <div
                               key={`${section.category}-${group.specialty}`}
-                              className={`grid gap-5 px-5 py-5 xl:grid-cols-[280px_minmax(0,1fr)] ${
-                                index === 0 ? "" : "border-t border-slate-100"
-                              }`}
+                              className="overflow-hidden rounded-[26px] border border-slate-200 bg-slate-50/55"
                             >
-                              <div className="space-y-3">
-                                <div>
-                                  <p className="text-base font-semibold text-ink">{group.specialty}</p>
-                                  <p className="mt-2 text-sm leading-7 text-slate-600">{group.description}</p>
+                              <button
+                                type="button"
+                                onClick={() => toggleDirectoryGroup(groupKey)}
+                                className={`flex w-full items-start justify-between gap-4 px-5 py-5 text-left transition ${
+                                  isExpanded ? "bg-white" : "bg-transparent hover:bg-white/70"
+                                }`}
+                              >
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="text-base font-semibold text-ink">{group.specialty}</p>
+                                    {hasSelectedExpertInGroup ? (
+                                      <span className="rounded-full border border-primary/15 bg-primary/[0.06] px-3 py-1 text-[11px] font-semibold text-primary">
+                                        กำลังเลือกอยู่
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                  <p className="mt-2 line-clamp-2 text-sm leading-7 text-slate-600">
+                                    {group.description}
+                                  </p>
                                 </div>
-                                <div className="flex flex-wrap gap-2 text-xs text-slate-500">
-                                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                                <div className="flex shrink-0 items-center gap-3 pl-3">
+                                  <div className="hidden flex-wrap justify-end gap-2 md:flex">
+                                  <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-500">
                                     รายชื่อ {group.experts.length} คน
                                   </span>
-                                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-700">
+                                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
                                     พร้อมเลือก {group.availableCount} คน
                                   </span>
                                 </div>
+                                <span
+                                  className={`flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition ${
+                                    isExpanded ? "rotate-180 text-primary" : ""
+                                  }`}
+                                >
+                                  <ChevronDown size={18} />
+                                </span>
                               </div>
+                              </button>
 
-                              {group.experts.length > 0 ? (
-                                <div className="grid gap-2 md:grid-cols-2">
-                                  {group.experts.map((entry) => (
-                                    <ExpertRosterRow
-                                      key={`${group.specialty}-${entry.displayName}`}
-                                      entry={entry}
-                                      recommendation={recommendationMap.get(entry.resolvedExpert?.id)}
-                                      isSelected={currentAssignForm.expertId === entry.resolvedExpert?.id}
-                                      onSelect={(expertId) =>
-                                        setAssignForm((previous) => ({
-                                          ...previous,
-                                          requestId: activeRequest?.id || "",
-                                          expertId,
-                                        }))
-                                      }
-                                    />
-                                  ))}
+                              {isExpanded ? group.experts.length > 0 ? (
+                                <div className="border-t border-slate-100 bg-white">
+                                  <div className="divide-y divide-slate-100">
+                                    {group.experts.map((entry) => (
+                                      <ExpertRosterRow
+                                        key={`${group.specialty}-${entry.displayName}`}
+                                        entry={entry}
+                                        recommendation={recommendationMap.get(entry.resolvedExpert?.id)}
+                                        isSelected={currentAssignForm.expertId === entry.resolvedExpert?.id}
+                                        onSelect={(expertId) =>
+                                          setAssignForm((previous) => ({
+                                            ...previous,
+                                            requestId: activeRequest?.id || "",
+                                            expertId,
+                                          }))
+                                        }
+                                      />
+                                    ))}
+                                  </div>
                                 </div>
                               ) : (
-                                <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-500">
+                                <div className="border-t border-slate-100 bg-white px-5 py-4 text-sm leading-7 text-slate-500">
                                   กลุ่มนี้เตรียมโครงสร้างไว้แล้วและยังรอการเพิ่มรายชื่อผู้เชี่ยวชาญในอนาคต
                                 </div>
-                              )}
+                              ) : null}
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </article>
                     ))
