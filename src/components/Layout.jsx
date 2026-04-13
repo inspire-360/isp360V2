@@ -16,8 +16,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { auth, db } from "../lib/firebase";
-import { doc, onSnapshot } from "firebase/firestore";
+import { auth } from "../lib/firebase";
 import { useAuth } from "../contexts/AuthContext";
 import { useLine } from "../contexts/LineContext";
 import { usePresence } from "../hooks/usePresence";
@@ -25,7 +24,7 @@ import { syncPresenceRecord } from "../utils/presenceSync";
 import { isAdminRole, isTeacherRole } from "../utils/userRoles";
 
 export default function Layout() {
-  const { currentUser, userRole } = useAuth();
+  const { currentUser, userRole, userProfile } = useAuth();
   const { logoutLine } = useLine();
   const navigate = useNavigate();
 
@@ -43,19 +42,14 @@ export default function Layout() {
   useEffect(() => {
     if (!currentUser) return undefined;
 
-    const unsubscribe = onSnapshot(doc(db, "users", currentUser.uid), (userDocument) => {
-      if (!userDocument.exists()) return;
-
-      const data = userDocument.data();
-      setUserData({
-        name: data.name || currentUser.displayName || currentUser.email?.split("@")[0],
-        role: data.role || "Learner",
-        photoURL: data.photoURL || currentUser.photoURL || "",
-      });
+    setUserData({
+      name: userProfile?.name || currentUser.displayName || currentUser.email?.split("@")[0],
+      role: userProfile?.role || "Learner",
+      photoURL: userProfile?.photoURL || currentUser.photoURL || "",
     });
 
-    return unsubscribe;
-  }, [currentUser]);
+    return undefined;
+  }, [currentUser, userProfile]);
 
   useEffect(() => {
     const handleVisibilityChange = () => {

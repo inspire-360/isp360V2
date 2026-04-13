@@ -1,0 +1,13 @@
+export const USERS_COLLECTION = "users";
+export const ENROLLMENTS_SUBCOLLECTION = "enrollments";
+export const MISSION_RESPONSES_SUBCOLLECTION = "mission_responses";
+export const MODULE_REPORTS_SUBCOLLECTION = "module_reports";
+export const PRESENCE_COLLECTION = "presence";
+export const VIDEOS_COLLECTION = "videos";
+export const VIDEO_COMMENTS_SUBCOLLECTION = "video_comments";
+export const INNOVATIONS_COLLECTION = "innovations";
+export const EXPERTS_COLLECTION = "experts";
+export const MATCH_REQUESTS_COLLECTION = "match_requests";
+export const SOS_TICKETS_COLLECTION = "sos_tickets";
+export const SOS_TICKET_MESSAGES_SUBCOLLECTION = "messages";
+export const ADMIN_AGGREGATES_COLLECTION = "admin_aggregates";

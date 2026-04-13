@@ -41,6 +41,7 @@ const displayName = args["display-name"] || args.name || "DU Admin Test";
 const role = args.role || "admin";
 const position = args.position || "DU Admin";
 const school = args.school || "";
+const activePath = args["active-path"] || "/du/admin";
 
 try {
   if (getApps().length === 0) {
@@ -97,16 +98,21 @@ try {
     {
       uid: userRecord.uid,
       email: userRecord.email || args.email || "",
-      role,
+      role: String(role || "admin").trim().toLowerCase() || "admin",
       name: resolvedDisplayName,
       firstName,
       lastName,
       position,
       school,
+      activePath,
       photoURL: userRecord.photoURL || "",
       pdpaAccepted: true,
       updatedAt: FieldValue.serverTimestamp(),
       createdAt: FieldValue.serverTimestamp(),
+      lastLoginAt: FieldValue.serverTimestamp(),
+      memberStatus: "active",
+      sourceProvider: "admin_bootstrap",
+      profileVersion: 2,
       updatedBy: "bootstrap-admin-script",
     },
     { merge: true },

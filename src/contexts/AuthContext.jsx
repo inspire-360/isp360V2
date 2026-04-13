@@ -1,9 +1,11 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, onSnapshot } from "firebase/firestore";
-import { auth, db } from "../lib/firebase";
+import { auth } from "../lib/firebase";
+import {
+  buildUserProfileFallback,
+  subscribeToUserProfile,
+} from "../services/firebase/repositories/userRepository";
 import { normalizeUserRole } from "../utils/userRoles";
-import { สร้างโปรไฟล์สำรองจากบัญชีผู้ใช้ } from "../utils/teacherUserProfile";
 
 const AuthContext = createContext();
 
@@ -31,26 +33,21 @@ export function AuthProvider({ children }) {
       }
 
       setCurrentUser(user);
-      unsubscribeUserDoc = onSnapshot(
-        doc(db, "users", user.uid),
-        (docSnap) => {
-          if (docSnap.exists()) {
-            const profile = { id: docSnap.id, ...docSnap.data() };
-            setUserProfile(profile);
-            setUserRole(normalizeUserRole(profile.role));
-          } else {
-            setUserProfile(สร้างโปรไฟล์สำรองจากบัญชีผู้ใช้(user));
-            setUserRole("teacher");
-          }
+      unsubscribeUserDoc = subscribeToUserProfile(user.uid, {
+        authUser: user,
+        onNext: (profile) => {
+          setUserProfile(profile);
+          setUserRole(normalizeUserRole(profile?.role));
           setLoading(false);
         },
-        (error) => {
+        onError: (error) => {
           console.error("ไม่สามารถอ่านข้อมูลโปรไฟล์ผู้ใช้แบบเรียลไทม์ได้", error);
-          setUserProfile(สร้างโปรไฟล์สำรองจากบัญชีผู้ใช้(user));
-          setUserRole("teacher");
+          const fallbackProfile = buildUserProfileFallback(user);
+          setUserProfile(fallbackProfile);
+          setUserRole(normalizeUserRole(fallbackProfile.role));
           setLoading(false);
         },
-      );
+      });
     });
 
     return () => {

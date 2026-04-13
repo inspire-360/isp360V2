@@ -1,37 +1,37 @@
-import React, { useState } from "react";
-import { auth, db } from "../lib/firebase";
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
-import { useNavigate, Link } from "react-router-dom";
+import React, { useState } from 'react';
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import {
-  UserPlus,
   AlertCircle,
-  CheckCircle2,
-  User,
   Briefcase,
+  CheckCircle2,
   Lock,
   Mail,
   ShieldCheck,
-} from "lucide-react";
-import { สร้างโปรไฟล์ครูเริ่มต้น, สร้างชื่อเต็มผู้ใช้ } from "../utils/teacherUserProfile";
+  User,
+  UserPlus,
+} from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { auth } from '../lib/firebase';
+import { ensureTeacherUserProfile } from '../services/firebase/repositories/userRepository';
+import { buildUserDisplayName } from '../services/firebase/mappers/userMapper';
 
-const ค่าเริ่มต้นแบบฟอร์ม = {
-  prefix: "นาย",
-  otherPrefix: "",
-  firstName: "",
-  lastName: "",
-  position: "ครู",
-  otherPosition: "",
-  school: "",
-  email: "",
-  password: "",
-  confirmPassword: "",
+const INITIAL_FORM = {
+  prefix: 'นาย',
+  otherPrefix: '',
+  firstName: '',
+  lastName: '',
+  position: 'ครู',
+  otherPosition: '',
+  school: '',
+  email: '',
+  password: '',
+  confirmPassword: '',
   pdpaAccepted: false,
 };
 
 export default function Register() {
-  const [formData, setFormData] = useState(ค่าเริ่มต้นแบบฟอร์ม);
-  const [error, setError] = useState("");
+  const [formData, setFormData] = useState(INITIAL_FORM);
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -39,50 +39,54 @@ export default function Register() {
     const { name, value, type, checked } = event.target;
     setFormData((previous) => ({
       ...previous,
-      [name]: type === "checkbox" ? checked : value,
+      [name]: type === 'checkbox' ? checked : value,
     }));
   };
 
   const handleRegister = async (event) => {
     event.preventDefault();
     setLoading(true);
-    setError("");
+    setError('');
 
     if (formData.password !== formData.confirmPassword) {
-      setError("รหัสผ่านและการยืนยันรหัสผ่านไม่ตรงกัน");
+      setError('รหัสผ่านและการยืนยันรหัสผ่านไม่ตรงกัน');
       setLoading(false);
       return;
     }
 
     if (formData.password.length < 6) {
-      setError("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
+      setError('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');
       setLoading(false);
       return;
     }
 
     if (!formData.pdpaAccepted) {
-      setError("กรุณายอมรับนโยบายความเป็นส่วนตัวก่อนลงทะเบียน");
+      setError('กรุณายอมรับนโยบายความเป็นส่วนตัวก่อนลงทะเบียน');
       setLoading(false);
       return;
     }
 
     try {
       const finalPrefix =
-        formData.prefix === "อื่นๆ" ? String(formData.otherPrefix || "").trim() : formData.prefix;
+        formData.prefix === 'อื่นๆ' ? String(formData.otherPrefix || '').trim() : formData.prefix;
       const finalPosition =
-        formData.position === "อื่นๆ"
-          ? String(formData.otherPosition || "").trim()
+        formData.position === 'อื่นๆ'
+          ? String(formData.otherPosition || '').trim()
           : formData.position;
 
       if (!finalPrefix || !formData.firstName.trim() || !formData.lastName.trim()) {
-        throw new Error("กรุณากรอกชื่อ นามสกุล และคำนำหน้าให้ครบถ้วน");
+        throw new Error('กรุณากรอกชื่อ นามสกุล และคำนำหน้าให้ครบถ้วน');
       }
 
-      const fullName = สร้างชื่อเต็มผู้ใช้({
+      const fullName = buildUserDisplayName({
         prefix: finalPrefix,
         firstName: formData.firstName,
         lastName: formData.lastName,
       });
+
+      const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(
+        `${formData.firstName} ${formData.lastName}`,
+      )}&background=random&color=fff`;
 
       const userCredential = await createUserWithEmailAndPassword(
         auth,
@@ -93,33 +97,29 @@ export default function Register() {
 
       await updateProfile(user, {
         displayName: fullName,
-        photoURL: `https://ui-avatars.com/api/?name=${encodeURIComponent(
-          `${formData.firstName} ${formData.lastName}`,
-        )}&background=random&color=fff`,
+        photoURL: avatarUrl,
       });
 
-      await setDoc(
-        doc(db, "users", user.uid),
-        สร้างโปรไฟล์ครูเริ่มต้น({
-          uid: user.uid,
-          prefix: finalPrefix,
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          position: finalPosition,
-          school: formData.school,
-          email: formData.email,
-          photoURL: user.photoURL || "",
-          pdpaAccepted: true,
-        }),
-      );
+      await ensureTeacherUserProfile({
+        user,
+        prefix: finalPrefix,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        position: finalPosition,
+        school: formData.school,
+        email: formData.email.trim(),
+        photoURL: avatarUrl,
+        pdpaAccepted: true,
+        role: 'teacher',
+      });
 
-      navigate("/dashboard");
+      navigate('/dashboard');
     } catch (err) {
-      console.error("เกิดข้อผิดพลาดระหว่างลงทะเบียนสมาชิก", err);
-      if (err.code === "auth/email-already-in-use") {
-        setError("อีเมลนี้ถูกใช้งานแล้วในระบบ");
+      console.error('เกิดข้อผิดพลาดระหว่างลงทะเบียนสมาชิก', err);
+      if (err.code === 'auth/email-already-in-use') {
+        setError('อีเมลนี้ถูกใช้งานแล้วในระบบ');
       } else {
-        setError(err.message || "ไม่สามารถลงทะเบียนสมาชิกได้");
+        setError(err.message || 'ไม่สามารถลงทะเบียนสมาชิกได้');
       }
     } finally {
       setLoading(false);
@@ -127,8 +127,8 @@ export default function Register() {
   };
 
   const inputClass =
-    "w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-700 outline-none transition-all focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/20";
-  const labelClass = "mb-1.5 block text-sm font-bold text-gray-700";
+    'w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-700 outline-none transition-all focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/20';
+  const labelClass = 'mb-1.5 block text-sm font-bold text-gray-700';
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-blue-50 px-4 py-12 font-sans">
@@ -175,7 +175,7 @@ export default function Register() {
                   <option value="ผอ.">ผอ.</option>
                   <option value="อื่นๆ">อื่นๆ</option>
                 </select>
-                {formData.prefix === "อื่นๆ" ? (
+                {formData.prefix === 'อื่นๆ' ? (
                   <input
                     type="text"
                     name="otherPrefix"
@@ -238,7 +238,7 @@ export default function Register() {
                   <option value="ศึกษานิเทศก์">ศึกษานิเทศก์</option>
                   <option value="อื่นๆ">อื่นๆ</option>
                 </select>
-                {formData.position === "อื่นๆ" ? (
+                {formData.position === 'อื่นๆ' ? (
                   <input
                     type="text"
                     name="otherPosition"
