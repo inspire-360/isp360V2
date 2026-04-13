@@ -8,7 +8,8 @@
   "scripts": {
     "bootstrap-admin": "node ./scripts/bootstrap-admin.mjs",
     "backfill-mission-responses": "node ./scripts/backfill-mission-responses.mjs",
-    "verify-mission-response-backfill": "node ./scripts/verify-mission-response-backfill.mjs"
+    "verify-mission-response-backfill": "node ./scripts/verify-mission-response-backfill.mjs",
+    "mission-response-cutover-health": "node ./scripts/mission-response-cutover-health.mjs"
   },
   "dependencies": {
     "firebase-admin": "^13.7.0",

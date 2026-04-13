@@ -152,3 +152,39 @@ export const toStableComparableValue = (value) => {
 
   return value;
 };
+
+export const buildComparableMissionResponse = ({ missionId, courseId, response }) =>
+  toStableComparableValue(
+    normalizeLegacyMissionResponse({
+      missionId,
+      courseId,
+      response,
+    }),
+  );
+
+export const diffMissionResponseKeys = ({ legacyMap, canonicalMap, strictMode = false }) => {
+  const legacyKeys = [...legacyMap.keys()].sort();
+  const canonicalKeys = [...canonicalMap.keys()].sort();
+  const missingInCanonical = legacyKeys.filter((missionId) => !canonicalMap.has(missionId));
+  const extraInCanonical = canonicalKeys.filter((missionId) => !legacyMap.has(missionId));
+  const payloadDiffs = [];
+
+  if (strictMode) {
+    legacyKeys
+      .filter((missionId) => canonicalMap.has(missionId))
+      .forEach((missionId) => {
+        const legacyPayload = JSON.stringify(legacyMap.get(missionId));
+        const canonicalPayload = JSON.stringify(canonicalMap.get(missionId));
+
+        if (legacyPayload !== canonicalPayload) {
+          payloadDiffs.push(missionId);
+        }
+      });
+  }
+
+  return {
+    missingInCanonical,
+    extraInCanonical,
+    payloadDiffs,
+  };
+};
