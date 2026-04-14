@@ -1,17 +1,35 @@
-import React, { useState } from "react";
+import React, { Suspense, lazy, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, Download, Handshake, Lightbulb, Loader2, PlayCircle, RefreshCcw, ShieldCheck, Users } from "lucide-react";
+import {
+  ArrowUpRight,
+  BarChart3,
+  ChevronDown,
+  ChevronUp,
+  DatabaseZap,
+  Download,
+  Handshake,
+  LifeBuoy,
+  Lightbulb,
+  Loader2,
+  PlayCircle,
+  RadioTower,
+  RefreshCcw,
+  ShieldCheck,
+  Users,
+} from "lucide-react";
 import { collection, collectionGroup, getDocs } from "firebase/firestore";
-import LearningProgressDashboard from "../components/LearningProgressDashboard";
-import OnlineUsers from "../components/OnlineUsers";
-import SupportTicketWorkspace from "../components/SupportTicketWorkspace";
 import { useAdminMonitoringSummary } from "../hooks/useAdminMonitoringSummary";
 import { db } from "../lib/firebase";
+import { ADMIN_AGGREGATE_DOC_IDS } from "../services/firebase/mappers/adminAggregateMapper";
 import { getMissionResponseEnrollmentKey } from "../services/firebase/mappers/missionResponseMapper";
 import { listMissionResponseCollectionGroup } from "../services/firebase/repositories/missionResponseRepository";
 import { buildEnrollmentInsight, resolveDisplayName } from "../utils/duMemberInsights";
 import { downloadCsvFile } from "../utils/csvExport";
 import { ซ่อมโปรไฟล์ครูเก่า } from "../utils/repairTeacherProfiles";
+
+const LearningProgressDashboard = lazy(() => import("../components/LearningProgressDashboard"));
+const OnlineUsers = lazy(() => import("../components/OnlineUsers"));
+const SupportTicketWorkspace = lazy(() => import("../components/SupportTicketWorkspace"));
 
 const serializeExportValue = (value) => {
   if (value == null) return "";
@@ -40,6 +58,15 @@ const serializeExportValue = (value) => {
       .join(" | ");
   }
   return String(value);
+};
+
+const getAggregateCount = (aggregateMap, docId, key) =>
+  Number(aggregateMap?.[docId]?.counts?.[key] || 0);
+
+const initialWorkspaceState = {
+  learning: false,
+  presence: true,
+  support: false,
 };
 
 const ADMIN_EXPORT_EXCLUDED_FIELDS = new Set([
@@ -132,10 +159,78 @@ function MonitoringRouteCard({ title, metric, description, path }) {
   );
 }
 
+function WorkspacePanelLoader({ label }) {
+  return (
+    <div className="flex items-center justify-center gap-3 rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-sm text-slate-500">
+      <Loader2 size={18} className="animate-spin text-primary" />
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function AdminWorkspaceSection({
+  title,
+  subtitle,
+  summary,
+  helper,
+  icon,
+  isOpen,
+  onToggle,
+  children,
+}) {
+  const Icon = icon;
+
+  return (
+    <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_20px_45px_rgba(15,23,42,0.04)]">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={isOpen}
+        className="flex w-full flex-col gap-5 px-6 py-5 text-left transition hover:bg-slate-50/80 md:px-7"
+      >
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-primary/10 bg-primary/5 text-primary">
+                <Icon size={18} />
+              </span>
+              <div>
+                <h3 className="font-display text-xl font-bold text-ink">{title}</h3>
+                <p className="mt-1 text-sm leading-7 text-slate-500">{subtitle}</p>
+              </div>
+            </div>
+            <p className="mt-4 text-sm leading-7 text-slate-600">{helper}</p>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-start gap-2 lg:justify-end">
+            {summary.map((item) => (
+              <span
+                key={item.label}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600"
+              >
+                <span className="text-slate-400">{item.label}</span>
+                <span className="text-ink">{item.value}</span>
+              </span>
+            ))}
+            <span className="inline-flex items-center gap-2 rounded-full border border-primary/10 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary">
+              {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              {isOpen ? "ซ่อนรายละเอียด" : "เปิดพื้นที่ทำงาน"}
+            </span>
+          </div>
+        </div>
+      </button>
+
+      {isOpen ? <div className="border-t border-slate-100 px-4 py-4 md:px-5 md:py-5">{children}</div> : null}
+    </section>
+  );
+}
+
 export default function AdminConsole() {
   const [exporting, setExporting] = useState(false);
   const [repairingProfiles, setRepairingProfiles] = useState(false);
+  const [workspaceState, setWorkspaceState] = useState(initialWorkspaceState);
   const {
+    aggregateMap,
     headlineCards,
     systemCards,
     latestSnapshotLabel,
@@ -143,6 +238,128 @@ export default function AdminConsole() {
     loading: loadingAggregates,
     listenerError: aggregateListenerError,
   } = useAdminMonitoringSummary();
+
+  const workspaceSections = useMemo(
+    () => [
+      {
+        id: "learning",
+        title: "ศูนย์ติดตามความคืบหน้าการเรียน",
+        subtitle: "เปิดเมื่ออยากดูรายชื่อผู้เรียน บทเรียนล่าสุด และสถานะแบบเรียลไทม์",
+        helper:
+          "ส่วนนี้ใช้ realtime listeners กับข้อมูลผู้ใช้และ enrollment โดยตรง จึงถูกตั้งค่าให้เปิดเฉพาะตอนที่ต้องการตรวจสอบเชิงลึก",
+        icon: BarChart3,
+        summary: [
+          {
+            label: "กำลังเรียน",
+            value: `${getAggregateCount(
+              aggregateMap,
+              ADMIN_AGGREGATE_DOC_IDS.learning,
+              "activeEnrollmentCount",
+            )} รายการ`,
+          },
+          {
+            label: "เรียนจบ",
+            value: `${getAggregateCount(
+              aggregateMap,
+              ADMIN_AGGREGATE_DOC_IDS.learning,
+              "completedEnrollmentCount",
+            )} รายการ`,
+          },
+          {
+            label: "เฉลี่ย",
+            value: `${getAggregateCount(
+              aggregateMap,
+              ADMIN_AGGREGATE_DOC_IDS.learning,
+              "averageProgressPercent",
+            )}%`,
+          },
+        ],
+        render: () => (
+          <Suspense fallback={<WorkspacePanelLoader label="กำลังเปิด dashboard ความคืบหน้าการเรียน" />}>
+            <LearningProgressDashboard />
+          </Suspense>
+        ),
+      },
+      {
+        id: "presence",
+        title: "สถานะผู้ใช้งานแบบเรียลไทม์",
+        subtitle: "ใช้ดูว่าใครกำลังออนไลน์อยู่ตอนนี้และกำลังทำงานอยู่บนหน้าใด",
+        helper:
+          "ส่วนนี้เบากว่า workspace อื่นเพราะจำกัดไว้เฉพาะ presence ล่าสุด 20 รายการ แต่ยังคงแยกเป็น panel เปิด-ปิดเพื่อคุมภาระหน้าแอดมินได้",
+        icon: RadioTower,
+        summary: [
+          {
+            label: "ออนไลน์ตอนนี้",
+            value: `${getAggregateCount(
+              aggregateMap,
+              ADMIN_AGGREGATE_DOC_IDS.overview,
+              "onlineNowCount",
+            )} คน`,
+          },
+          {
+            label: "สมาชิกทั้งหมด",
+            value: `${getAggregateCount(
+              aggregateMap,
+              ADMIN_AGGREGATE_DOC_IDS.overview,
+              "memberCount",
+            )} คน`,
+          },
+        ],
+        render: () => (
+          <Suspense fallback={<WorkspacePanelLoader label="กำลังเปิดสถานะผู้ใช้งานแบบเรียลไทม์" />}>
+            <OnlineUsers />
+          </Suspense>
+        ),
+      },
+      {
+        id: "support",
+        title: "SOS Workspace",
+        subtitle: "เปิดเมื่ออยากติดตามเคสเร่งด่วน ตอบกลับ และจัดการ ticket แบบเต็มหน้า",
+        helper:
+          "ส่วนนี้มี listener หลายจุดทั้ง ticket และข้อความย่อย จึงถูกย้ายมาอยู่ใน panel ที่ขยายตามต้องการเพื่อให้หน้าแอดมินโหลดเบาและนิ่งขึ้น",
+        icon: LifeBuoy,
+        summary: [
+          {
+            label: "เปิดอยู่",
+            value: `${getAggregateCount(
+              aggregateMap,
+              ADMIN_AGGREGATE_DOC_IDS.support,
+              "openTicketCount",
+            )} เคส`,
+          },
+          {
+            label: "เร่งด่วน",
+            value: `${getAggregateCount(
+              aggregateMap,
+              ADMIN_AGGREGATE_DOC_IDS.support,
+              "urgentOpenTicketCount",
+            )} เคส`,
+          },
+          {
+            label: "กำลังช่วยเหลือ",
+            value: `${getAggregateCount(
+              aggregateMap,
+              ADMIN_AGGREGATE_DOC_IDS.support,
+              "inProgressTicketCount",
+            )} เคส`,
+          },
+        ],
+        render: () => (
+          <Suspense fallback={<WorkspacePanelLoader label="กำลังเปิด SOS workspace" />}>
+            <SupportTicketWorkspace isAdminView />
+          </Suspense>
+        ),
+      },
+    ],
+    [aggregateMap],
+  );
+
+  const expandedWorkspaceCount = Object.values(workspaceState).filter(Boolean).length;
+  const workspaceSectionById = useMemo(
+    () =>
+      Object.fromEntries(workspaceSections.map((section) => [section.id, section])),
+    [workspaceSections],
+  );
 
   const handleExportAnswers = async () => {
     setExporting(true);
@@ -236,6 +453,29 @@ export default function AdminConsole() {
     } finally {
       setRepairingProfiles(false);
     }
+  };
+
+  const toggleWorkspace = (workspaceId) => {
+    setWorkspaceState((previous) => ({
+      ...previous,
+      [workspaceId]: !previous[workspaceId],
+    }));
+  };
+
+  const expandAllWorkspaces = () => {
+    setWorkspaceState({
+      learning: true,
+      presence: true,
+      support: true,
+    });
+  };
+
+  const collapseAllWorkspaces = () => {
+    setWorkspaceState({
+      learning: false,
+      presence: false,
+      support: false,
+    });
   };
 
   return (
@@ -377,10 +617,66 @@ export default function AdminConsole() {
         </div>
       </section>
 
+      <section className="brand-panel p-6 md:p-7">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="brand-chip border-secondary/10 bg-secondary/5 text-secondary">
+              <DatabaseZap size={14} />
+              Progressive Admin Workspace
+            </p>
+            <h2 className="mt-3 font-display text-2xl font-bold text-ink">
+              เปิดเฉพาะพื้นที่ที่ต้องใช้ เพื่อลดภาระ realtime listeners
+            </h2>
+            <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-600">
+              หน้าแอดมินจะเริ่มจาก aggregate summary ก่อน ส่วน realtime workspace จะเริ่มทำงานเมื่อขยาย panel เท่านั้น ทำให้หน้าโหลดนิ่งขึ้นและลด query พร้อมกันใน production
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm font-medium text-slate-600">
+              เปิดอยู่ {expandedWorkspaceCount}/{workspaceSections.length} พื้นที่
+            </span>
+            <button
+              type="button"
+              onClick={expandAllWorkspaces}
+              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-primary/20 hover:text-primary"
+            >
+              เปิดทั้งหมด
+            </button>
+            <button
+              type="button"
+              onClick={collapseAllWorkspaces}
+              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-primary/20 hover:text-primary"
+            >
+              เหลือเฉพาะสรุป
+            </button>
+          </div>
+        </div>
+      </section>
+
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <LearningProgressDashboard />
+        <AdminWorkspaceSection
+          title={workspaceSectionById.learning.title}
+          subtitle={workspaceSectionById.learning.subtitle}
+          summary={workspaceSectionById.learning.summary}
+          helper={workspaceSectionById.learning.helper}
+          icon={workspaceSectionById.learning.icon}
+          isOpen={workspaceState.learning}
+          onToggle={() => toggleWorkspace("learning")}
+        >
+          {workspaceState.learning ? workspaceSectionById.learning.render() : null}
+        </AdminWorkspaceSection>
         <div className="space-y-6">
-          <OnlineUsers />
+          <AdminWorkspaceSection
+            title={workspaceSectionById.presence.title}
+            subtitle={workspaceSectionById.presence.subtitle}
+            summary={workspaceSectionById.presence.summary}
+            helper={workspaceSectionById.presence.helper}
+            icon={workspaceSectionById.presence.icon}
+            isOpen={workspaceState.presence}
+            onToggle={() => toggleWorkspace("presence")}
+          >
+            {workspaceState.presence ? workspaceSectionById.presence.render() : null}
+          </AdminWorkspaceSection>
           <article className="brand-panel p-6">
             <p className="brand-chip border-secondary/10 bg-secondary/5 text-secondary">
               <ShieldCheck size={14} />
@@ -401,7 +697,17 @@ export default function AdminConsole() {
         </div>
       </div>
 
-      <SupportTicketWorkspace isAdminView />
+      <AdminWorkspaceSection
+        title={workspaceSectionById.support.title}
+        subtitle={workspaceSectionById.support.subtitle}
+        summary={workspaceSectionById.support.summary}
+        helper={workspaceSectionById.support.helper}
+        icon={workspaceSectionById.support.icon}
+        isOpen={workspaceState.support}
+        onToggle={() => toggleWorkspace("support")}
+      >
+        {workspaceState.support ? workspaceSectionById.support.render() : null}
+      </AdminWorkspaceSection>
     </div>
   );
 }
