@@ -20,7 +20,7 @@ import { auth } from "../lib/firebase";
 import { useAuth } from "../contexts/AuthContext";
 import { useLine } from "../contexts/LineContext";
 import { usePresence } from "../hooks/usePresence";
-import { syncPresenceRecord } from "../utils/presenceSync";
+import { isIgnorablePresenceSyncError, syncPresenceRecord } from "../utils/presenceSync";
 import { isAdminRole, isTeacherRole } from "../utils/userRoles";
 
 export default function Layout() {
@@ -78,6 +78,12 @@ export default function Layout() {
       await auth.signOut();
       navigate("/", { replace: true });
     } catch (error) {
+      if (isIgnorablePresenceSyncError(error)) {
+        logoutLine();
+        await auth.signOut();
+        navigate("/", { replace: true });
+        return;
+      }
       console.error("Failed to log out", error);
     } finally {
       setLoggingOut(false);

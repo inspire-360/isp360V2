@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import {
   createPresenceSessionId,
+  isIgnorablePresenceSyncError,
   syncPresenceKeepalive,
   syncPresenceRecord,
 } from "../utils/presenceSync";
@@ -36,6 +37,11 @@ export function usePresence() {
 
     let heartbeatTimer = 0;
 
+    const reportPresenceError = (label, error) => {
+      if (isIgnorablePresenceSyncError(error)) return;
+      console.error(label, error);
+    };
+
     const writePresence = (presenceState, keepalive = false) => {
       const payload = {
         user: latestUserRef.current,
@@ -46,12 +52,12 @@ export function usePresence() {
       };
 
       void syncPresenceRecord(payload).catch((error) => {
-        console.error("อัปเดตสถานะออนไลน์ไม่สำเร็จ:", error);
+        reportPresenceError("อัปเดตสถานะออนไลน์ไม่สำเร็จ:", error);
       });
 
       if (keepalive) {
         void syncPresenceKeepalive(payload).catch((error) => {
-          console.error("ส่งสถานะคงค้างก่อนออกจากหน้าไม่สำเร็จ:", error);
+          reportPresenceError("ส่งสถานะคงค้างก่อนออกจากหน้าไม่สำเร็จ:", error);
         });
       }
     };
@@ -124,6 +130,7 @@ export function usePresence() {
       presenceState: "online",
       sessionId: sessionIdRef.current,
     }).catch((error) => {
+      if (isIgnorablePresenceSyncError(error)) return;
       console.error("อัปเดตเส้นทางล่าสุดไม่สำเร็จ:", error);
     });
   }, [currentUser, location.pathname, userRole]);

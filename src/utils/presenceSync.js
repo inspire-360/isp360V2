@@ -75,6 +75,27 @@ const buildFirestoreDocumentBody = (payload) => ({
   ),
 });
 
+const normalizeErrorMessage = (error) =>
+  String(
+    error?.message
+      || error?.code
+      || error
+      || "",
+  ).trim();
+
+export const isIgnorablePresenceSyncError = (error) => {
+  const message = normalizeErrorMessage(error).toLowerCase();
+
+  return (
+    message.includes("failed to fetch")
+    || message.includes("networkerror")
+    || message.includes("the operation was aborted")
+    || message.includes("aborterror")
+    || message.includes("load failed")
+    || message.includes("network request failed")
+  );
+};
+
 const buildPresenceRestUrl = (userId, payload) => {
   const projectId = db.app.options.projectId;
   const url = new URL(

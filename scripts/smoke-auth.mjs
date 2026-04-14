@@ -7,7 +7,7 @@ const baseUrl = process.argv[2] || "http://127.0.0.1:4174";
 const runId = new Date().toISOString().replace(/[:.]/g, "-");
 const outputDir = path.resolve("output", `smoke-auth-${runId}`);
 const email = `codex.smoke.${Date.now()}@example.com`;
-const password = "SmokePass123!";
+const password = `SmokePass!${Date.now()}Aa`;
 const schoolName = `Codex School ${Date.now()}`;
 const followUpNote = `Follow-up ${Date.now()}`;
 const sosSummary = `Smoke SOS ${Date.now()}`;
@@ -19,7 +19,7 @@ const report = {
   baseUrl,
   outputDir,
   email,
-  password,
+  passwordRedacted: true,
   checks: [],
   consoleErrors: [],
   pageErrors: [],
