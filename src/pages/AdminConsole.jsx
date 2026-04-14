@@ -5,6 +5,7 @@ import { collection, collectionGroup, getDocs } from "firebase/firestore";
 import LearningProgressDashboard from "../components/LearningProgressDashboard";
 import OnlineUsers from "../components/OnlineUsers";
 import SupportTicketWorkspace from "../components/SupportTicketWorkspace";
+import { useAdminMonitoringSummary } from "../hooks/useAdminMonitoringSummary";
 import { db } from "../lib/firebase";
 import { getMissionResponseEnrollmentKey } from "../services/firebase/mappers/missionResponseMapper";
 import { listMissionResponseCollectionGroup } from "../services/firebase/repositories/missionResponseRepository";
@@ -92,9 +93,56 @@ const buildMissionResponseRows = ({
       }));
   });
 
+const aggregateLabels = {
+  overview: "สมาชิกและการเข้าใช้งาน",
+  learning: "ความคืบหน้าการเรียน",
+  support: "ศูนย์ SOS",
+  reviews: "วิดีโอการสอน",
+  innovations: "กระดานนวัตกรรม",
+  matching: "การจับคู่ผู้เชี่ยวชาญ",
+};
+
+function AdminSummaryCard({ title, value, helper }) {
+  return (
+    <article className="rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_14px_32px_rgba(15,23,42,0.04)]">
+      <p className="text-sm font-medium text-slate-500">{title}</p>
+      <p className="mt-3 text-3xl font-bold text-ink">{value}</p>
+      <p className="mt-2 text-sm leading-7 text-slate-500">{helper}</p>
+    </article>
+  );
+}
+
+function MonitoringRouteCard({ title, metric, description, path }) {
+  return (
+    <Link
+      to={path}
+      className="group rounded-[26px] border border-slate-200 bg-white p-5 transition hover:border-primary/15 hover:bg-primary/[0.03]"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-base font-semibold text-ink">{title}</p>
+          <p className="mt-3 text-2xl font-bold text-ink">{metric}</p>
+          <p className="mt-2 text-sm leading-7 text-slate-500">{description}</p>
+        </div>
+        <span className="rounded-full border border-slate-200 bg-white p-2 text-slate-400 transition group-hover:border-primary/15 group-hover:text-primary">
+          <ArrowUpRight size={16} />
+        </span>
+      </div>
+    </Link>
+  );
+}
+
 export default function AdminConsole() {
   const [exporting, setExporting] = useState(false);
   const [repairingProfiles, setRepairingProfiles] = useState(false);
+  const {
+    headlineCards,
+    systemCards,
+    latestSnapshotLabel,
+    missingAggregateIds,
+    loading: loadingAggregates,
+    listenerError: aggregateListenerError,
+  } = useAdminMonitoringSummary();
 
   const handleExportAnswers = async () => {
     setExporting(true);
@@ -268,6 +316,64 @@ export default function AdminConsole() {
               <ArrowUpRight size={16} />
             </Link>
           </div>
+        </div>
+      </section>
+
+      <section className="space-y-6">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="brand-chip border-primary/10 bg-primary/5 text-primary">
+              <ShieldCheck size={14} />
+              สรุประดับผู้ดูแล
+            </p>
+            <h2 className="mt-3 font-display text-2xl font-bold text-ink">
+              เห็นภาพรวมของสมาชิก การเรียน SOS วิดีโอ และการจับคู่ในจอเดียว
+            </h2>
+            <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-600">
+              การ์ดชุดนี้อ่านจาก `admin_aggregates` เพื่อให้แอดมินเห็นสัญญาณสำคัญของระบบก่อนกดลงไปดูรายละเอียดรายโมดูล
+            </p>
+          </div>
+          <div className="rounded-[22px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">
+            <p>{loadingAggregates ? "กำลังโหลด aggregate snapshot" : "aggregate snapshot พร้อมใช้งาน"}</p>
+            <p className="mt-1">{latestSnapshotLabel ? `อัปเดตล่าสุด ${latestSnapshotLabel}` : "ยังไม่พบ snapshot ล่าสุด"}</p>
+          </div>
+        </div>
+
+        {aggregateListenerError ? (
+          <div className="rounded-[24px] border border-amber-200 bg-amber-50 px-5 py-4 text-sm leading-7 text-amber-800">
+            {aggregateListenerError} ระบบจะยังคงแสดงเครื่องมือแอดมินชุดเดิมด้านล่างได้ตามปกติ
+          </div>
+        ) : null}
+
+        {missingAggregateIds.length > 0 ? (
+          <div className="rounded-[24px] border border-sky-200 bg-sky-50 px-5 py-4 text-sm leading-7 text-sky-800">
+            ยังไม่พบ aggregate docs บางส่วน:
+            {" "}
+            {missingAggregateIds.map((docId) => aggregateLabels[docId] || docId).join(" / ")}
+          </div>
+        ) : null}
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {headlineCards.map((card) => (
+            <AdminSummaryCard
+              key={card.id}
+              title={card.title}
+              value={card.value}
+              helper={card.helper}
+            />
+          ))}
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-5">
+          {systemCards.map((card) => (
+            <MonitoringRouteCard
+              key={card.id}
+              title={card.title}
+              metric={card.metric}
+              description={card.description}
+              path={card.path}
+            />
+          ))}
         </div>
       </section>
 
