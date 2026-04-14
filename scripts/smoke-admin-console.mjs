@@ -73,6 +73,12 @@ async function clickRouteCard(page, title) {
   await card.click();
 }
 
+async function waitForRouteCard(page, title) {
+  const titlePattern = new RegExp(`^${title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
+  const card = page.getByRole("link", { name: titlePattern }).first();
+  await card.waitFor({ timeout: 20000 });
+}
+
 async function main() {
   const browser = await chromium.launch({
     headless: true,
@@ -116,11 +122,12 @@ async function main() {
     await runCheck("admin console summary loads", async () => {
       await page.goto(`${baseUrl}/du/admin`, { waitUntil: "domcontentloaded" });
       await page.waitForURL(/\/du\/admin$/, { timeout: 20000 });
-      await page.getByText("Learning Progress").waitFor({ timeout: 20000 });
-      await page.getByText("SOS Workspace").waitFor({ timeout: 20000 });
-      await page.getByText("Video Coach").waitFor({ timeout: 20000 });
-      await page.getByText("Innovation Board").waitFor({ timeout: 20000 });
-      await page.getByText("Expert Matching").waitFor({ timeout: 20000 });
+      await waitForRouteCard(page, "Learning Progress");
+      await waitForRouteCard(page, "SOS Workspace");
+      await waitForRouteCard(page, "Video Coach");
+      await waitForRouteCard(page, "Innovation Board");
+      await waitForRouteCard(page, "Expert Matching");
+      await page.getByText("Progressive Admin Workspace").waitFor({ timeout: 20000 });
       await capture(page, "admin-console-summary");
     });
 
