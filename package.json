@@ -8,6 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "test:unit": "node ./scripts/run-unit-tests.mjs",
+    "qa:release": "node ./scripts/release-readiness.mjs",
     "preview": "vite preview",
     "bootstrap-admin": "node ./functions/scripts/bootstrap-admin.mjs",
     "backfill-mission-responses": "node ./functions/scripts/backfill-mission-responses.mjs",
