@@ -12,6 +12,7 @@ import {
   Loader2,
   LogOut,
   Menu,
+  Stethoscope,
   User,
   Users,
   X,
@@ -21,6 +22,10 @@ import { useAuth } from "../contexts/AuthContext";
 import { useLine } from "../contexts/LineContext";
 import { usePresence } from "../hooks/usePresence";
 import { isIgnorablePresenceSyncError, syncPresenceRecord } from "../utils/presenceSync";
+import {
+  isMembersV2EnabledForUser,
+  isMembersV2HealthDashboardEnabledForUser,
+} from "../utils/memberManagementFlags";
 import { isAdminRole, isTeacherRole } from "../utils/userRoles";
 
 export default function Layout() {
@@ -38,6 +43,8 @@ export default function Layout() {
     role: "Learner",
     photoURL: "",
   });
+  const membersV2Enabled = isMembersV2EnabledForUser({ currentUser, userRole });
+  const healthDashboardEnabled = isMembersV2HealthDashboardEnabledForUser({ currentUser, userRole });
 
   useEffect(() => {
     if (!currentUser) return undefined;
@@ -115,9 +122,16 @@ export default function Layout() {
     });
     menuItems.splice(6, 0, {
       icon: <Users size={18} />,
-      label: "Member Control",
+      label: membersV2Enabled ? "Member Management" : "Member Control",
       path: "/du/members",
     });
+    if (healthDashboardEnabled) {
+      menuItems.splice(7, 0, {
+        icon: <Stethoscope size={18} />,
+        label: "Audit & Health",
+        path: "/du/audit-health-v2",
+      });
+    }
   }
 
   return (

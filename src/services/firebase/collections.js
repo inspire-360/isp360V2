@@ -1,4 +1,9 @@
 export const USERS_COLLECTION = "users";
+export const MEMBERS_V2_COLLECTION = "members_v2";
+export const USER_USAGE_COLLECTION = "userUsage";
+export const AUDIT_LOGS_COLLECTION = "auditLogs";
+export const SYSTEM_HEALTH_COLLECTION = "systemHealth";
+export const SYSTEM_HEALTH_RUNS_COLLECTION = "systemHealthRuns";
 export const ENROLLMENTS_SUBCOLLECTION = "enrollments";
 export const MISSION_RESPONSES_SUBCOLLECTION = "mission_responses";
 export const MODULE_REPORTS_SUBCOLLECTION = "module_reports";

@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { CheckCircle2, Loader2, MessageSquareHeart } from "lucide-react";
+import { TextAnswerTextarea } from "../forms/TextAnswerField";
+import { isMissionTextValid } from "../../utils/missionTextValidation";
 
 const buildPayload = (draft) => ({
   type: "platform-survey",
@@ -16,7 +18,7 @@ const buildPayload = (draft) => ({
 const hasContent = (payload) => JSON.stringify(payload).replace(/[\s":,{}[\]]/g, "").length > 0;
 
 const TextArea = ({ value, onChange, placeholder, rows = 5 }) => (
-  <textarea
+  <TextAnswerTextarea
     value={value || ""}
     onChange={onChange}
     rows={rows}
@@ -105,12 +107,14 @@ export default function PlatformSurveyForm({
     return () => window.clearTimeout(timeoutId);
   }, [draft, onDraftSave]);
 
+  const payload = buildPayload(draft);
   const ready =
     draft.overallExperience &&
     draft.platformUsefulness &&
     draft.easeOfUse &&
     draft.aiMentorSupport &&
-    draft.wouldRecommend;
+    draft.wouldRecommend &&
+    isMissionTextValid(payload);
 
   const persist = async () => {
     setSaving(true);

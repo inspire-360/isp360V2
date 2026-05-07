@@ -1,16 +1,24 @@
 import React, { useState } from 'react';
 import { Save, RefreshCw } from 'lucide-react';
+import { TextAnswerTextarea } from '../forms/TextAnswerField';
+import { isTextAnswerValid } from '../../utils/textValidation';
 
 export default function SWOTBoard() {
   const [swotData, setSwotData] = useState({
     s: '', w: '', o: '', t: ''
   });
+  const [saveAttempted, setSaveAttempted] = useState(false);
+
+  const ready = Object.values(swotData).every((value) => isTextAnswerValid(value));
 
   const handleChange = (e) => {
     setSwotData({ ...swotData, [e.target.name]: e.target.value });
   };
 
   const handleSave = () => {
+    setSaveAttempted(true);
+    if (!ready) return;
+
     // ในอนาคตเชื่อมต่อ Firebase เพื่อบันทึกข้อมูล Mission ของ User คนนั้น
     alert("บันทึกข้อมูล SWOT Analysis เรียบร้อยแล้ว! (Demo)");
   };
@@ -29,13 +37,14 @@ export default function SWOTBoard() {
               <span className="w-8 h-8 bg-green-200 rounded-lg flex items-center justify-center text-green-800">S</span>
               Strengths (จุดแข็ง)
             </h3>
-            <textarea 
+            <TextAnswerTextarea
               name="s" 
               value={swotData.s}
               onChange={handleChange}
+              showError={saveAttempted}
               className="w-full h-32 p-3 rounded-xl border border-green-200 focus:ring-2 focus:ring-green-300 focus:border-transparent outline-none resize-none text-sm"
               placeholder="ระบุจุดแข็งของตนเอง หรือโรงเรียน..."
-            ></textarea>
+            />
           </div>
 
           {/* Weaknesses */}
@@ -44,13 +53,14 @@ export default function SWOTBoard() {
               <span className="w-8 h-8 bg-red-200 rounded-lg flex items-center justify-center text-red-800">W</span>
               Weaknesses (จุดอ่อน)
             </h3>
-            <textarea 
+            <TextAnswerTextarea
               name="w" 
               value={swotData.w}
               onChange={handleChange}
+              showError={saveAttempted}
               className="w-full h-32 p-3 rounded-xl border border-red-200 focus:ring-2 focus:ring-red-300 focus:border-transparent outline-none resize-none text-sm"
               placeholder="ระบุสิ่งที่ควรปรับปรุง..."
-            ></textarea>
+            />
           </div>
 
           {/* Opportunities */}
@@ -59,13 +69,14 @@ export default function SWOTBoard() {
               <span className="w-8 h-8 bg-blue-200 rounded-lg flex items-center justify-center text-blue-800">O</span>
               Opportunities (โอกาส)
             </h3>
-            <textarea 
+            <TextAnswerTextarea
               name="o" 
               value={swotData.o}
               onChange={handleChange}
+              showError={saveAttempted}
               className="w-full h-32 p-3 rounded-xl border border-blue-200 focus:ring-2 focus:ring-blue-300 focus:border-transparent outline-none resize-none text-sm"
               placeholder="ปัจจัยภายนอกที่ส่งเสริม..."
-            ></textarea>
+            />
           </div>
 
           {/* Threats */}
@@ -74,13 +85,14 @@ export default function SWOTBoard() {
               <span className="w-8 h-8 bg-yellow-200 rounded-lg flex items-center justify-center text-yellow-800">T</span>
               Threats (อุปสรรค)
             </h3>
-            <textarea 
+            <TextAnswerTextarea
               name="t" 
               value={swotData.t}
               onChange={handleChange}
+              showError={saveAttempted}
               className="w-full h-32 p-3 rounded-xl border border-yellow-200 focus:ring-2 focus:ring-yellow-300 focus:border-transparent outline-none resize-none text-sm"
               placeholder="ข้อจำกัดหรือความเสี่ยง..."
-            ></textarea>
+            />
           </div>
 
         </div>
@@ -89,7 +101,11 @@ export default function SWOTBoard() {
           <button onClick={() => setSwotData({s:'', w:'', o:'', t:''})} className="px-6 py-2.5 rounded-xl font-bold text-gray-500 hover:bg-gray-100 transition flex items-center gap-2">
             <RefreshCw size={18} /> ล้างข้อมูล
           </button>
-          <button onClick={handleSave} className="px-8 py-2.5 bg-primary text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg transition flex items-center gap-2">
+          <button
+            onClick={handleSave}
+            disabled={!ready}
+            className="px-8 py-2.5 bg-primary text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg transition flex items-center gap-2 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+          >
             <Save size={18} /> บันทึกภารกิจ
           </button>
         </div>

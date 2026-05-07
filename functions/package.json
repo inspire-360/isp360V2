@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=18"
+    "node": "20"
   },
   "scripts": {
     "bootstrap-admin": "node ./scripts/bootstrap-admin.mjs",
@@ -20,7 +20,8 @@
     "verify-matchmaking-quality": "node ./scripts/verify-matchmaking-quality.mjs",
     "verify-admin-monitoring-quality": "node ./scripts/verify-admin-monitoring-quality.mjs",
     "verify-mission-response-backfill": "node ./scripts/verify-mission-response-backfill.mjs",
-    "mission-response-cutover-health": "node ./scripts/mission-response-cutover-health.mjs"
+    "mission-response-cutover-health": "node ./scripts/mission-response-cutover-health.mjs",
+    "member-v2:backfill": "node ./scripts/member-v2-safe-backfill.mjs"
   },
   "dependencies": {
     "firebase-admin": "^13.7.0",

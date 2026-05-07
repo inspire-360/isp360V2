@@ -1,5 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Loader2, Sparkles } from "lucide-react";
+import { TextAnswerInput, TextAnswerTextarea } from "../forms/TextAnswerField";
+import { LinkAnswerInput } from "../forms/LinkAnswerField";
+import { isMissionTextValid } from "../../utils/missionTextValidation";
+import { isMissionLinkValid } from "../../utils/missionLinkValidation";
 
 const EMPTY_RESPONSE = Object.freeze({});
 
@@ -71,22 +75,40 @@ const Field = ({ label, helper, children }) => (
 );
 
 const Input = ({ value, onChange, placeholder, type = "text" }) => (
-  <input
-    type={type}
-    value={value || ""}
-    onChange={onChange}
-    placeholder={placeholder}
-    className="mt-3 w-full rounded-[18px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-primary/30 focus:bg-white"
-  />
+  type === "text" ? (
+    <TextAnswerInput
+      value={value || ""}
+      onChange={onChange}
+      placeholder={placeholder}
+      className="mt-3 w-full rounded-[18px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-primary/30 focus:bg-white"
+    />
+  ) : (
+    <input
+      type={type}
+      value={value || ""}
+      onChange={onChange}
+      placeholder={placeholder}
+      className="mt-3 w-full rounded-[18px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-primary/30 focus:bg-white"
+    />
+  )
 );
 
 const TextArea = ({ value, onChange, placeholder, rows = 5 }) => (
-  <textarea
+  <TextAnswerTextarea
     value={value || ""}
     onChange={onChange}
     rows={rows}
     placeholder={placeholder}
     className="mt-3 w-full rounded-[22px] border border-slate-200 bg-slate-50/80 px-4 py-4 text-sm leading-7 text-slate-700 outline-none transition focus:border-primary/30 focus:bg-white"
+  />
+);
+
+const LinkInput = ({ value, onChange, placeholder }) => (
+  <LinkAnswerInput
+    value={value || ""}
+    onChange={onChange}
+    placeholder={placeholder}
+    className="mt-3 w-full rounded-[18px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-primary/30 focus:bg-white"
   />
 );
 
@@ -245,8 +267,7 @@ export default function ModuleThreeMission({
   );
 
   if (lesson.activityType === "module3_idea_billboard") {
-    const ready =
-      [draft.projectName, draft.painPoint, draft.solution, draft.adviceRequest, draft.screenshotEvidence].every(filled);
+    const ready = isMissionTextValid(payload) && isMissionLinkValid(payload);
 
     return (
       <div>
@@ -302,7 +323,7 @@ export default function ModuleThreeMission({
         </div>
         <div className="mt-5 rounded-[28px] border border-slate-100 bg-white p-5">
           <Field label="ลิงก์ภาพแคปหน้าจอการโพสต์">
-            <Input
+            <LinkInput
               value={draft.screenshotEvidence}
               onChange={(event) =>
                 setDraft((previous) => ({ ...previous, screenshotEvidence: event.target.value }))
@@ -317,7 +338,10 @@ export default function ModuleThreeMission({
   }
 
   if (lesson.activityType === "module3_mastermind_comments") {
-    const ready = [draft.commentOneRole, draft.commentOneEvidence, draft.commentTwoRole, draft.commentTwoEvidence].every(filled);
+    const ready =
+      [draft.commentOneRole, draft.commentTwoRole].every(filled) &&
+      isMissionTextValid(payload) &&
+      isMissionLinkValid(payload);
 
     const renderRolePicker = (value, onPick) => (
       <div className="mt-3 grid gap-3 md:grid-cols-3">
@@ -364,7 +388,7 @@ export default function ModuleThreeMission({
                   setDraft((previous) => ({ ...previous, [`${key}Role`]: roleId })),
                 )}
                 <Field label="ลิงก์ภาพแคปหน้าจอคอมเมนต์">
-                  <Input
+                  <LinkInput
                     value={draft[`${key}Evidence`]}
                     onChange={(event) =>
                       setDraft((previous) => ({ ...previous, [`${key}Evidence`]: event.target.value }))
@@ -382,15 +406,7 @@ export default function ModuleThreeMission({
   }
 
   if (lesson.activityType === "module3_spell_pitch") {
-    const ready = [
-      draft.projectName,
-      draft.feedbackApplied,
-      draft.hook,
-      draft.painPoint,
-      draft.solution,
-      draft.impact,
-      draft.pitchLink,
-    ].every(filled);
+    const ready = isMissionTextValid(payload) && isMissionLinkValid(payload);
 
     return (
       <div>
@@ -485,7 +501,7 @@ export default function ModuleThreeMission({
         </div>
         <div className="mt-5 rounded-[26px] border border-slate-100 bg-white p-5">
           <Field label="ลิงก์ไฟล์เสียงหรือวิดีโอ">
-            <Input
+            <LinkInput
               value={draft.pitchLink}
               onChange={(event) => setDraft((previous) => ({ ...previous, pitchLink: event.target.value }))}
               placeholder="แนบลิงก์ Google Drive, YouTube แบบไม่เป็นสาธารณะ หรือแพลตฟอร์มอื่น"
@@ -497,7 +513,7 @@ export default function ModuleThreeMission({
     );
   }
 
-  const ready = filled(draft.reflectionAnswer);
+  const ready = isMissionTextValid(payload);
 
   return (
     <div>

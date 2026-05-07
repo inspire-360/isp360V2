@@ -1,0 +1,20 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "status": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        "connections": {
+          "$connectionId": {
+            ".write": "auth != null && auth.uid === $uid",
+            ".validate": "!newData.exists() || (newData.hasChildren(['schemaVersion', 'uid', 'role', 'activePath', 'state', 'visibilityState', 'connectedAt', 'lastHeartbeatAt', 'deviceId', 'tabId']) && newData.child('schemaVersion').isNumber() && newData.child('uid').val() === $uid && newData.child('email').isString() && newData.child('displayName').isString() && newData.child('role').isString() && newData.child('activePath').isString() && newData.child('state').isString() && newData.child('state').val().matches(/^(online|idle|unknown)$/) && newData.child('visibilityState').isString() && newData.child('visibilityState').val().matches(/^(visible|hidden|unknown)$/) && newData.child('connectedAt').isNumber() && newData.child('lastHeartbeatAt').isNumber() && newData.child('userAgent').isString() && newData.child('deviceId').isString() && newData.child('tabId').isString())",
+            "$other": {
+              ".validate": false
+            }
+          }
+        }
+      }
+    }
+  }
+}

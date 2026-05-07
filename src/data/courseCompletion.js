@@ -1,3 +1,5 @@
+import { resolveTimestampMillis } from "../services/firebase/timestamps.js";
+
 export const FINAL_POSTTEST_PASS_SCORE = 4;
 export const FINAL_POSTTEST_MAX_ATTEMPTS = 3;
 export const FINAL_POSTTEST_COOLDOWN_HOURS = 12;
@@ -74,7 +76,8 @@ export const generateCourseCertificateSerial = (
       .replace(/[^a-z0-9]/gi, "")
       .toUpperCase()
       .slice(-6) || "USER99";
-  const stamp = new Date(generatedAt);
+  const timestampMs = resolveTimestampMillis(generatedAt);
+  const stamp = timestampMs ? new Date(timestampMs) : new Date();
   const dateCode = Number.isNaN(stamp.getTime())
     ? "00000000"
     : [
@@ -86,16 +89,22 @@ export const generateCourseCertificateSerial = (
   return `INSPIRE360-${dateCode}-${safeUid}`;
 };
 
+const resolveCourseCertificateIssuedAt = (value) => {
+  const timestampMs = resolveTimestampMillis(value);
+  return timestampMs ? new Date(timestampMs).toISOString() : new Date().toISOString();
+};
+
 export const buildCourseCertificate = (
   progressData = {},
   user = {},
   options = {},
 ) => {
-  const generatedAt =
+  const generatedAt = resolveCourseCertificateIssuedAt(
     options.generatedAt ||
-    progressData?.missionResponses?.["final-survey"]?.submittedAt ||
-    progressData?.missionResponses?.["final-survey"]?.updatedAt ||
-    new Date().toISOString();
+      progressData?.missionResponses?.["final-survey"]?.submittedAt ||
+      progressData?.missionResponses?.["final-survey"]?.updatedAt ||
+      new Date().toISOString(),
+  );
 
   const reportEntries = Object.values(progressData?.moduleReports || {}).filter(Boolean);
   const earnedBadges = Array.from(

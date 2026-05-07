@@ -8,6 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "test:unit": "node ./scripts/run-unit-tests.mjs",
+    "test:ui-validation": "node ./scripts/run-ui-validation-tests.mjs",
     "qa:release": "node ./scripts/release-readiness.mjs",
     "preview": "vite preview",
     "bootstrap-admin": "node ./functions/scripts/bootstrap-admin.mjs",
@@ -24,7 +25,8 @@
     "verify-matchmaking-quality": "node ./functions/scripts/verify-matchmaking-quality.mjs",
     "verify-admin-monitoring-quality": "node ./functions/scripts/verify-admin-monitoring-quality.mjs",
     "verify-mission-response-backfill": "node ./functions/scripts/verify-mission-response-backfill.mjs",
-    "mission-response-cutover-health": "node ./functions/scripts/mission-response-cutover-health.mjs"
+    "mission-response-cutover-health": "node ./functions/scripts/mission-response-cutover-health.mjs",
+    "member-v2:backfill": "node ./functions/scripts/member-v2-safe-backfill.mjs"
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.28.0",

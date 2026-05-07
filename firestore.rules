@@ -14,19 +14,34 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
+    function adminRoleValues() {
+      return [
+        "admin",
+        "Admin",
+        "du admin",
+        "DU Admin",
+        "du_admin",
+        "DU_ADMIN",
+        "duadmin",
+        "DUADMIN",
+        "super_admin",
+        "SUPER_ADMIN",
+        "super admin",
+        "Super Admin",
+        "superadmin",
+        "SUPERADMIN"
+      ];
+    }
+
     function isAdmin() {
       return signedIn()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && currentUserRecord().data.role in [
-          "admin",
-          "Admin",
-          "du admin",
-          "DU Admin",
-          "du_admin",
-          "DU_ADMIN",
-          "duadmin",
-          "DUADMIN"
-        ];
+        && (
+          request.auth.token.role in adminRoleValues()
+          || (
+            exists(/databases/$(database)/documents/users/$(request.auth.uid))
+            && currentUserRecord().data.role in adminRoleValues()
+          )
+        );
     }
 
     function isTeacher() {
@@ -151,6 +166,29 @@ service cloud.firestore {
         );
     }
 
+    function adminUserSensitiveFields() {
+      return [
+        "role",
+        "rbac",
+        "auth",
+        "status",
+        "memberStatus",
+        "lifecycle",
+        "deletion",
+        "roleUpdatedAt",
+        "roleUpdatedBy",
+        "customClaimsSyncedAt",
+        "updatedBy"
+      ];
+    }
+
+    function validAdminUserUpdate() {
+      return isAdmin()
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.email == resource.data.email
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(adminUserSensitiveFields());
+    }
+
     function validPresenceWrite(userId) {
       return request.resource.data.uid == userId
         && request.resource.data.keys().hasOnly([
@@ -184,6 +222,173 @@ service cloud.firestore {
         && request.resource.data.updatedAt is timestamp
         && request.resource.data.updatedAtMs is int
         && (request.resource.data.sessionId == null || request.resource.data.sessionId is string);
+    }
+
+    function validMinimumTextAnswer(value) {
+      return value is string
+        && value.size() >= 15
+        && value.matches('.*\\S.*');
+    }
+
+    function validRequiredTextAnswer(value) {
+      return value is string
+        && value.matches('.*\\S.*');
+    }
+
+    function validLinkTextAnswer(value) {
+      return validMinimumTextAnswer(value)
+        && value.matches('https?://\\S+')
+        && !value.matches('https?://\\.\\.\\..*');
+    }
+
+    function validSubmittedMissionResponseText() {
+      return request.resource.data.saveState != "submitted"
+        || request.resource.data.type == null
+        || request.resource.data.clearedAt != null
+        || (
+          request.resource.data.type == "reflection"
+          && validMinimumTextAnswer(request.resource.data.summary)
+        )
+        || (
+          request.resource.data.type == "strategies"
+          && validMinimumTextAnswer(request.resource.data.reflection)
+        )
+        || (
+          request.resource.data.type == "needs-detective"
+          && validMinimumTextAnswer(request.resource.data.selectionReason)
+        )
+        || (
+          request.resource.data.type == "pdca"
+          && validMinimumTextAnswer(request.resource.data.strategyTitle)
+          && validMinimumTextAnswer(request.resource.data.supportNeeded)
+          && validMinimumTextAnswer(request.resource.data.plan)
+          && validMinimumTextAnswer(request.resource.data.do)
+          && validMinimumTextAnswer(request.resource.data.check)
+          && validMinimumTextAnswer(request.resource.data.act)
+        )
+        || (
+          request.resource.data.type == "dream-lab"
+          && validMinimumTextAnswer(request.resource.data.sparkNote)
+        )
+        || (
+          request.resource.data.type == "vibe-check"
+          && validMinimumTextAnswer(request.resource.data.moodLine)
+        )
+        || (
+          request.resource.data.type == "roadmap"
+          && validMinimumTextAnswer(request.resource.data.northStar)
+        )
+        || (
+          request.resource.data.type == "pitch"
+          && validMinimumTextAnswer(request.resource.data.projectName)
+          && validMinimumTextAnswer(request.resource.data.teaser)
+        )
+        || (
+          request.resource.data.type == "smart"
+          && validMinimumTextAnswer(request.resource.data.commitment)
+        )
+        || request.resource.data.type == "quality"
+        || (
+          request.resource.data.type == "idea-billboard"
+          && validMinimumTextAnswer(request.resource.data.projectName)
+          && validMinimumTextAnswer(request.resource.data.painPoint)
+          && validMinimumTextAnswer(request.resource.data.solution)
+          && validMinimumTextAnswer(request.resource.data.adviceRequest)
+          && validLinkTextAnswer(request.resource.data.screenshotEvidence)
+        )
+        || (
+          request.resource.data.type == "mastermind-comments"
+          && validLinkTextAnswer(request.resource.data.commentOneEvidence)
+          && validLinkTextAnswer(request.resource.data.commentTwoEvidence)
+        )
+        || (
+          request.resource.data.type == "spell-pitch"
+          && validMinimumTextAnswer(request.resource.data.projectName)
+          && validMinimumTextAnswer(request.resource.data.feedbackApplied)
+          && validMinimumTextAnswer(request.resource.data.hook)
+          && validMinimumTextAnswer(request.resource.data.painPoint)
+          && validMinimumTextAnswer(request.resource.data.solution)
+          && validMinimumTextAnswer(request.resource.data.impact)
+          && validLinkTextAnswer(request.resource.data.pitchLink)
+        )
+        || (
+          request.resource.data.type == "reflection-mirror"
+          && validMinimumTextAnswer(request.resource.data.reflectionAnswer)
+        )
+        || (
+          request.resource.data.type == "innovation-lab"
+          && validMinimumTextAnswer(request.resource.data.innovationName)
+          && validMinimumTextAnswer(request.resource.data.painPoint)
+          && validMinimumTextAnswer(request.resource.data.targetGoal)
+        )
+        || (
+          request.resource.data.type == "master-blueprint"
+          && validMinimumTextAnswer(request.resource.data.innovationName)
+          && validRequiredTextAnswer(request.resource.data.teacherName)
+          && validRequiredTextAnswer(request.resource.data.subjectName)
+          && validRequiredTextAnswer(request.resource.data.gradeLevel)
+          && validRequiredTextAnswer(request.resource.data.durationLabel)
+          && validMinimumTextAnswer(request.resource.data.inspiration)
+          && validMinimumTextAnswer(request.resource.data.objectives)
+          && validMinimumTextAnswer(request.resource.data.innovationFormat)
+          && validMinimumTextAnswer(request.resource.data.innovationMechanism)
+          && validMinimumTextAnswer(request.resource.data.hookPhase)
+          && validMinimumTextAnswer(request.resource.data.actionPhase)
+          && validMinimumTextAnswer(request.resource.data.reflectPhase)
+          && validMinimumTextAnswer(request.resource.data.creativeEvaluation)
+          && validMinimumTextAnswer(request.resource.data.resourcesNeeded)
+          && validLinkTextAnswer(request.resource.data.blueprintLink)
+        )
+        || (
+          request.resource.data.type == "crafting-session"
+          && validMinimumTextAnswer(request.resource.data.innovationName)
+          && validMinimumTextAnswer(request.resource.data.artifactTitle)
+          && validLinkTextAnswer(request.resource.data.assetLink)
+          && validMinimumTextAnswer(request.resource.data.assetDescription)
+          && validMinimumTextAnswer(request.resource.data.classroomUse)
+        )
+        || (
+          request.resource.data.type == "beta-test"
+          && validMinimumTextAnswer(request.resource.data.testWith)
+          && validMinimumTextAnswer(request.resource.data.strengthAnswer)
+          && validMinimumTextAnswer(request.resource.data.upgradeAnswer)
+          && validMinimumTextAnswer(request.resource.data.feedbackNote)
+        )
+        || (
+          request.resource.data.type == "real-classroom"
+          && validMinimumTextAnswer(request.resource.data.lessonPlanTitle)
+          && validMinimumTextAnswer(request.resource.data.classroomContext)
+          && validMinimumTextAnswer(request.resource.data.learningFocus)
+          && validLinkTextAnswer(request.resource.data.clipLink)
+          && validMinimumTextAnswer(request.resource.data.evidenceNote)
+          && validMinimumTextAnswer(request.resource.data.duQuestion)
+        )
+        || (
+          request.resource.data.type == "reflection-log"
+          && validMinimumTextAnswer(request.resource.data.lessonPlanTitle)
+          && validMinimumTextAnswer(request.resource.data.whatHappened)
+          && validMinimumTextAnswer(request.resource.data.proudMoment)
+          && validMinimumTextAnswer(request.resource.data.studentResponse)
+          && validMinimumTextAnswer(request.resource.data.challengePoint)
+          && validMinimumTextAnswer(request.resource.data.evidenceCollected)
+          && validMinimumTextAnswer(request.resource.data.mentorReflection)
+        )
+        || (
+          request.resource.data.type == "growth-path"
+          && validMinimumTextAnswer(request.resource.data.lessonPlanTitle)
+          && validMinimumTextAnswer(request.resource.data.versionNext)
+          && validMinimumTextAnswer(request.resource.data.improvementFocus)
+          && validMinimumTextAnswer(request.resource.data.supportNeeded)
+          && validMinimumTextAnswer(request.resource.data.nextTimeline)
+          && validMinimumTextAnswer(request.resource.data.successIndicator)
+          && validMinimumTextAnswer(request.resource.data.scalePlan)
+        )
+        || (
+          request.resource.data.type == "platform-survey"
+          && validMinimumTextAnswer(request.resource.data.favoritePart)
+          && validMinimumTextAnswer(request.resource.data.improvementIdea)
+          && validMinimumTextAnswer(request.resource.data.finalReflection)
+        );
     }
 
     function validOwnerSosCreate(userId) {
@@ -1210,8 +1415,8 @@ service cloud.firestore {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
       allow create: if isOwner(userId) && validSelfUserCreate(userId);
-      allow update: if isAdmin() || (isOwner(userId) && validSelfUserUpdate(userId));
-      allow delete: if isAdmin();
+      allow update: if validAdminUserUpdate() || (isOwner(userId) && validSelfUserUpdate(userId));
+      allow delete: if false;
 
       match /enrollments/{enrollmentId} {
         allow get, list: if isOwner(userId) || isAdmin();
@@ -1219,7 +1424,9 @@ service cloud.firestore {
 
         match /mission_responses/{missionId} {
           allow get, list: if isOwner(userId) || isAdmin();
-          allow create, update, delete: if isOwner(userId) || isAdmin();
+          allow create, update: if (isOwner(userId) || isAdmin())
+            && validSubmittedMissionResponseText();
+          allow delete: if isOwner(userId) || isAdmin();
         }
       }
 
@@ -1229,6 +1436,31 @@ service cloud.firestore {
         allow update: if isAdmin() || (isOwner(userId) && validOwnerSosUpdate(userId));
         allow delete: if isAdmin();
       }
+    }
+
+    match /members_v2/{userId} {
+      allow get, list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    match /userUsage/{userId} {
+      allow get, list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    match /auditLogs/{logId} {
+      allow get, list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    match /systemHealth/{docId} {
+      allow get, list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    match /systemHealthRuns/{runId} {
+      allow get, list: if isAdmin();
+      allow create, update, delete: if false;
     }
 
     match /{path=**}/enrollments/{enrollmentId} {

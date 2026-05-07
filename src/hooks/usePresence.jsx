@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { startPresenceV2Session } from "../services/firebase/repositories/presenceV2Repository";
+import { isPresenceV2EnabledForUser } from "../utils/presenceV2Flags";
 import {
   createPresenceSessionId,
   isIgnorablePresenceSyncError,
@@ -119,6 +121,21 @@ export function usePresence() {
       window.removeEventListener("beforeunload", handlePageHide);
     };
   }, [currentUser?.uid]);
+
+  useEffect(() => {
+    if (!currentUser?.uid || !isPresenceV2EnabledForUser({ currentUser })) return undefined;
+
+    return startPresenceV2Session({
+      user: currentUser,
+      role: userRole,
+      getActivePath: () => latestPathRef.current,
+      getRole: () => latestRoleRef.current,
+      onError: (error) => {
+        if (isIgnorablePresenceSyncError(error)) return;
+        console.error("Presence V2 sync failed:", error);
+      },
+    });
+  }, [currentUser, currentUser?.uid, userRole]);
 
   useEffect(() => {
     if (!currentUser?.uid || document.visibilityState !== "visible") return;

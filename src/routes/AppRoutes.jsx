@@ -3,10 +3,12 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import CourseGuard from "../components/CourseGuard";
 import { useAuth } from "../contexts/AuthContext";
+import { isMembersV2EnabledForUser } from "../utils/memberManagementFlags";
 import { isAdminRole } from "../utils/userRoles";
 
 const Layout = lazy(() => import("../components/Layout"));
 const AdminConsole = lazy(() => import("../pages/AdminConsole"));
+const AuditSystemHealthV2 = lazy(() => import("../pages/AuditSystemHealthV2"));
 const Construction = lazy(() => import("../pages/Construction"));
 const CourseRoom = lazy(() => import("../pages/CourseRoom"));
 const Dashboard = lazy(() => import("../pages/Dashboard"));
@@ -14,6 +16,7 @@ const InnovationBoard = lazy(() => import("../pages/InnovationBoard"));
 const Landing = lazy(() => import("../pages/Landing"));
 const Login = lazy(() => import("../pages/Login"));
 const MemberControl = lazy(() => import("../pages/MemberControl"));
+const MemberManagementV2 = lazy(() => import("../pages/MemberManagementV2"));
 const MyCourses = lazy(() => import("../pages/MyCourses"));
 const Profile = lazy(() => import("../pages/Profile"));
 const ResourceMatchmaker = lazy(() => import("../pages/ResourceMatchmaker"));
@@ -63,6 +66,26 @@ const AdminRoute = ({ children }) => {
   }
 
   return children;
+};
+
+const MembersV2Route = ({ children }) => {
+  const { currentUser, userRole } = useAuth();
+
+  if (!isMembersV2EnabledForUser({ currentUser, userRole })) {
+    return <Navigate to="/du/members" replace />;
+  }
+
+  return children;
+};
+
+const MemberManagementRoute = () => {
+  const { currentUser, userRole } = useAuth();
+
+  return isMembersV2EnabledForUser({ currentUser, userRole }) ? (
+    <MemberManagementV2 />
+  ) : (
+    <MemberControl />
+  );
 };
 
 export default function AppRoutes() {
@@ -127,7 +150,33 @@ export default function AppRoutes() {
             path="/du/members"
             element={
               <AdminRoute>
-                <MemberControl />
+                <MemberManagementRoute />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/du/members-v2"
+            element={
+              <AdminRoute>
+                <Navigate to="/du/members" replace />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/members-v2"
+            element={
+              <AdminRoute>
+                <Navigate to="/du/members" replace />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/du/audit-health-v2"
+            element={
+              <AdminRoute>
+                <MembersV2Route>
+                  <AuditSystemHealthV2 />
+                </MembersV2Route>
               </AdminRoute>
             }
           />

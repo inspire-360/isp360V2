@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Loader2, Sparkles } from "lucide-react";
+import { TextAnswerInput, TextAnswerTextarea } from "../forms/TextAnswerField";
+import { isMissionTextValid } from "../../utils/missionTextValidation";
 
 const EMPTY_RESPONSE = Object.freeze({});
 
@@ -126,17 +128,26 @@ const Field = ({ label, helper, children }) => (
 );
 
 const Input = ({ value, onChange, placeholder, type = "text" }) => (
-  <input
-    type={type}
-    value={value || ""}
-    onChange={onChange}
-    placeholder={placeholder}
-    className="mt-3 w-full rounded-[18px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-primary/30 focus:bg-white"
-  />
+  type === "text" ? (
+    <TextAnswerInput
+      value={value || ""}
+      onChange={onChange}
+      placeholder={placeholder}
+      className="mt-3 w-full rounded-[18px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-primary/30 focus:bg-white"
+    />
+  ) : (
+    <input
+      type={type}
+      value={value || ""}
+      onChange={onChange}
+      placeholder={placeholder}
+      className="mt-3 w-full rounded-[18px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-primary/30 focus:bg-white"
+    />
+  )
 );
 
 const TextArea = ({ value, onChange, placeholder, rows = 5 }) => (
-  <textarea
+  <TextAnswerTextarea
     value={value || ""}
     onChange={onChange}
     rows={rows}
@@ -426,7 +437,7 @@ export default function ModuleTwoMission({
   if (lesson.activityType === "module2_dream_lab") {
     const cloudMap = { S: strengthCloud, W: weaknessCloud, O: opportunityCloud, T: threatCloud };
     const selectedStrategy = (draft.strategies || []).find((item) => item.id === draft.selectedStrategyId);
-    const ready = Boolean(selectedStrategy && filled(selectedStrategy.answer) && filled(draft.sparkNote));
+    const ready = Boolean(selectedStrategy && isMissionTextValid(payload));
 
     return (
       <div>
@@ -524,7 +535,7 @@ export default function ModuleTwoMission({
   }
 
   if (lesson.activityType === "module2_vibe_check") {
-    const ready = (draft.senses || []).every((item) => filled(item.answer)) && filled(draft.moodLine);
+    const ready = isMissionTextValid(payload);
 
     return (
       <div>
@@ -564,9 +575,7 @@ export default function ModuleTwoMission({
   }
 
   if (lesson.activityType === "module2_roadmap") {
-    const ready =
-      (draft.weeks || []).every((item) => filled(item.quickWin) && filled(item.plan) && filled(item.evidence)) &&
-      filled(draft.northStar);
+    const ready = isMissionTextValid(payload);
 
     return (
       <div>
@@ -634,8 +643,7 @@ export default function ModuleTwoMission({
   }
 
   if (lesson.activityType === "module2_pitch_deck") {
-    const ready =
-      filled(draft.projectName) && filled(draft.teaser) && (draft.cards || []).every((item) => filled(item.answer));
+    const ready = isMissionTextValid(payload);
 
     return (
       <div>
@@ -688,9 +696,13 @@ export default function ModuleTwoMission({
   }
 
   if (lesson.activityType === "module2_smart_objective") {
-    const ready =
-      (filled(draft.commitment) || filled(smartPreview)) &&
-      (draft.criteria || []).every((item) => filled(item.answer));
+    const ready = isMissionTextValid(
+      buildPayload(lesson, {
+        ...draft,
+        commitment: draft.commitment || smartPreview,
+        polishedSummary: draft.polishedSummary || smartPreview,
+      }),
+    );
 
     return (
       <div>

@@ -1,0 +1,498 @@
+# Phase 1: Member Management Additive Data Model
+
+Date: 2026-05-05
+Project: `inspire-app`
+Status: Design approved for next-phase implementation
+Scope: Member Management Console V2 data model only
+
+## Objective
+
+ออกแบบ schema ใหม่สำหรับระบบจัดการสมาชิกแบบ enterprise-safe โดยใช้ additive changes เท่านั้น เพื่อให้ระบบเดิมยังทำงานเหมือนเดิมทุกประการ และให้ Phase ถัดไปสามารถเริ่มจาก dry run, shadow mode, และ limited rollout ได้
+
+Phase 1 นี้เป็น design artifact เท่านั้น:
+
+- ไม่สร้าง collection จริงใน production
+- ไม่แก้ Firestore Security Rules
+- ไม่ deploy
+- ไม่ migrate ข้อมูล
+- ไม่เปลี่ยน behavior ของ frontend เดิม
+- ไม่ลบหรือ rename field เดิม
+
+## Phase 0 Evidence
+
+ผล live read-only audit ล่าสุด:
+
+| Metric | Value |
+| --- | ---: |
+| Firebase Auth users | 83 |
+| Firestore `users/{uid}` profiles | 45 |
+| Auth users without Firestore profile | 38 |
+| Firestore profiles without Auth user | 0 |
+| Firestore profile quality issues | 0 |
+| Enrollment docs | 93 |
+| Users with enrollment docs | 46 |
+| Mission response docs | 457 |
+| Users with mission responses | 25 |
+| Presence docs | 79 |
+| Stale online presence docs | 24 |
+| Presence docs without profile | 34 |
+| `admin_aggregates` expected docs | 6 |
+| `admin_aggregates` actual docs | 0 |
+
+Evidence files:
+
+- `output/phase0-live-audit.json`
+- `output/phase0-user-profile-quality.json`
+- `output/phase0-admin-monitoring-quality.json`
+- `output/phase0-auth-export.json`
+
+Important: `phase0-auth-export.json` contains sensitive Auth export data and must not be committed or shared.
+
+## Current Risk
+
+1. `users/{uid}` is production-critical and is used by authentication context, route guards, profile editing, and admin/member screens.
+2. Existing admin member edits write sensitive fields directly from frontend through Firestore client SDK.
+3. There are 38 Auth users without `users/{uid}` profiles.
+4. Presence is Firestore heartbeat-only and has confirmed stale online rows.
+5. Existing admin aggregate docs are missing, so operational dashboards have limited health summary support.
+
+Because of this, Phase 1 must not extend the current production behavior directly. The safer path is to create a separate additive read model.
+
+## Proposed Solution
+
+Create `members_v2/{uid}` as a new additive read model for Member Management Console V2.
+
+Do not replace `users/{uid}` in Phase 1. Keep `users/{uid}` as the legacy/source profile document used by the current app. `members_v2/{uid}` mirrors Auth, profile, usage, and presence data for admin inspection and future backend-only admin actions.
+
+Recommended collections:
+
+```text
+members_v2/{uid}
+userUsage/{uid}
+auditLogs/{logId}
+systemHealth/memberIntegrity
+```
+
+## New Data Model
+
+### `members_v2/{uid}`
+
+Purpose:
+
+- Additive member read model for Members V2
+- One document per Auth UID
+- Can represent Auth-only users, complete profiles, stale presence, and usage gaps
+- Not consumed by the current production frontend unless a feature flag is enabled
+
+Shape:
+
+```text
+members_v2/{uid}
+  schemaVersion: 1
+  uid: string
+
+  displayName: string
+  email: string
+  phoneNumber: string | null
+  photoURL: string
+
+  role: "admin" | "teacher" | "learner" | "unknown"
+  status: "active" | "suspended" | "soft_deleted" | "incomplete" | "unknown"
+
+  auth:
+    disabled: boolean
+    emailVerified: boolean
+    providerIds: string[]
+    creationTime: Timestamp | string
+    lastSignInTime: Timestamp | string
+
+  legacy:
+    userDocExists: boolean
+    userDocPath: string
+    memberStatus: string
+    status: string
+    activePath: string
+    profileVersion: number | null
+    sourceProvider: string
+
+  profile:
+    prefix: string
+    firstName: string
+    lastName: string
+    school: string
+    position: string
+    pdpaAccepted: boolean | null
+    pdpaAcceptedAt: Timestamp | null
+
+  usageSummary:
+    enrollmentCount: number
+    missionResponseCount: number
+    totalSessions: number
+    totalActions: number
+    lastActiveAt: Timestamp | null
+    lastLoginAt: Timestamp | null
+
+  presence:
+    state: "online" | "away" | "offline" | "unknown"
+    isOnline: boolean
+    isStale: boolean
+    lastSeenAt: Timestamp | null
+    lastActiveAt: Timestamp | null
+    activePath: string
+    sessionId: string | null
+
+  flags:
+    profileMissing: boolean
+    usageMissing: boolean
+    authOnly: boolean
+    orphanProfile: boolean
+    stalePresence: boolean
+    disabledMismatch: boolean
+    roleMismatch: boolean
+    requiresReview: boolean
+
+  createdAt: Timestamp
+  updatedAt: Timestamp
+  createdBy: "system" | string
+  updatedBy: "system" | string
+```
+
+Notes:
+
+- `auth.disabled` is mirror data only. It must never be treated as the write path for disabling users.
+- `status` in `members_v2` is V2 lifecycle status. It must not overwrite legacy `users/{uid}.status`.
+- `legacy.status` preserves the existing `users/{uid}.status` value for compatibility review.
+
+### `userUsage/{uid}`
+
+Purpose:
+
+- Additive usage summary for Members V2
+- Can be backfilled or generated by future backend events
+- Does not replace existing enrollment or mission response data
+
+Shape:
+
+```text
+userUsage/{uid}
+  schemaVersion: 1
+  uid: string
+  loginCount: number
+  totalSessions: number
+  totalActions: number
+  lastActiveAt: Timestamp | null
+  featureUsage: map
+  enrollmentCount: number
+  missionResponseCount: number
+  generatedFrom:
+    enrollments: boolean
+    missionResponses: boolean
+    presence: boolean
+  createdAt: Timestamp
+  updatedAt: Timestamp
+```
+
+### `auditLogs/{logId}`
+
+Purpose:
+
+- Append-only audit trail for every admin/member lifecycle action
+- Required before enabling suspend, restore, soft delete, hard delete, or role changes
+
+Shape:
+
+```text
+auditLogs/{logId}
+  schemaVersion: 1
+  type: string
+  actorUid: string
+  actorRole: string
+  targetUid: string
+  targetCollection: string
+  before: map
+  after: map
+  reason: string
+  requestId: string
+  metadata: map
+  createdAt: Timestamp
+```
+
+Rules:
+
+- Create only through backend/Admin SDK.
+- No client update or delete.
+- Every destructive or sensitive action must include `reason`.
+
+### `systemHealth/memberIntegrity`
+
+Purpose:
+
+- Single document storing the latest integrity check summary
+- Supports read-only dashboard health in Members V2
+- Written by dry-run/integrity job first
+
+Shape:
+
+```text
+systemHealth/memberIntegrity
+  schemaVersion: 1
+  authUsersCount: number
+  firestoreUsersCount: number
+  membersV2Count: number
+  missingProfilesCount: number
+  orphanProfilesCount: number
+  usageMissingCount: number
+  roleMismatchCount: number
+  disabledMismatchCount: number
+  stalePresenceCount: number
+  presenceWithoutProfileCount: number
+  presenceWithoutAuthCount: number
+  lastCheckedAt: Timestamp
+  dryRun: boolean
+  sourceReportPath: string
+```
+
+## Field Mapping
+
+| Source | Target | Notes |
+| --- | --- | --- |
+| Auth `localId` | `members_v2.uid` | Primary ID |
+| Auth `displayName` | `members_v2.displayName` | Fallback to profile name or email |
+| Auth `email` | `members_v2.email` | Auth source of truth |
+| Auth `phoneNumber` | `members_v2.phoneNumber` | Optional |
+| Auth `photoUrl` | `members_v2.photoURL` | Fallback to profile photo |
+| Auth `emailVerified` | `members_v2.auth.emailVerified` | Mirror only |
+| Auth disabled flag | `members_v2.auth.disabled` | Mirror only |
+| Auth provider list | `members_v2.auth.providerIds` | Preserve provider IDs |
+| Auth `createdAt` | `members_v2.auth.creationTime` | Auth export uses string shape |
+| Auth `lastSignedInAt` | `members_v2.auth.lastSignInTime` | Auth export uses string shape |
+| `users/{uid}.role` | `members_v2.role` | Normalize to canonical role |
+| `users/{uid}.memberStatus` | `members_v2.legacy.memberStatus` | Preserve legacy value |
+| `users/{uid}.status` | `members_v2.legacy.status` | Do not reuse as V2 lifecycle source |
+| `users/{uid}.activePath` | `members_v2.legacy.activePath` | Also useful for profile fallback |
+| `users/{uid}.profileVersion` | `members_v2.legacy.profileVersion` | Quality signal |
+| `users/{uid}.sourceProvider` | `members_v2.legacy.sourceProvider` | Provider/profile source signal |
+| `users/{uid}.prefix` | `members_v2.profile.prefix` | Profile mirror |
+| `users/{uid}.firstName` | `members_v2.profile.firstName` | Profile mirror |
+| `users/{uid}.lastName` | `members_v2.profile.lastName` | Profile mirror |
+| `users/{uid}.school` | `members_v2.profile.school` | Profile mirror |
+| `users/{uid}.position` | `members_v2.profile.position` | Profile mirror |
+| `users/{uid}.pdpaAccepted` | `members_v2.profile.pdpaAccepted` | Profile mirror |
+| `users/{uid}.lastLoginAt` | `members_v2.usageSummary.lastLoginAt` | Fallback usage signal |
+| `presence/{uid}` | `members_v2.presence` | Normalize stale/online/away/offline |
+| `collectionGroup("enrollments")` | `usageSummary.enrollmentCount` | Count only in V1 |
+| `collectionGroup("mission_responses")` | `usageSummary.missionResponseCount` | Count only in V1 |
+
+## Compatibility Notes
+
+1. Existing `users/{uid}` remains unchanged and remains the compatibility source for current app flows.
+2. Existing frontend routes must not switch to `members_v2` until the feature flag is enabled.
+3. No existing field names are renamed or removed.
+4. No existing collection is deleted or moved.
+5. `members_v2` can be incomplete during rollout; V2 UI must display integrity flags clearly.
+6. Backfill must support dry run before write.
+7. The initial V2 UI should be read-only and should tolerate missing `members_v2` docs by falling back to the existing read path only inside a V2 repository layer.
+
+## Feature Flag
+
+Recommended flag document:
+
+```text
+featureFlags/memberManagementV2
+  enabled: boolean
+  readOnly: boolean
+  allowedAdminUids: string[]
+  rolloutPercent: number
+  updatedAt: Timestamp
+  updatedBy: string
+```
+
+Initial state:
+
+```text
+enabled: false
+readOnly: true
+allowedAdminUids: []
+rolloutPercent: 0
+```
+
+## Index Requirements
+
+Indexes to add only when the V2 UI starts querying these fields:
+
+```text
+members_v2:
+  status ASC, updatedAt DESC
+  role ASC, updatedAt DESC
+  flags.requiresReview ASC, updatedAt DESC
+  flags.profileMissing ASC, updatedAt DESC
+  flags.usageMissing ASC, updatedAt DESC
+  flags.stalePresence ASC, updatedAt DESC
+  presence.state ASC, presence.lastSeenAt DESC
+
+auditLogs:
+  targetUid ASC, createdAt DESC
+  actorUid ASC, createdAt DESC
+  type ASC, createdAt DESC
+
+userUsage:
+  lastActiveAt DESC
+```
+
+Index deployment order:
+
+1. Add indexes in staging.
+2. Wait until indexes are Ready.
+3. Release read-only V2 query code behind feature flag.
+4. Enable for limited admins.
+
+## Security Considerations
+
+Required rules posture:
+
+- `members_v2`: admin read only, no client writes.
+- `userUsage`: admin read only, no client writes.
+- `auditLogs`: admin read only, backend create only, no update/delete.
+- `systemHealth`: admin read only, backend write only.
+- `featureFlags`: read only for authenticated users if needed by frontend; write only through backend/admin process.
+
+Admin operation policy:
+
+1. Suspend, restore, soft delete, hard delete, and role changes must be callable/backend operations.
+2. Every admin operation must create an `auditLogs` entry.
+3. Hard delete must not be default and requires a separate approval workflow.
+4. Frontend must never expose Admin SDK or service account credentials.
+5. `auth.disabled` in Firestore must be treated as a mirror, not authority.
+
+## Dry Run and Migration Strategy
+
+Phase 1 implementation must start with dry run:
+
+```text
+read Auth export
+read users
+read presence
+read enrollments
+read mission_responses
+compute members_v2 documents in memory
+write local report only
+write no Firestore docs
+```
+
+Only after approval:
+
+```text
+write members_v2/{uid} with merge
+write userUsage/{uid} with merge
+write systemHealth/memberIntegrity
+do not change users/{uid}
+do not change presence/{uid}
+do not change enrollments
+do not change mission_responses
+```
+
+## Data Impact
+
+Phase 1 design has no data impact.
+
+Future Phase 2 additive writes have low data impact if limited to:
+
+- new collections only
+- merge writes only
+- no deletes
+- no legacy field mutation
+- full local dry-run report before write
+
+## User Impact
+
+Phase 1 design has no user impact.
+
+Future rollout rules:
+
+- Default user-facing behavior remains unchanged.
+- Members V2 must be hidden unless feature flag is enabled.
+- V1 member control remains available as fallback.
+
+## Rollback Plan
+
+Because this schema is additive, rollback is operational:
+
+1. Set `featureFlags/memberManagementV2.enabled = false`.
+2. Stop the V2 mirror/backfill job.
+3. Keep `members_v2`, `userUsage`, `auditLogs`, and `systemHealth` for forensic review.
+4. Do not delete additive data during emergency rollback.
+5. V1 continues reading existing `users`, `presence`, `enrollments`, and `mission_responses`.
+
+## Implementation Steps
+
+Recommended next implementation order:
+
+1. Create a dry-run script that computes `members_v2` and `userUsage` locally without writing Firestore.
+2. Add unit tests for mapping and integrity flags.
+3. Add read-only Firestore rules for new collections in staging.
+4. Add indexes in staging.
+5. Write additive mirror job for staging only.
+6. Build Members V2 read-only UI behind feature flag.
+7. Compare counts against Phase 0:
+   - Auth users: 83
+   - Firestore profiles: 45
+   - Auth without profile: 38
+   - Stale online presence: 24
+8. Enable limited admin read-only rollout.
+9. Prepare backend-only admin action functions in a later phase.
+
+## Files to Change in Later Phases
+
+Potential future files:
+
+```text
+docs/phase-2-member-management-dry-run-and-mirror-plan.md
+functions/scripts/dry-run-member-v2.mjs
+functions/scripts/backfill-members-v2.mjs
+src/services/firebase/repositories/memberV2Repository.js
+src/pages/MembersV2.jsx
+src/routes/AppRoutes.jsx
+firestore.rules
+firestore.indexes.json
+```
+
+These are not changed in Phase 1.
+
+## Firebase Resources Affected
+
+Phase 1 design affects no Firebase resources.
+
+Future additive resources:
+
+```text
+members_v2
+userUsage
+auditLogs
+systemHealth/memberIntegrity
+featureFlags/memberManagementV2
+```
+
+## Test Plan
+
+Before any production write:
+
+1. Mapping unit tests for Auth-only, profile-only, complete profile, and stale presence cases.
+2. Dry-run report comparison against Phase 0 counts.
+3. Firestore rules tests proving clients cannot write sensitive V2 collections.
+4. Staging mirror job validation.
+5. Members V2 read-only UI smoke test.
+6. Feature flag off test proving V1 remains unchanged.
+
+## Phase 1 Exit Criteria
+
+Phase 1 is complete when:
+
+1. Additive data model is documented.
+2. Field mapping is documented.
+3. Compatibility constraints are documented.
+4. Index requirements are documented.
+5. Security posture is documented.
+6. Rollback plan is documented.
+7. No production data, rules, or app behavior has been changed.
+
+All Phase 1 exit criteria are satisfied by this document.

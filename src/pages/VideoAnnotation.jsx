@@ -1,10 +1,15 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Clapperboard,
+  ExternalLink,
+  Filter,
+  Link2,
+  ListVideo,
   Loader2,
   MessageSquareText,
   PauseCircle,
   PlayCircle,
+  Search,
   SkipBack,
   SkipForward,
   Sparkles,
@@ -61,6 +66,46 @@ const VideoCommentItem = memo(function VideoCommentItem({
   );
 });
 
+const statusFilterOptions = [
+  { value: "all", label: "All" },
+  ...videoReviewStatusOptions.map((option) => ({
+    value: option.value,
+    label: option.label,
+  })),
+];
+
+const providerLabelByKey = {
+  youtube: "YouTube",
+  google_drive: "Google Drive",
+  html5: "Direct video",
+  unsupported: "External link",
+  empty: "No link",
+};
+
+const getProviderLabel = (source = {}) =>
+  providerLabelByKey[source?.provider] || source?.providerLabel || "Video link";
+
+const getVideoHostLabel = (value = "") => {
+  try {
+    return new URL(value).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+};
+
+const buildVideoSearchText = (video = {}) =>
+  [
+    video.title,
+    video.teacherName,
+    video.subject,
+    video.schoolName,
+    video.videoUrl,
+    video.reviewStatus,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
 export default function VideoAnnotation() {
   const { currentUser, userProfile, userRole } = useAuth();
   const videoRef = useRef(null);
@@ -75,6 +120,8 @@ export default function VideoAnnotation() {
   const [formError, setFormError] = useState("");
   const [manualTimecode, setManualTimecode] = useState("00:00");
   const [playerNotice, setPlayerNotice] = useState("");
+  const [videoSearchTerm, setVideoSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [youtubeApiReady, setYoutubeApiReady] = useState(
     () => typeof window !== "undefined" && Boolean(window.YT?.Player),
   );
@@ -87,6 +134,7 @@ export default function VideoAnnotation() {
     comments,
     loadingVideos,
     loadingComments,
+    videoSourceStats,
     savingComment,
     updatingStatus,
     savingDuration,
@@ -109,6 +157,19 @@ export default function VideoAnnotation() {
   const manualSeconds = useMemo(
     () => parseVideoTimecodeInput(manualTimecode),
     [manualTimecode],
+  );
+  const filteredVideos = useMemo(() => {
+    const normalizedSearch = videoSearchTerm.trim().toLowerCase();
+
+    return videos.filter((video) => {
+      const matchesStatus = statusFilter === "all" || video.reviewStatus === statusFilter;
+      const matchesSearch = !normalizedSearch || buildVideoSearchText(video).includes(normalizedSearch);
+      return matchesStatus && matchesSearch;
+    });
+  }, [statusFilter, videoSearchTerm, videos]);
+  const activeVideoPosition = useMemo(
+    () => videos.findIndex((video) => video.id === activeVideoId) + 1,
+    [activeVideoId, videos],
   );
 
   const clearYoutubeTicker = useCallback(() => {
@@ -467,8 +528,8 @@ export default function VideoAnnotation() {
   };
 
   return (
-    <div className="brand-shell space-y-8">
-      <section className="brand-panel-strong overflow-hidden p-6 md:p-8">
+    <div className="brand-shell space-y-6">
+      <section className="brand-panel-strong overflow-hidden p-5 md:p-6">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl space-y-4">
             <span className="brand-chip border-white/[0.20] bg-white/[0.10] text-white/[0.82]">
@@ -476,10 +537,10 @@ export default function VideoAnnotation() {
               เครื่องมือคอมเมนต์วิดีโอการสอน
             </span>
             <div className="space-y-3">
-              <h1 className="font-display text-3xl font-bold md:text-5xl">
+              <h1 className="font-display text-2xl font-bold md:text-3xl">
                 โค้ชครูจากวิดีโอจริง พร้อมบันทึกข้อเสนอแนะตามนาที
               </h1>
-              <p className="max-w-2xl text-sm leading-7 text-white/[0.74] md:text-base">
+              <p className="max-w-2xl text-sm leading-6 text-white/[0.74]">
                 เลือกวิดีโอที่ต้องการรีวิว หยุดภาพตรงช่วงสำคัญ แล้วบันทึกคอมเมนต์แบบระบุเวลา
                 เพื่อให้ครูย้อนกลับมาดูจุดเด่นและข้อเสนอแนะได้ตรงบริบทของห้องเรียนจริง
               </p>
@@ -507,7 +568,7 @@ export default function VideoAnnotation() {
         </div>
       </section>
 
-      <section className="brand-panel p-6 md:p-8" aria-labelledby="video-selector-heading">
+      <section className="brand-panel p-5 md:p-6" aria-labelledby="video-selector-heading">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-2">
             <p className="brand-chip border-primary/10 bg-primary/5 text-primary">
@@ -522,13 +583,64 @@ export default function VideoAnnotation() {
               และใช้ชื่อนวัตกรรมจากโมดูล 4 ภารกิจ 1 เป็นชื่อรายการสำหรับการโค้ชแบบเรียลไทม์
             </p>
           </div>
-          <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600">
+          <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600">
+            <ListVideo size={15} className="text-primary" />
             {loadingVideos ? "กำลังซิงก์รายการวิดีโอ" : `มีวิดีโอพร้อมรีวิว ${summary.total} รายการ`}
           </div>
         </div>
 
-        <div className="mt-6 overflow-x-auto">
-          <div className="flex min-w-max gap-3 pb-1">
+        {!loadingVideos ? (
+          <div className="mt-4 grid gap-2 text-xs text-slate-500 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <span className="block font-semibold text-slate-700">แหล่ง enrollment</span>
+              <span>{videoSourceStats.enrollments} รายการจากคอร์สครู</span>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <span className="block font-semibold text-slate-700">คำตอบ mission</span>
+              <span>{videoSourceStats.missionResponseEnrollments} ชุดคำตอบที่จับคู่ได้</span>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <span className="block font-semibold text-slate-700">เล่นในหน้าได้</span>
+              <span>{videoSourceStats.playableVideos} วิดีโอ</span>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <span className="block font-semibold text-slate-700">เปิดภายนอก</span>
+              <span>{videoSourceStats.externalOnlyVideos} ลิงก์</span>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+          <label className="relative block">
+            <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              value={videoSearchTerm}
+              onChange={(event) => setVideoSearchTerm(event.target.value)}
+              placeholder="Search teacher, title, school, subject, or submitted link"
+              className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
+            />
+          </label>
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+            <Filter size={15} className="text-slate-400" />
+            {statusFilterOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setStatusFilter(option.value)}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                  statusFilter === option.value
+                    ? "bg-primary text-white shadow-[0_10px_24px_rgba(13,17,100,0.18)]"
+                    : "bg-white text-slate-600 hover:bg-secondary/10 hover:text-secondary"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-5 rounded-[28px] border border-slate-200 bg-slate-50/80 p-3">
+          <div className="max-h-[min(58vh,640px)] space-y-3 overflow-y-auto pr-1">
             {loadingVideos ? (
               <div className="flex items-center gap-3 rounded-[24px] border border-slate-200 bg-white px-5 py-4 text-slate-500">
                 <Loader2 size={18} className="animate-spin text-primary" />
@@ -538,15 +650,19 @@ export default function VideoAnnotation() {
               <div className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50 px-5 py-5 text-sm leading-7 text-slate-500">
                 ยังไม่พบคำตอบที่มีลิงก์คลิปการสอนจริงจากโมดูล 5 ภารกิจ 1 สำหรับการโค้ชรอบนี้
               </div>
+            ) : filteredVideos.length === 0 ? (
+              <div className="rounded-[24px] border border-dashed border-slate-300 bg-white px-5 py-5 text-sm leading-7 text-slate-500">
+                No submitted videos match this search or status filter.
+              </div>
             ) : (
-              videos.map((video) => {
+              filteredVideos.map((video) => {
                 const statusMeta = getVideoReviewStatusMeta(video.reviewStatus);
                 return (
                   <button
                     key={video.id}
                     type="button"
                     onClick={() => setActiveVideoId(video.id)}
-                    className={`min-w-[280px] rounded-[28px] border px-5 py-4 text-left transition ${
+                    className={`w-full rounded-[24px] border px-5 py-4 text-left transition ${
                       activeVideoId === video.id
                         ? "border-primary/30 bg-primary/5 shadow-[0_20px_50px_rgba(13,17,100,0.12)]"
                         : "border-slate-200 bg-white hover:border-secondary/25 hover:bg-secondary/5"
@@ -567,6 +683,13 @@ export default function VideoAnnotation() {
                         " • " +
                         (video.schoolName || "ยังไม่ได้ระบุโรงเรียน")}
                     </p>
+                    <p className="mt-3 flex min-w-0 items-center gap-2 text-xs text-slate-500">
+                      <Link2 size={13} className="shrink-0 text-primary" />
+                      <span className="truncate">
+                        {getProviderLabel(video.playerSource)}
+                        {getVideoHostLabel(video.videoUrl) ? ` / ${getVideoHostLabel(video.videoUrl)}` : ""}
+                      </span>
+                    </p>
                   </button>
                 );
               })
@@ -576,7 +699,7 @@ export default function VideoAnnotation() {
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_380px]">
-        <section className="brand-panel p-6 md:p-8" aria-labelledby="video-review-heading">
+        <section className="brand-panel min-w-0 overflow-hidden p-5 md:p-6" aria-labelledby="video-review-heading">
           <div className="flex flex-col gap-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="space-y-3">
@@ -615,16 +738,19 @@ export default function VideoAnnotation() {
 
             {activeVideo?.id ? (
               <>
-                <div className="overflow-hidden rounded-[32px] border border-slate-100 bg-slate-950 shadow-[0_28px_80px_rgba(15,23,42,0.25)]">
+                <div className="overflow-hidden rounded-[28px] border border-slate-100 bg-slate-950 shadow-[0_24px_70px_rgba(15,23,42,0.22)]">
                   {playerSource?.provider === "youtube" ? (
-                    <div ref={youtubeContainerRef} className="aspect-video w-full bg-black" />
+                    <div
+                      ref={youtubeContainerRef}
+                      className="aspect-video max-h-[calc(100vh-260px)] min-h-[220px] w-full bg-black [&>iframe]:h-full [&>iframe]:w-full"
+                    />
                   ) : playerSource?.provider === "google_drive" ? (
                     <iframe
                       src={playerSource.embedUrl}
                       title={activeVideo.title || "วิดีโอการสอนจริง"}
                       allow="autoplay; fullscreen"
                       allowFullScreen
-                      className="aspect-video w-full border-0 bg-black"
+                      className="aspect-video max-h-[calc(100vh-260px)] min-h-[220px] w-full border-0 bg-black"
                     />
                   ) : canPlayVideo ? (
                     <video
@@ -634,24 +760,47 @@ export default function VideoAnnotation() {
                       preload="metadata"
                       onTimeUpdate={handleTimeUpdate}
                       onLoadedMetadata={handleLoadedMetadata}
-                      className="aspect-video w-full bg-black"
+                      className="aspect-video max-h-[calc(100vh-260px)] min-h-[220px] w-full bg-black object-contain"
                     >
                       เบราว์เซอร์นี้ยังไม่รองรับการเล่นวิดีโอ
                     </video>
                   ) : (
-                    <div className="flex aspect-video flex-col items-center justify-center gap-4 bg-slate-950 px-6 text-center text-white">
+                    <div className="flex aspect-video max-h-[calc(100vh-260px)] min-h-[220px] flex-col items-center justify-center gap-4 bg-slate-950 px-6 text-center text-white">
                       <Clapperboard size={30} className="text-white/60" />
                       <div>
                         <p className="text-lg font-semibold">ยังไม่สามารถเล่นลิงก์นี้ในหน้าโค้ชได้</p>
                         <p className="mt-2 text-sm leading-7 text-white/70">
                           กรุณาเปิดจากลิงก์ต้นฉบับ หรือเปลี่ยนลิงก์ให้เป็นยูทูบ กูเกิลไดรฟ์ หรือไฟล์วิดีโอโดยตรง
                         </p>
+                        {playerSource?.originalUrl ? (
+                          <a
+                            href={playerSource.originalUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-white/90"
+                          >
+                            เปิดลิงก์ในแท็บใหม่
+                            <ExternalLink size={15} />
+                          </a>
+                        ) : null}
                       </div>
                     </div>
                   )}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
+                  <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-primary/10 bg-primary/5 px-4 py-2 text-sm font-semibold text-primary">
+                    <Link2 size={15} className="shrink-0" />
+                    <span className="truncate">
+                      {getProviderLabel(playerSource)}
+                      {getVideoHostLabel(playerSource?.originalUrl || activeVideo.videoUrl)
+                        ? ` / ${getVideoHostLabel(playerSource?.originalUrl || activeVideo.videoUrl)}`
+                        : ""}
+                    </span>
+                  </span>
+                  <span className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-500">
+                    Video {activeVideoPosition || "-"} of {summary.total}
+                  </span>
                   <span className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600">
                     แหล่งวิดีโอ: {playerSource?.providerLabel || "ยังไม่ได้ระบุ"}
                   </span>
@@ -660,9 +809,10 @@ export default function VideoAnnotation() {
                       href={playerSource.originalUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-primary transition hover:border-primary/25 hover:bg-primary/5"
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-primary transition hover:border-primary/25 hover:bg-primary/5"
                     >
                       เปิดลิงก์ต้นฉบับ
+                      <ExternalLink size={15} />
                     </a>
                   ) : null}
                 </div>

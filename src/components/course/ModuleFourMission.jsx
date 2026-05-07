@@ -1,11 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Loader2, Sparkles } from "lucide-react";
+import { TextAnswerInput, TextAnswerTextarea } from "../forms/TextAnswerField";
+import { LinkAnswerInput } from "../forms/LinkAnswerField";
+import { isMissionTextValid } from "../../utils/missionTextValidation";
+import { isMissionLinkValid } from "../../utils/missionLinkValidation";
 
 const EMPTY_RESPONSE = Object.freeze({});
 
 const filled = (value) => Boolean(String(value || "").trim());
+const MASTER_BLUEPRINT_META_FIELDS = ["teacherName", "subjectName", "gradeLevel", "durationLabel"];
 
-const choiceValue = (selected, custom) => selected || custom || "";
+const areMasterBlueprintMetaFieldsFilled = (payload = {}) =>
+  MASTER_BLUEPRINT_META_FIELDS.every((field) => filled(payload[field]));
 
 const buildPayload = (lesson, draft) => {
   if (lesson.activityType === "module4_innovation_lab") {
@@ -92,23 +98,41 @@ const Field = ({ label, helper, children }) => (
   </div>
 );
 
-const Input = ({ value, onChange, placeholder, type = "text" }) => (
-  <input
-    type={type}
-    value={value || ""}
-    onChange={onChange}
-    placeholder={placeholder}
-    className="mt-3 w-full rounded-[18px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-primary/30 focus:bg-white"
-  />
+const Input = ({ value, onChange, placeholder, type = "text", validateText = true }) => (
+  type === "text" && validateText ? (
+    <TextAnswerInput
+      value={value || ""}
+      onChange={onChange}
+      placeholder={placeholder}
+      className="mt-3 w-full rounded-[18px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-primary/30 focus:bg-white"
+    />
+  ) : (
+    <input
+      type={type}
+      value={value || ""}
+      onChange={onChange}
+      placeholder={placeholder}
+      className="mt-3 w-full rounded-[18px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-primary/30 focus:bg-white"
+    />
+  )
 );
 
 const TextArea = ({ value, onChange, placeholder, rows = 5 }) => (
-  <textarea
+  <TextAnswerTextarea
     value={value || ""}
     onChange={onChange}
     rows={rows}
     placeholder={placeholder}
     className="mt-3 w-full rounded-[22px] border border-slate-200 bg-slate-50/80 px-4 py-4 text-sm leading-7 text-slate-700 outline-none transition focus:border-primary/30 focus:bg-white"
+  />
+);
+
+const LinkInput = ({ value, onChange, placeholder }) => (
+  <LinkAnswerInput
+    value={value || ""}
+    onChange={onChange}
+    placeholder={placeholder}
+    className="mt-3 w-full rounded-[18px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-primary/30 focus:bg-white"
   />
 );
 
@@ -315,13 +339,7 @@ export default function ModuleFourMission({
   }, [draft.innovationTool, draft.innovationToolCustom, draft.pedagogyMode, draft.pedagogyCustom, lesson.content]);
 
   if (lesson.activityType === "module4_innovation_lab") {
-    const ready = [
-      draft.innovationName,
-      choiceValue(draft.innovationTool, draft.innovationToolCustom),
-      choiceValue(draft.pedagogyMode, draft.pedagogyCustom),
-      draft.painPoint,
-      draft.targetGoal,
-    ].every(filled);
+    const ready = isMissionTextValid(buildPayload(lesson, draft));
 
     return (
       <div>
@@ -428,23 +446,11 @@ export default function ModuleFourMission({
   }
 
   if (lesson.activityType === "module4_master_blueprint") {
-    const ready = [
-      draft.innovationName,
-      draft.teacherName,
-      draft.subjectName,
-      draft.gradeLevel,
-      draft.durationLabel,
-      draft.inspiration,
-      draft.objectives,
-      draft.innovationFormat,
-      draft.innovationMechanism,
-      draft.hookPhase,
-      draft.actionPhase,
-      draft.reflectPhase,
-      draft.creativeEvaluation,
-      draft.resourcesNeeded,
-      draft.blueprintLink,
-    ].every(filled);
+    const payload = buildPayload(lesson, draft);
+    const ready =
+      areMasterBlueprintMetaFieldsFilled(payload) &&
+      isMissionTextValid(payload) &&
+      isMissionLinkValid(payload);
 
     return (
       <div>
@@ -471,6 +477,7 @@ export default function ModuleFourMission({
                 value={draft.teacherName}
                 onChange={(event) => setDraft((previous) => ({ ...previous, teacherName: event.target.value }))}
                 placeholder="ชื่อผู้สอน"
+                validateText={false}
               />
             </Field>
             <Field label="รายวิชา">
@@ -478,6 +485,7 @@ export default function ModuleFourMission({
                 value={draft.subjectName}
                 onChange={(event) => setDraft((previous) => ({ ...previous, subjectName: event.target.value }))}
                 placeholder="ชื่อวิชา"
+                validateText={false}
               />
             </Field>
             <Field label="ระดับชั้น">
@@ -485,6 +493,7 @@ export default function ModuleFourMission({
                 value={draft.gradeLevel}
                 onChange={(event) => setDraft((previous) => ({ ...previous, gradeLevel: event.target.value }))}
                 placeholder="เช่น ม.2 หรือ ป.5"
+                validateText={false}
               />
             </Field>
             <Field label="เวลาที่ใช้">
@@ -492,6 +501,7 @@ export default function ModuleFourMission({
                 value={draft.durationLabel}
                 onChange={(event) => setDraft((previous) => ({ ...previous, durationLabel: event.target.value }))}
                 placeholder="เช่น 1 คาบ / 50 นาที"
+                validateText={false}
               />
             </Field>
           </div>
@@ -600,7 +610,7 @@ export default function ModuleFourMission({
             </Field>
           </div>
           <Field label="ลิงก์ไฟล์แผนการสอน / One-Page Blueprint">
-            <Input
+            <LinkInput
               value={draft.blueprintLink}
               onChange={(event) =>
                 setDraft((previous) => ({ ...previous, blueprintLink: event.target.value }))
@@ -615,13 +625,8 @@ export default function ModuleFourMission({
   }
 
   if (lesson.activityType === "module4_crafting_session") {
-    const ready = [
-      draft.innovationName,
-      draft.artifactType,
-      draft.artifactTitle,
-      draft.assetLink,
-      draft.classroomUse,
-    ].every(filled);
+    const payload = buildPayload(lesson, draft);
+    const ready = filled(draft.artifactType) && isMissionTextValid(payload) && isMissionLinkValid(payload);
 
     return (
       <div>
@@ -673,7 +678,7 @@ export default function ModuleFourMission({
             />
           </Field>
           <Field label="ลิงก์ไฟล์หรือภาพชิ้นงาน">
-            <Input
+            <LinkInput
               value={draft.assetLink}
               onChange={(event) => setDraft((previous) => ({ ...previous, assetLink: event.target.value }))}
               placeholder="แนบลิงก์ Canva, Google Drive, YouTube หรือภาพถ่ายชิ้นงาน"
@@ -705,7 +710,7 @@ export default function ModuleFourMission({
     );
   }
 
-  const ready = [draft.strengthAnswer, draft.upgradeAnswer].every(filled);
+  const ready = isMissionTextValid(buildPayload(lesson, draft));
 
   return (
     <div>

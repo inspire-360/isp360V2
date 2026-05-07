@@ -18,6 +18,8 @@ import {
 import { MISSION_RESPONSES_SUBCOLLECTION } from "../collections";
 import { missionResponseDocRef, missionResponsesCollectionRef } from "../pathBuilders";
 import { timestampNow } from "../timestamps";
+import { assertMissionTextValid } from "../../../utils/missionTextValidation";
+import { assertMissionLinksValid } from "../../../utils/missionLinkValidation";
 
 export const getMissionResponse = async (uid, courseId, missionId) => {
   if (!uid || !courseId || !missionId) return null;
@@ -114,6 +116,11 @@ export const upsertMissionResponse = async (
     updatedAt: timestampNow(),
     ...(submitted ? { submittedAt: timestampNow() } : {}),
   };
+
+  if (submitted) {
+    assertMissionTextValid(responsePayload);
+    assertMissionLinksValid(responsePayload);
+  }
 
   await setDoc(missionResponseDocRef(uid, courseId, missionId), responsePayload, { merge: true });
 };

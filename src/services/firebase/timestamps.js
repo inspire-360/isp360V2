@@ -5,8 +5,12 @@ export const timestampNow = () => serverTimestamp();
 export const resolveTimestampMillis = (value) => {
   if (!value) return 0;
   if (typeof value.toMillis === "function") return value.toMillis();
-  if (typeof value.seconds === "number") return value.seconds * 1000;
+  if (typeof value.toDate === "function") return value.toDate().getTime();
+  if (typeof value.seconds === "number") {
+    return value.seconds * 1000 + Math.floor((value.nanoseconds || 0) / 1000000);
+  }
   if (value instanceof Date) return value.getTime();
+  if (typeof value === "number" && Number.isFinite(value)) return value;
 
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? 0 : parsed;

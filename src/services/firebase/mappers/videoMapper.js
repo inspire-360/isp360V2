@@ -69,10 +69,24 @@ export const buildTeacherDisplayName = ({
 } = {}) =>
   pickFirstString(
     teacherProfile?.name,
+    teacherProfile?.teacherName,
+    teacherProfile?.fullName,
+    teacherProfile?.full_name,
+    teacherProfile?.fullNameTh,
+    teacherProfile?.thaiName,
     [teacherProfile?.prefix, teacherProfile?.firstName, teacherProfile?.lastName]
       .filter(Boolean)
       .join(" "),
+    [teacherProfile?.title, teacherProfile?.firstname, teacherProfile?.lastname]
+      .filter(Boolean)
+      .join(" "),
     teacherProfile?.displayName,
+    teacherProfile?.display_name,
+    teacherProfile?.username,
+    teacherProfile?.profile?.name,
+    teacherProfile?.profile?.fullName,
+    teacherProfile?.profile?.displayName,
+    teacherProfile?.email,
     fallbackName,
     teacherId,
   );

@@ -1,23 +1,36 @@
 import { collection, doc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import {
+  AUDIT_LOGS_COLLECTION,
   ADMIN_AGGREGATES_COLLECTION,
   ENROLLMENTS_SUBCOLLECTION,
   EXPERTS_COLLECTION,
   MATCH_REQUESTS_COLLECTION,
+  MEMBERS_V2_COLLECTION,
   MISSION_RESPONSES_SUBCOLLECTION,
   MODULE_REPORTS_SUBCOLLECTION,
   PRESENCE_COLLECTION,
   SOS_TICKET_MESSAGES_SUBCOLLECTION,
   SOS_TICKETS_COLLECTION,
+  SYSTEM_HEALTH_COLLECTION,
+  SYSTEM_HEALTH_RUNS_COLLECTION,
   INNOVATIONS_COLLECTION,
   USERS_COLLECTION,
+  USER_USAGE_COLLECTION,
   VIDEO_COMMENTS_SUBCOLLECTION,
   VIDEOS_COLLECTION,
 } from "./collections";
 
 export const userDocRef = (uid) => doc(db, USERS_COLLECTION, uid);
 export const usersCollectionRef = () => collection(db, USERS_COLLECTION);
+export const memberV2DocRef = (uid) => doc(db, MEMBERS_V2_COLLECTION, uid);
+export const membersV2CollectionRef = () => collection(db, MEMBERS_V2_COLLECTION);
+export const userUsageDocRef = (uid) => doc(db, USER_USAGE_COLLECTION, uid);
+export const userUsageCollectionRef = () => collection(db, USER_USAGE_COLLECTION);
+export const auditLogsCollectionRef = () => collection(db, AUDIT_LOGS_COLLECTION);
+export const systemHealthCollectionRef = () => collection(db, SYSTEM_HEALTH_COLLECTION);
+export const systemHealthDocRef = (docId) => doc(db, SYSTEM_HEALTH_COLLECTION, docId);
+export const systemHealthRunsCollectionRef = () => collection(db, SYSTEM_HEALTH_RUNS_COLLECTION);
 export const userEnrollmentsCollectionRef = (uid) =>
   collection(db, USERS_COLLECTION, uid, ENROLLMENTS_SUBCOLLECTION);
 export const enrollmentDocRef = (uid, courseId) =>

@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Loader2, Sparkles } from "lucide-react";
+import { TextAnswerInput, TextAnswerTextarea } from "../forms/TextAnswerField";
+import { isMissionTextValid } from "../../utils/missionTextValidation";
 
 const filled = (value) => Boolean(String(value || "").trim());
 
@@ -493,9 +495,9 @@ export default function ModuleOneMission({
     const parts = lesson.content.parts;
     const partIndex = draft.activePartIndex || 0;
     const currentPart = parts[partIndex];
-    const ready =
-      parts.every((part) => part.questions.every((question) => filled(draft.answers?.[question.id]))) &&
-      filled(draft.summary);
+    const ready = isMissionTextValid(
+      buildDraftPayload({ lesson, draft, strategySource, selectedStrategy }),
+    );
 
     return (
       <div>
@@ -567,7 +569,7 @@ export default function ModuleOneMission({
                 </span>
               </div>
               <p className="mt-4 text-sm leading-7 text-slate-600">{question.prompt}</p>
-              <textarea
+              <TextAnswerTextarea
                 rows={5}
                 value={draft.answers?.[question.id] || ""}
                 onChange={(event) =>
@@ -585,7 +587,7 @@ export default function ModuleOneMission({
         <label className="mt-5 block rounded-[26px] border border-slate-100 bg-white p-5">
           <p className="text-sm font-semibold text-ink">สรุปสิ่งที่เห็นชัดขึ้นจาก Part นี้</p>
           <p className="mt-2 text-sm leading-7 text-slate-600">{lesson.content.aiMentor.probe}</p>
-          <textarea
+          <TextAnswerTextarea
             rows={4}
             value={draft.summary || ""}
             onChange={(event) => setDraft((previous) => ({ ...previous, summary: event.target.value }))}
@@ -606,12 +608,7 @@ export default function ModuleOneMission({
     const strategies = draft.strategies || [];
     const ready =
       strategies.length >= 3 &&
-      strategies.every((strategy) =>
-        [strategy.title, strategy.internalSignal, strategy.externalSignal, strategy.strategyText, strategy.successSignal].every(
-          filled,
-        ),
-      ) &&
-      filled(draft.reflection);
+      isMissionTextValid(buildDraftPayload({ lesson, draft, strategySource, selectedStrategy }));
 
     if (externalInsights.length === 0) {
       return (
@@ -754,7 +751,7 @@ export default function ModuleOneMission({
               <div className="mt-5 grid gap-4 lg:grid-cols-2">
                 <label className="rounded-[22px] border border-slate-100 bg-slate-50/80 p-4">
                   <p className="text-xs uppercase tracking-[0.18em] text-slate-400">ชื่อกลยุทธ์</p>
-                  <input
+                  <TextAnswerInput
                     value={strategy.title || ""}
                     onChange={(event) =>
                       setDraft((previous) => ({
@@ -770,7 +767,7 @@ export default function ModuleOneMission({
                 </label>
                 <label className="rounded-[22px] border border-slate-100 bg-slate-50/80 p-4">
                   <p className="text-xs uppercase tracking-[0.18em] text-slate-400">สัญญาณความสำเร็จ</p>
-                  <input
+                  <TextAnswerInput
                     value={strategy.successSignal || ""}
                     onChange={(event) =>
                       setDraft((previous) => ({
@@ -801,7 +798,7 @@ export default function ModuleOneMission({
                   <p className="mt-2 text-sm leading-7 text-slate-500">
                     คลิก cloud คำตอบจาก Mission 1 หรือพิมพ์เพิ่มเองเพื่อระบุจุดแข็ง/จุดอ่อนที่ใช้ใน TOW matrix
                   </p>
-                  <textarea
+                  <TextAnswerTextarea
                     rows={4}
                     value={strategy.internalSignal || ""}
                     onFocus={() => setFocusedField({ strategyId: strategy.id, field: "internalSignal" })}
@@ -832,7 +829,7 @@ export default function ModuleOneMission({
                   <p className="mt-2 text-sm leading-7 text-slate-500">
                     ระบบดึง word cloud จาก Mission 2 มาให้แล้ว คลิกเพื่อเติมโอกาสหรืออุปสรรคลงช่องนี้ได้ทันที
                   </p>
-                  <textarea
+                  <TextAnswerTextarea
                     rows={4}
                     value={strategy.externalSignal || ""}
                     onFocus={() => setFocusedField({ strategyId: strategy.id, field: "externalSignal" })}
@@ -855,7 +852,7 @@ export default function ModuleOneMission({
                 <p className="mt-2 text-sm leading-7 text-slate-500">
                   เขียนกลยุทธ์ที่เกิดจากการจับคู่ internal + external signal ให้ชัดว่าใครทำอะไร เปลี่ยนอะไร และเพราะอะไร
                 </p>
-                <textarea
+                <TextAnswerTextarea
                   rows={5}
                   value={strategy.strategyText || ""}
                   onChange={(event) =>
@@ -877,7 +874,7 @@ export default function ModuleOneMission({
         <label className="mt-5 block rounded-[26px] border border-slate-100 bg-white p-5">
           <p className="text-sm font-semibold text-ink">สรุปภาพรวมของ 3 กลยุทธ์</p>
           <p className="mt-2 text-sm leading-7 text-slate-600">{lesson.content.aiMentor.probe}</p>
-          <textarea
+          <TextAnswerTextarea
             rows={4}
             value={draft.reflection || ""}
             onChange={(event) => setDraft((previous) => ({ ...previous, reflection: event.target.value }))}
@@ -911,7 +908,7 @@ export default function ModuleOneMission({
         ),
       ) &&
       filled(draft.selectedStrategyId) &&
-      filled(draft.selectionReason);
+      isMissionTextValid(buildDraftPayload({ lesson, draft, strategySource, selectedStrategy }));
 
     return (
       <div>
@@ -985,7 +982,7 @@ export default function ModuleOneMission({
         </div>
         <label className="mt-5 block rounded-[26px] border border-slate-100 bg-white p-5">
           <p className="text-sm font-semibold text-ink">เหตุผลที่เลือกกลยุทธ์นี้เป็นลำดับแรก</p>
-          <textarea
+          <TextAnswerTextarea
             rows={4}
             value={draft.selectionReason || ""}
             onChange={(event) =>
@@ -1005,13 +1002,9 @@ export default function ModuleOneMission({
   }
 
   const ready =
-    filled(draft.strategyTitle) &&
     filled(draft.startDate) &&
     filled(draft.reviewDate) &&
-    filled(draft.plan) &&
-    filled(draft.do) &&
-    filled(draft.check) &&
-    filled(draft.act);
+    isMissionTextValid(buildDraftPayload({ lesson, draft, strategySource, selectedStrategy }));
 
   return (
     <div>
@@ -1028,7 +1021,7 @@ export default function ModuleOneMission({
       </div>
 
       <div className="mt-5 grid gap-4 md:grid-cols-2">
-        <input
+        <TextAnswerInput
           value={draft.strategyTitle || ""}
           onChange={(event) => setDraft((previous) => ({ ...previous, strategyTitle: event.target.value }))}
           className="rounded-[24px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-ink outline-none transition focus:border-accent/30 focus:ring-4 focus:ring-accent/10"
@@ -1056,7 +1049,7 @@ export default function ModuleOneMission({
             <p className="text-xs uppercase tracking-[0.18em] text-slate-400">{prompt.title}</p>
             <p className="mt-2 text-lg font-semibold text-ink">{prompt.title}</p>
             <p className="mt-2 text-sm leading-7 text-slate-600">{prompt.helper}</p>
-            <textarea
+            <TextAnswerTextarea
               rows={5}
               value={draft[prompt.id] || ""}
               onChange={(event) =>
@@ -1071,7 +1064,7 @@ export default function ModuleOneMission({
 
       <label className="mt-5 block rounded-[26px] border border-slate-100 bg-white p-5">
         <p className="text-sm font-semibold text-ink">แรงหนุนที่อยากได้จาก DU / เครือข่าย</p>
-        <textarea
+        <TextAnswerTextarea
           rows={4}
           value={draft.supportNeeded || ""}
           onChange={(event) =>

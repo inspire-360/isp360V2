@@ -1,5 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { CheckCircle2, Loader2, Sparkles } from "lucide-react";
+import { resolvePlayableVideoSource } from "../../data/videoAnnotations";
+import { TextAnswerInput, TextAnswerTextarea } from "../forms/TextAnswerField";
+import { isMissionTextValid } from "../../utils/missionTextValidation";
 
 const EMPTY_RESPONSE = Object.freeze({});
 
@@ -45,6 +48,57 @@ const buildPayload = (lesson, draft) => {
 
 const hasContent = (payload) => JSON.stringify(payload).replace(/[\s":,{}[\]]/g, "").length > 0;
 
+const validateTeachingClipLink = (value = "") => {
+  const normalized = String(value || "").trim();
+  if (!normalized) {
+    return {
+      isValid: false,
+      message: "กรุณาใส่ลิงก์คลิปการสอนจริงก่อนบันทึกภารกิจ",
+    };
+  }
+
+  let parsedUrl = null;
+  try {
+    parsedUrl = new URL(normalized);
+  } catch {
+    return {
+      isValid: false,
+      message: "ลิงก์นี้ยังไม่ถูกต้อง กรุณาใส่ URL เต็ม เช่น https://youtube.com/... หรือ https://drive.google.com/...",
+    };
+  }
+
+  if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+    return {
+      isValid: false,
+      message: "ลิงก์คลิปต้องขึ้นต้นด้วย http:// หรือ https:// เท่านั้น",
+    };
+  }
+
+  const hostname = parsedUrl.hostname.toLowerCase();
+  if (!hostname || hostname === "..." || normalized.includes("https://...")) {
+    return {
+      isValid: false,
+      message: "กรุณาแทนที่ตัวอย่าง https://... ด้วยลิงก์คลิปจริง",
+    };
+  }
+
+  const playableSource = resolvePlayableVideoSource(normalized);
+  if (!playableSource?.canPlay) {
+    return {
+      isValid: true,
+      opensExternally: true,
+      message: "ลิงก์นี้เป็น URL จริงแล้ว แต่ระบบอาจเล่นในหน้า video coach ไม่ได้ และจะเปิดในแท็บใหม่ตามลิงก์ต้นฉบับ",
+      source: playableSource,
+    };
+  }
+
+  return {
+    isValid: true,
+    message: `ลิงก์พร้อมใช้งาน (${playableSource.providerLabel || "วิดีโอ"})`,
+    source: playableSource,
+  };
+};
+
 const Field = ({ label, helper, children }) => (
   <div>
     <p className="text-sm font-semibold text-ink">{label}</p>
@@ -53,18 +107,43 @@ const Field = ({ label, helper, children }) => (
   </div>
 );
 
-const Input = ({ value, onChange, placeholder, type = "text" }) => (
-  <input
-    type={type}
-    value={value || ""}
-    onChange={onChange}
-    placeholder={placeholder}
-    className="mt-3 w-full rounded-[18px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-primary/30 focus:bg-white"
-  />
+const TEXT_ANSWER_INPUT_TYPES = new Set(["text", "url", "email", "search", "tel"]);
+
+const Input = ({ value, onChange, placeholder, type = "text", invalid = false, ...inputProps }) => (
+  TEXT_ANSWER_INPUT_TYPES.has(type) ? (
+    <TextAnswerInput
+      type={type}
+      value={value || ""}
+      onChange={onChange}
+      placeholder={placeholder}
+      showError={invalid}
+      forceInvalid={invalid}
+      className={`mt-3 w-full rounded-[18px] border px-4 py-3 text-sm text-slate-700 outline-none transition ${
+        invalid
+          ? "border-rose-300 bg-rose-50/70 focus:border-rose-400 focus:bg-white focus:ring-4 focus:ring-rose-100"
+          : "border-slate-200 bg-slate-50/80 focus:border-primary/30 focus:bg-white"
+      }`}
+      {...inputProps}
+    />
+  ) : (
+    <input
+      type={type}
+      value={value || ""}
+      onChange={onChange}
+      placeholder={placeholder}
+      aria-invalid={invalid || undefined}
+      className={`mt-3 w-full rounded-[18px] border px-4 py-3 text-sm text-slate-700 outline-none transition ${
+      invalid
+        ? "border-rose-300 bg-rose-50/70 focus:border-rose-400 focus:bg-white focus:ring-4 focus:ring-rose-100"
+        : "border-slate-200 bg-slate-50/80 focus:border-primary/30 focus:bg-white"
+      }`}
+      {...inputProps}
+    />
+  )
 );
 
 const TextArea = ({ value, onChange, placeholder, rows = 5 }) => (
-  <textarea
+  <TextAnswerTextarea
     value={value || ""}
     onChange={onChange}
     rows={rows}
@@ -93,6 +172,7 @@ export default function ModuleFiveMission({
   const [draft, setDraft] = useState({});
   const [saving, setSaving] = useState(false);
   const [reward, setReward] = useState("");
+  const [formError, setFormError] = useState("");
   const [autosaveState, setAutosaveState] = useState("");
   const hydratedLessonRef = useRef("");
   const lastPayloadRef = useRef("");
@@ -108,6 +188,7 @@ export default function ModuleFiveMission({
 
     hydratedLessonRef.current = hydrationKey;
     setReward("");
+    setFormError("");
     setAutosaveState("");
 
     const fallbackTitle =
@@ -185,6 +266,16 @@ export default function ModuleFiveMission({
   }, [draft, lesson, onDraftSave]);
 
   const persist = async () => {
+    if (lesson.activityType === "module5_real_classroom") {
+      const clipLinkValidation = validateTeachingClipLink(draft.clipLink);
+      if (!clipLinkValidation.isValid) {
+        setReward("");
+        setFormError(clipLinkValidation.message);
+        return;
+      }
+    }
+
+    setFormError("");
     setSaving(true);
     try {
       const payload = buildPayload(lesson, draft);
@@ -221,8 +312,14 @@ export default function ModuleFiveMission({
 
   const renderSubmit = (ready) => (
     <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
-      <div className="rounded-[22px] border border-primary/10 bg-primary/5 px-4 py-3 text-sm text-primary">
-        {isCompleted
+      <div
+        className={`rounded-[22px] border px-4 py-3 text-sm ${
+          formError
+            ? "border-rose-200 bg-rose-50 text-rose-700"
+            : "border-primary/10 bg-primary/5 text-primary"
+        }`}
+      >
+        {formError ? formError : isCompleted
           ? "ภารกิจนี้ผ่านแล้ว อัปเดตคำตอบหรือเริ่มกรอกใหม่ได้"
           : "บันทึกเมื่อพร้อมเพื่อปลดล็อกภารกิจถัดไป"}
       </div>
@@ -245,7 +342,15 @@ export default function ModuleFiveMission({
   );
 
   if (lesson.activityType === "module5_real_classroom") {
-    const ready = Boolean(draft.lessonPlanTitle && draft.clipLink && draft.classroomContext);
+    const clipLinkValidation = validateTeachingClipLink(draft.clipLink);
+    const hasClipLink = Boolean(String(draft.clipLink || "").trim());
+    const showClipLinkValidation = hasClipLink || Boolean(formError);
+    const clipLinkValidationTone = !clipLinkValidation.isValid
+      ? "border-rose-200 bg-rose-50 text-rose-700"
+      : clipLinkValidation.opensExternally
+        ? "border-amber-200 bg-amber-50 text-amber-800"
+        : "border-emerald-200 bg-emerald-50 text-emerald-700";
+    const ready = clipLinkValidation.isValid && isMissionTextValid(buildPayload(lesson, draft));
 
     return (
       <div className="space-y-6">
@@ -324,11 +429,27 @@ export default function ModuleFiveMission({
         >
           <Input
             value={draft.clipLink}
-            onChange={(event) =>
-              setDraft((previous) => ({ ...previous, clipLink: event.target.value }))
-            }
+            onChange={(event) => {
+              setFormError("");
+              setDraft((previous) => ({ ...previous, clipLink: event.target.value }));
+            }}
             placeholder="https://..."
+            type="url"
+            inputMode="url"
+            autoComplete="url"
+            invalid={showClipLinkValidation && !clipLinkValidation.isValid}
           />
+          {showClipLinkValidation ? (
+            <p
+              className={`mt-3 rounded-[18px] border px-4 py-3 text-sm leading-6 ${clipLinkValidationTone}`}
+            >
+              {clipLinkValidation.message}
+            </p>
+          ) : (
+            <p className="mt-3 rounded-[18px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-500">
+              ต้องเป็น URL จริงที่เปิดดูได้ เช่น YouTube, Google Drive หรือไฟล์วิดีโอโดยตรง
+            </p>
+          )}
         </Field>
 
         <div className="grid gap-5 xl:grid-cols-2">
@@ -364,7 +485,7 @@ export default function ModuleFiveMission({
   }
 
   if (lesson.activityType === "module5_reflection_log") {
-    const ready = Boolean(draft.whatHappened && draft.proudMoment && draft.challengePoint);
+    const ready = isMissionTextValid(buildPayload(lesson, draft));
 
     return (
       <div className="space-y-6">
@@ -470,7 +591,7 @@ export default function ModuleFiveMission({
     );
   }
 
-  const ready = Boolean(draft.versionNext && draft.improvementFocus && draft.nextTimeline);
+  const ready = isMissionTextValid(buildPayload(lesson, draft));
 
   return (
     <div className="space-y-6">
